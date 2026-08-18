@@ -5,6 +5,7 @@ import {
 	updatePackage,
 	addRoom,
 	removeRoom,
+	updateRoom,
 	setInventoryCell,
 	getInventoryCell,
 	setAllowNone,
@@ -53,6 +54,30 @@ describe( 'accommodationOps', () => {
 		acc = removePackage( acc, 'n12' );
 		expect( acc.packages ).toHaveLength( 0 );
 		expect( acc.inventory ).toHaveLength( 0 );
+	} );
+
+	it( 'updateRoom zmienia klucz pokoju i przenosi wpisy inwentarza', () => {
+		let acc = emptyAccommodation();
+		acc.rooms = [ { key: 'double', label: 'Dwuosobowy', roommate_field: false } ];
+		acc = setInventoryCell( acc, 'n12', 'double', { capacity: 20, price: 180 } );
+
+		acc = updateRoom( acc, 'double', { key: 'twin' } );
+
+		expect( acc.rooms[ 0 ].key ).toBe( 'twin' );
+		expect( getInventoryCell( acc, 'n12', 'double' ) ).toBeNull();
+		expect( getInventoryCell( acc, 'n12', 'twin' ) ).toMatchObject( { capacity: 20, price: 180 } );
+	} );
+
+	it( 'updateRoom przenosi wpisy inwentarza także przy czyszczeniu klucza do pustego stringa', () => {
+		let acc = emptyAccommodation();
+		acc.rooms = [ { key: 'double', label: 'Dwuosobowy', roommate_field: false } ];
+		acc = setInventoryCell( acc, 'n12', 'double', { capacity: 20, price: 180 } );
+
+		acc = updateRoom( acc, 'double', { key: '' } );
+
+		expect( acc.rooms[ 0 ].key ).toBe( '' );
+		expect( getInventoryCell( acc, 'n12', 'double' ) ).toBeNull();
+		expect( getInventoryCell( acc, 'n12', '' ) ).toMatchObject( { capacity: 20, price: 180 } );
 	} );
 
 	it( 'removeRoom usuwa pokój i jego wpisy inwentarza', () => {

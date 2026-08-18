@@ -34,7 +34,7 @@ export function removePackage( acc, key ) {
 export function updatePackage( acc, key, patch ) {
 	const next = ensure( acc );
 	next.packages = next.packages.map( ( p ) => ( p.key === key ? { ...p, ...patch } : p ) );
-	if ( patch.key && patch.key !== key ) {
+	if ( 'key' in patch && patch.key !== key ) {
 		next.inventory = next.inventory.map( ( i ) =>
 			i.package === key ? { ...i, package: patch.key } : i
 		);
@@ -58,7 +58,7 @@ export function removeRoom( acc, key ) {
 export function updateRoom( acc, key, patch ) {
 	const next = ensure( acc );
 	next.rooms = next.rooms.map( ( r ) => ( r.key === key ? { ...r, ...patch } : r ) );
-	if ( patch.key && patch.key !== key ) {
+	if ( 'key' in patch && patch.key !== key ) {
 		next.inventory = next.inventory.map( ( i ) =>
 			i.room === key ? { ...i, room: patch.key } : i
 		);
@@ -68,7 +68,8 @@ export function updateRoom( acc, key, patch ) {
 
 export function getInventoryCell( acc, packageKey, roomKey ) {
 	const list = ( acc && acc.inventory ) || [];
-	return list.find( ( i ) => i.package === packageKey && i.room === roomKey ) || null;
+	const found = list.find( ( i ) => i.package === packageKey && i.room === roomKey );
+	return found ? { ...found } : null;
 }
 
 export function setInventoryCell( acc, packageKey, roomKey, patch ) {

@@ -19,6 +19,11 @@ export default function App( { eventId } ) {
 	const [ error, setError ] = useState( '' );
 
 	useEffect( () => {
+		if ( ! eventId ) {
+			setLoading( false );
+			return;
+		}
+
 		loadConfig( eventId )
 			.then( ( data ) => {
 				setConfig( {
@@ -49,6 +54,14 @@ export default function App( { eventId } ) {
 
 	if ( loading ) {
 		return <Spinner />;
+	}
+
+	if ( ! eventId ) {
+		return (
+			<Notice status="info" isDismissible={ false }>
+				{ __( 'Zapisz wydarzenie jako szkic, aby skonfigurować formularz.', 'event-registration' ) }
+			</Notice>
+		);
 	}
 
 	const tabs = [
