@@ -35,6 +35,7 @@ register_activation_hook(
 	static function (): void {
 		\EvReg\Persistence\Migrations::install();
 		\EvReg\Admin\Capabilities::grant();
+		\EvReg\Cron\ExpirePending::register();
 		\EvReg\Cron\ExpirePending::schedule();
 	}
 );
