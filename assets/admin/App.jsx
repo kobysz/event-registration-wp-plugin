@@ -5,6 +5,7 @@ import { loadConfig, saveConfig } from './api';
 import ValidationReport from './components/ValidationReport';
 import FormTab from './tabs/FormTab';
 import TypesTab from './tabs/TypesTab';
+import AccommodationTab from './tabs/AccommodationTab';
 import { ensureTypeField, emptySchema } from './ops/schemaOps';
 
 const EMPTY = { schema: {}, types: [], accommodation: {}, settings: {} };
@@ -79,13 +80,16 @@ export default function App( { eventId } ) {
 }
 
 function TabRouter( { name, config, update } ) {
-	// Pozostałe zakładki podłączane w kolejnych taskach (5–6). Na razie
+	// Zakładka Ustawienia podłączana w kolejnym tasku (6). Na razie
 	// placeholder, żeby shell działał end-to-end.
 	if ( 'form' === name ) {
 		return <FormTab config={ config } update={ update } />;
 	}
 	if ( 'types' === name ) {
 		return <TypesTab config={ config } update={ update } />;
+	}
+	if ( 'accommodation' === name ) {
+		return <AccommodationTab config={ config } update={ update } />;
 	}
 	return <p>{ name }</p>;
 }
