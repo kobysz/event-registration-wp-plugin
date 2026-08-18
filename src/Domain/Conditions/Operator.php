@@ -1,9 +1,17 @@
 <?php
+/**
+ * Operatory dostępne w warunkach widoczności schematu.
+ *
+ * @package EvReg
+ */
 
 declare( strict_types=1 );
 
 namespace EvReg\Domain\Conditions;
 
+/**
+ * Wspierane operatory porównania odpowiedzi z oczekiwaną wartością.
+ */
 enum Operator: string {
 	case Equals     = 'equals';
 	case NotEquals  = 'not_equals';

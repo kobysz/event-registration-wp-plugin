@@ -1,4 +1,9 @@
 <?php
+/**
+ * Rejestr walidatorów pól, indeksowany typem pola.
+ *
+ * @package EvReg
+ */
 
 declare( strict_types=1 );
 
@@ -15,11 +20,21 @@ use EvReg\Domain\Validation\Validators\NumberValidator;
 use EvReg\Domain\Validation\Validators\TelValidator;
 use EvReg\Domain\Validation\Validators\TextValidator;
 
+/**
+ * Domyślnie zarejestrowane walidatory dla wszystkich wspieranych typów pól.
+ */
 final class FieldValidatorRegistry {
 
-	/** @var array<string,FieldValidator> */
+	/**
+	 * Zarejestrowane walidatory, indeksowane wartością typu pola.
+	 *
+	 * @var array<string,FieldValidator>
+	 */
 	private array $validators = array();
 
+	/**
+	 * Rejestruje domyślne walidatory dla wszystkich wspieranych typów pól.
+	 */
 	public function __construct() {
 		$text   = new TextValidator();
 		$choice = new ChoiceValidator();
@@ -38,10 +53,21 @@ final class FieldValidatorRegistry {
 		$this->register( FieldType::Accommodation, new AccommodationValidator() );
 	}
 
+	/**
+	 * Rejestruje walidator dla typu pola, nadpisując poprzedni jeśli istniał.
+	 *
+	 * @param FieldType      $type      Typ pola.
+	 * @param FieldValidator $validator Walidator obsługujący ten typ.
+	 */
 	public function register( FieldType $type, FieldValidator $validator ): void {
 		$this->validators[ $type->value ] = $validator;
 	}
 
+	/**
+	 * Zwraca walidator zarejestrowany dla typu pola, jeśli istnieje.
+	 *
+	 * @param FieldType $type Typ pola.
+	 */
 	public function for( FieldType $type ): ?FieldValidator {
 		return $this->validators[ $type->value ] ?? null;
 	}

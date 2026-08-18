@@ -1,4 +1,9 @@
 <?php
+/**
+ * Walidator pola wielokrotnego wyboru (checkbox-group).
+ *
+ * @package EvReg
+ */
 
 declare( strict_types=1 );
 
@@ -9,8 +14,17 @@ use EvReg\Domain\Schema\Option;
 use EvReg\Domain\Validation\FieldOutcome;
 use EvReg\Domain\Validation\FieldValidator;
 
+/**
+ * Sprawdza, czy wszystkie wybrane wartości znajdują się na liście dozwolonych opcji.
+ */
 final class MultiChoiceValidator implements FieldValidator {
 
+	/**
+	 * Waliduje surową wartość pola wielokrotnego wyboru.
+	 *
+	 * @param Field $field Definicja pola.
+	 * @param mixed $raw   Surowa wartość odpowiedzi.
+	 */
 	public function validate( Field $field, mixed $raw ): FieldOutcome {
 		if ( null === $raw || '' === $raw ) {
 			return FieldOutcome::valid( array() );

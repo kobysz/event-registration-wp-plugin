@@ -1,4 +1,9 @@
 <?php
+/**
+ * Możliwe wyniki oceny pojemnościowej zgłoszenia.
+ *
+ * @package EvReg
+ */
 
 declare( strict_types=1 );
 

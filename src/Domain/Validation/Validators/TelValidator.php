@@ -1,4 +1,9 @@
 <?php
+/**
+ * Walidator pola numeru telefonu.
+ *
+ * @package EvReg
+ */
 
 declare( strict_types=1 );
 
@@ -8,8 +13,17 @@ use EvReg\Domain\Schema\Field;
 use EvReg\Domain\Validation\FieldOutcome;
 use EvReg\Domain\Validation\FieldValidator;
 
+/**
+ * Normalizuje i sprawdza poprawność formatu numeru telefonu.
+ */
 final class TelValidator implements FieldValidator {
 
+	/**
+	 * Waliduje surową wartość pola numeru telefonu.
+	 *
+	 * @param Field $field Definicja pola.
+	 * @param mixed $raw   Surowa wartość odpowiedzi.
+	 */
 	public function validate( Field $field, mixed $raw ): FieldOutcome {
 		$value = is_array( $raw ) ? '' : trim( (string) $raw );
 

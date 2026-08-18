@@ -1,9 +1,17 @@
 <?php
+/**
+ * Wspierane typy pól formularza.
+ *
+ * @package EvReg
+ */
 
 declare( strict_types=1 );
 
 namespace EvReg\Domain\Schema;
 
+/**
+ * Typ pola formularza wraz z jego charakterystyką (wejściowe, opcje, wielowartościowe).
+ */
 enum FieldType: string {
 	case Text          = 'text';
 	case Email         = 'email';

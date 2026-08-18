@@ -1,13 +1,24 @@
 <?php
+/**
+ * Ocena warunków widoczności na podstawie udzielonych odpowiedzi.
+ *
+ * @package EvReg
+ */
 
 declare( strict_types=1 );
 
 namespace EvReg\Domain\Conditions;
 
+/**
+ * Sprawdza, czy warunek jest spełniony dla podanego zestawu odpowiedzi.
+ */
 final class ConditionEngine {
 
 	/**
-	 * @param array<string,mixed> $answers
+	 * Ustala, czy warunek jest spełniony. Brak warunku oznacza zawsze spełniony.
+	 *
+	 * @param Condition|null      $condition Warunek do oceny albo null.
+	 * @param array<string,mixed> $answers   Udzielone odpowiedzi, indeksowane kluczem pola.
 	 */
 	public function isMet( ?Condition $condition, array $answers ): bool {
 		if ( null === $condition ) {
@@ -26,6 +37,12 @@ final class ConditionEngine {
 		};
 	}
 
+	/**
+	 * Porównuje odpowiedź z oczekiwaną wartością.
+	 *
+	 * @param mixed                               $answer   Udzielona odpowiedź.
+	 * @param array<int|string,mixed>|string|null $expected Oczekiwana wartość.
+	 */
 	private function equals( mixed $answer, array|string|null $expected ): bool {
 		$expected_list = $this->toList( $expected );
 		$answer_list   = $this->toList( $answer );
@@ -33,6 +50,12 @@ final class ConditionEngine {
 		return $answer_list === $expected_list;
 	}
 
+	/**
+	 * Sprawdza, czy odpowiedź ma część wspólną z oczekiwaną listą wartości.
+	 *
+	 * @param mixed                               $answer   Udzielona odpowiedź.
+	 * @param array<int|string,mixed>|string|null $expected Oczekiwana wartość.
+	 */
 	private function intersects( mixed $answer, array|string|null $expected ): bool {
 		$expected_list = $this->toList( $expected );
 		$answer_list   = $this->toList( $answer );
@@ -40,6 +63,11 @@ final class ConditionEngine {
 		return array() !== array_intersect( $answer_list, $expected_list );
 	}
 
+	/**
+	 * Sprawdza, czy odpowiedź jest pusta.
+	 *
+	 * @param mixed $answer Udzielona odpowiedź.
+	 */
 	private function isEmpty( mixed $answer ): bool {
 		if ( is_array( $answer ) ) {
 			return array() === $answer;
@@ -49,6 +77,10 @@ final class ConditionEngine {
 	}
 
 	/**
+	 * Normalizuje wartość do listy stringów porównywalnych.
+	 *
+	 * @param mixed $value Wartość do znormalizowania.
+	 *
 	 * @return string[]
 	 */
 	private function toList( mixed $value ): array {

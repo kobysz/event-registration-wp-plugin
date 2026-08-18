@@ -1,4 +1,9 @@
 <?php
+/**
+ * Wyznacza decyzję pojemnościową dla nowego zgłoszenia.
+ *
+ * @package EvReg
+ */
 
 declare( strict_types=1 );
 
@@ -6,15 +11,26 @@ namespace EvReg\Domain\Capacity;
 
 use EvReg\Domain\Accommodation\AccommodationSelection;
 
+/**
+ * Sprawdza limity globalne, per typ zgłoszenia i per slot zakwaterowania.
+ */
 final class CapacityCalculator {
 
+	/**
+	 * Ustala, czy zgłoszenie mieści się w dostępnych limitach.
+	 *
+	 * @param CapacityLimits         $limits    Skonfigurowane limity.
+	 * @param OccupancySnapshot      $taken     Aktualne obłożenie.
+	 * @param string                 $type_key  Klucz typu zgłoszenia.
+	 * @param AccommodationSelection $selection Wybór zakwaterowania, jeśli dotyczy.
+	 */
 	public function decide(
 		CapacityLimits $limits,
 		OccupancySnapshot $taken,
 		string $type_key,
 		?AccommodationSelection $selection = null
 	): CapacityDecision {
-		if ( null !== $limits->global && $taken->global() >= $limits->global ) {
+		if ( null !== $limits->globalLimit && $taken->global() >= $limits->globalLimit ) {
 			return $this->full( $limits, 'event_full' );
 		}
 
@@ -38,6 +54,12 @@ final class CapacityCalculator {
 		return new CapacityDecision( Outcome::Accepted, true );
 	}
 
+	/**
+	 * Buduje decyzję dla wyczerpanego limitu, uwzględniając listę rezerwową.
+	 *
+	 * @param CapacityLimits $limits Skonfigurowane limity.
+	 * @param string         $reason Kod powodu odrzucenia/listy rezerwowej.
+	 */
 	private function full( CapacityLimits $limits, string $reason ): CapacityDecision {
 		return new CapacityDecision(
 			$limits->waitlistEnabled ? Outcome::Waitlisted : Outcome::Rejected,

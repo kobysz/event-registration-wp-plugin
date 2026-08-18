@@ -1,4 +1,9 @@
 <?php
+/**
+ * Definicja pojedynczego pola formularza w schemacie.
+ *
+ * @package EvReg
+ */
 
 declare( strict_types=1 );
 
@@ -6,11 +11,22 @@ namespace EvReg\Domain\Schema;
 
 use EvReg\Domain\Conditions\Condition;
 
+/**
+ * Pole formularza wraz z typem, opcjami i opcjonalnym warunkiem widoczności.
+ */
 final class Field {
 
 	/**
-	 * @param Option[]            $options
-	 * @param array<string,mixed> $config
+	 * Tworzy pole z jego atrybutów.
+	 *
+	 * @param string              $key         Unikalny klucz pola.
+	 * @param FieldType           $type        Typ pola.
+	 * @param string              $label       Etykieta prezentowana użytkownikowi.
+	 * @param bool                $required    Czy pole jest wymagane.
+	 * @param Option[]            $options     Lista opcji dla pól wyboru.
+	 * @param array<string,mixed> $config      Dodatkowa konfiguracja pola.
+	 * @param string              $description Opis pomocniczy pola.
+	 * @param Condition|null      $condition   Warunek widoczności pola.
 	 */
 	public function __construct(
 		public readonly string $key,
@@ -25,7 +41,11 @@ final class Field {
 	}
 
 	/**
-	 * @param array<string,mixed> $data
+	 * Tworzy pole z tablicy danych schematu.
+	 *
+	 * @param array<string,mixed> $data Surowe dane pola.
+	 *
+	 * @throws SchemaException Gdy brakuje klucza, typ jest nieznany lub brak wymaganych opcji.
 	 */
 	public static function fromArray( array $data ): self {
 		if ( ! isset( $data['key'] ) || ! is_string( $data['key'] ) || '' === $data['key'] ) {
@@ -67,6 +87,8 @@ final class Field {
 	}
 
 	/**
+	 * Serializuje pole do tablicy.
+	 *
 	 * @return array<string,mixed>
 	 */
 	public function toArray(): array {

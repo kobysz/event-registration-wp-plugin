@@ -1,4 +1,9 @@
 <?php
+/**
+ * Walidator pola wyboru zakwaterowania.
+ *
+ * @package EvReg
+ */
 
 declare( strict_types=1 );
 
@@ -10,10 +15,19 @@ use EvReg\Domain\Schema\Field;
 use EvReg\Domain\Validation\FieldOutcome;
 use EvReg\Domain\Validation\FieldValidator;
 
+/**
+ * Waliduje wybór pakietu, pokoju i preferencji współlokatora.
+ */
 final class AccommodationValidator implements FieldValidator {
 
 	public const MAX_ROOMMATE_LENGTH = 191;
 
+	/**
+	 * Waliduje surowy wybór zakwaterowania.
+	 *
+	 * @param Field $field Definicja pola.
+	 * @param mixed $raw   Surowa wartość odpowiedzi.
+	 */
 	public function validate( Field $field, mixed $raw ): FieldOutcome {
 		$config    = AccommodationConfig::fromArray( $field->config );
 		$selection = AccommodationSelection::fromArray( is_array( $raw ) ? $raw : array() );

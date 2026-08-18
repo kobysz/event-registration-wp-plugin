@@ -1,4 +1,9 @@
 <?php
+/**
+ * Sekcja formularza grupująca powiązane pola.
+ *
+ * @package EvReg
+ */
 
 declare( strict_types=1 );
 
@@ -6,10 +11,19 @@ namespace EvReg\Domain\Schema;
 
 use EvReg\Domain\Conditions\Condition;
 
+/**
+ * Grupa pól formularza z opcjonalnym warunkiem widoczności całej sekcji.
+ */
 final class Section {
 
 	/**
-	 * @param Field[] $fields
+	 * Tworzy sekcję z jej pól i metadanych.
+	 *
+	 * @param string         $key         Unikalny klucz sekcji.
+	 * @param string         $title       Tytuł sekcji.
+	 * @param Field[]        $fields      Pola należące do sekcji.
+	 * @param string         $description Opis pomocniczy sekcji.
+	 * @param Condition|null $condition   Warunek widoczności sekcji.
 	 */
 	public function __construct(
 		public readonly string $key,
@@ -21,7 +35,11 @@ final class Section {
 	}
 
 	/**
-	 * @param array<string,mixed> $data
+	 * Tworzy sekcję z tablicy danych schematu.
+	 *
+	 * @param array<string,mixed> $data Surowe dane sekcji.
+	 *
+	 * @throws SchemaException Gdy brakuje klucza sekcji.
 	 */
 	public static function fromArray( array $data ): self {
 		if ( ! isset( $data['key'] ) || ! is_string( $data['key'] ) || '' === $data['key'] ) {
@@ -46,6 +64,8 @@ final class Section {
 	}
 
 	/**
+	 * Serializuje sekcję do tablicy.
+	 *
 	 * @return array<string,mixed>
 	 */
 	public function toArray(): array {

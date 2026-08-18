@@ -1,9 +1,17 @@
 <?php
+/**
+ * Kompletny schemat formularza rejestracyjnego wydarzenia.
+ *
+ * @package EvReg
+ */
 
 declare( strict_types=1 );
 
 namespace EvReg\Domain\Schema;
 
+/**
+ * Uporządkowany zbiór sekcji budujących formularz zgłoszeniowy.
+ */
 final class FormSchema {
 
 	public const CURRENT_VERSION = 1;
@@ -11,7 +19,10 @@ final class FormSchema {
 	public const TYPE_FIELD_KEY = '__type';
 
 	/**
-	 * @param Section[] $sections
+	 * Tworzy schemat z gotowej listy sekcji.
+	 *
+	 * @param Section[] $sections Sekcje formularza.
+	 * @param int       $version  Wersja formatu schematu.
 	 */
 	private function __construct(
 		private readonly array $sections,
@@ -19,12 +30,17 @@ final class FormSchema {
 	) {
 	}
 
+	/**
+	 * Zwraca pusty schemat bez sekcji.
+	 */
 	public static function empty(): self {
 		return new self( array() );
 	}
 
 	/**
-	 * @param array<string,mixed> $data
+	 * Tworzy schemat z tablicy danych.
+	 *
+	 * @param array<string,mixed> $data Surowe dane schematu.
 	 */
 	public static function fromArray( array $data ): self {
 		$sections = array();
@@ -37,6 +53,8 @@ final class FormSchema {
 	}
 
 	/**
+	 * Serializuje schemat do tablicy.
+	 *
 	 * @return array<string,mixed>
 	 */
 	public function toArray(): array {
@@ -50,6 +68,8 @@ final class FormSchema {
 	}
 
 	/**
+	 * Zwraca sekcje schematu.
+	 *
 	 * @return Section[]
 	 */
 	public function sections(): array {
@@ -57,6 +77,8 @@ final class FormSchema {
 	}
 
 	/**
+	 * Zwraca wszystkie pola ze wszystkich sekcji.
+	 *
 	 * @return Field[]
 	 */
 	public function allFields(): array {
@@ -71,6 +93,11 @@ final class FormSchema {
 		return $fields;
 	}
 
+	/**
+	 * Znajduje pole po kluczu.
+	 *
+	 * @param string $key Klucz pola.
+	 */
 	public function findField( string $key ): ?Field {
 		foreach ( $this->allFields() as $field ) {
 			if ( $field->key === $key ) {
@@ -81,6 +108,11 @@ final class FormSchema {
 		return null;
 	}
 
+	/**
+	 * Znajduje sekcję zawierającą pole o podanym kluczu.
+	 *
+	 * @param string $fieldKey Klucz pola.
+	 */
 	public function sectionOf( string $fieldKey ): ?Section {
 		foreach ( $this->sections as $section ) {
 			foreach ( $section->fields as $field ) {

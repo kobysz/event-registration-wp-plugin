@@ -1,4 +1,9 @@
 <?php
+/**
+ * Pełna konfiguracja zakwaterowania dla wydarzenia.
+ *
+ * @package EvReg
+ */
 
 declare( strict_types=1 );
 
@@ -6,12 +11,18 @@ namespace EvReg\Domain\Accommodation;
 
 use EvReg\Domain\Schema\SchemaException;
 
+/**
+ * Pakiety, pokoje i inwentarz dostępne dla zakwaterowania w ramach wydarzenia.
+ */
 final class AccommodationConfig {
 
 	/**
-	 * @param Package[]       $packages
-	 * @param RoomType[]      $rooms
-	 * @param InventoryItem[] $items
+	 * Tworzy konfigurację z gotowych list pakietów, pokoi i inwentarza.
+	 *
+	 * @param Package[]       $packages  Dostępne pakiety.
+	 * @param RoomType[]      $rooms     Dostępne typy pokoi.
+	 * @param InventoryItem[] $items     Pozycje inwentarza łączące pakiety i pokoje.
+	 * @param bool            $allowNone Czy zgłaszający się może zrezygnować z zakwaterowania.
 	 */
 	private function __construct(
 		private readonly array $packages,
@@ -22,7 +33,11 @@ final class AccommodationConfig {
 	}
 
 	/**
-	 * @param array<string,mixed> $config
+	 * Tworzy konfigurację zakwaterowania z tablicy danych.
+	 *
+	 * @param array<string,mixed> $config Surowe dane konfiguracji.
+	 *
+	 * @throws SchemaException Gdy inwentarz wskazuje na nieznany pakiet/pokój lub jest zduplikowany.
 	 */
 	public static function fromArray( array $config ): self {
 		$packages = array();
@@ -72,6 +87,8 @@ final class AccommodationConfig {
 	}
 
 	/**
+	 * Serializuje konfigurację do tablicy.
+	 *
 	 * @return array<string,mixed>
 	 */
 	public function toArray(): array {
@@ -84,6 +101,8 @@ final class AccommodationConfig {
 	}
 
 	/**
+	 * Zwraca listę dostępnych pakietów.
+	 *
 	 * @return Package[]
 	 */
 	public function packages(): array {
@@ -91,12 +110,19 @@ final class AccommodationConfig {
 	}
 
 	/**
+	 * Zwraca listę dostępnych typów pokoi.
+	 *
 	 * @return RoomType[]
 	 */
 	public function rooms(): array {
 		return $this->rooms;
 	}
 
+	/**
+	 * Znajduje typ pokoju po kluczu.
+	 *
+	 * @param string $key Klucz typu pokoju.
+	 */
 	public function room( string $key ): ?RoomType {
 		foreach ( $this->rooms as $room ) {
 			if ( $room->key === $key ) {
@@ -108,12 +134,20 @@ final class AccommodationConfig {
 	}
 
 	/**
+	 * Zwraca listę pozycji inwentarza.
+	 *
 	 * @return InventoryItem[]
 	 */
 	public function items(): array {
 		return $this->items;
 	}
 
+	/**
+	 * Znajduje pozycję inwentarza dla pary pakiet/pokój.
+	 *
+	 * @param string $package_key Klucz pakietu.
+	 * @param string $room_key    Klucz typu pokoju.
+	 */
 	public function item( string $package_key, string $room_key ): ?InventoryItem {
 		foreach ( $this->items as $item ) {
 			if ( $item->packageKey === $package_key && $item->roomKey === $room_key ) {
@@ -124,11 +158,16 @@ final class AccommodationConfig {
 		return null;
 	}
 
+	/**
+	 * Czy zgłaszający się może zrezygnować z zakwaterowania.
+	 */
 	public function allowsNone(): bool {
 		return $this->allowNone;
 	}
 
 	/**
+	 * Zwraca mapę slot => limit miejsc.
+	 *
 	 * @return array<string,int>
 	 */
 	public function capacities(): array {

@@ -1,17 +1,39 @@
 <?php
+/**
+ * Weryfikacja integralności schematu formularza.
+ *
+ * @package EvReg
+ */
 
 declare( strict_types=1 );
 
 namespace EvReg\Domain\Schema;
 
+/**
+ * Sprawdza unikalność kluczy oraz spójność warunków w schemacie.
+ */
 final class SchemaIntegrityChecker {
 
+	/**
+	 * Uruchamia komplet asercji integralności schematu.
+	 *
+	 * @param FormSchema $schema Schemat do zweryfikowania.
+	 *
+	 * @throws SchemaException Gdy schemat jest niespójny.
+	 */
 	public function check( FormSchema $schema ): void {
 		$this->assertUniqueKeys( $schema );
 		$this->assertTypeFieldPresent( $schema );
 		$this->assertConditionsResolvable( $schema );
 	}
 
+	/**
+	 * Klucze sekcji i pól muszą być unikalne w całym schemacie.
+	 *
+	 * @param FormSchema $schema Schemat do zweryfikowania.
+	 *
+	 * @throws SchemaException Gdy wykryto zduplikowany klucz.
+	 */
 	private function assertUniqueKeys( FormSchema $schema ): void {
 		$section_keys = array();
 		$field_keys   = array();
@@ -33,6 +55,13 @@ final class SchemaIntegrityChecker {
 		}
 	}
 
+	/**
+	 * Schemat musi zawierać pole determinujące typ rejestracji.
+	 *
+	 * @param FormSchema $schema Schemat do zweryfikowania.
+	 *
+	 * @throws SchemaException Gdy pole typu jest nieobecne lub ma zły typ.
+	 */
 	private function assertTypeFieldPresent( FormSchema $schema ): void {
 		$field = $schema->findField( FormSchema::TYPE_FIELD_KEY );
 
@@ -51,6 +80,10 @@ final class SchemaIntegrityChecker {
 
 	/**
 	 * Warunek może wskazywać wyłącznie na pole zadeklarowane wcześniej.
+	 *
+	 * @param FormSchema $schema Schemat do zweryfikowania.
+	 *
+	 * @throws SchemaException Gdy warunek wskazuje na nieznane pole.
 	 */
 	private function assertConditionsResolvable( FormSchema $schema ): void {
 		$declared = array();

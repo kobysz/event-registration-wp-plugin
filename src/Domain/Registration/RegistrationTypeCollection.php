@@ -1,4 +1,9 @@
 <?php
+/**
+ * Kolekcja typów zgłoszeń dostępnych dla wydarzenia.
+ *
+ * @package EvReg
+ */
 
 declare( strict_types=1 );
 
@@ -6,22 +11,31 @@ namespace EvReg\Domain\Registration;
 
 use EvReg\Domain\Schema\SchemaException;
 
+/**
+ * Uporządkowany, niemutowalny zbiór typów zgłoszeń z gwarancją unikalności kluczy.
+ */
 final class RegistrationTypeCollection {
 
 	/**
-	 * @param RegistrationType[] $types
+	 * Tworzy kolekcję z gotowej listy typów.
+	 *
+	 * @param RegistrationType[] $types Typy zgłoszeń w kolekcji.
 	 */
 	private function __construct( private readonly array $types ) {
 	}
 
 	/**
-	 * @param array<int,array<string,mixed>> $list
+	 * Tworzy kolekcję z tablicy danych konfiguracji.
+	 *
+	 * @param array<int,array<string,mixed>> $items Surowe dane typów zgłoszeń.
+	 *
+	 * @throws SchemaException Gdy wykryto zduplikowany klucz typu.
 	 */
-	public static function fromArray( array $list ): self {
+	public static function fromArray( array $items ): self {
 		$types = array();
 		$keys  = array();
 
-		foreach ( $list as $item ) {
+		foreach ( $items as $item ) {
 			$type = RegistrationType::fromArray( (array) $item );
 
 			if ( in_array( $type->key, $keys, true ) ) {
@@ -36,6 +50,8 @@ final class RegistrationTypeCollection {
 	}
 
 	/**
+	 * Serializuje kolekcję do tablicy.
+	 *
 	 * @return array<int,array<string,mixed>>
 	 */
 	public function toArray(): array {
@@ -46,6 +62,8 @@ final class RegistrationTypeCollection {
 	}
 
 	/**
+	 * Zwraca wszystkie typy zgłoszeń.
+	 *
 	 * @return RegistrationType[]
 	 */
 	public function all(): array {
@@ -53,6 +71,8 @@ final class RegistrationTypeCollection {
 	}
 
 	/**
+	 * Zwraca tylko aktywne typy zgłoszeń.
+	 *
 	 * @return RegistrationType[]
 	 */
 	public function active(): array {
@@ -61,6 +81,11 @@ final class RegistrationTypeCollection {
 		);
 	}
 
+	/**
+	 * Znajduje typ zgłoszenia po kluczu.
+	 *
+	 * @param string $key Klucz typu zgłoszenia.
+	 */
 	public function get( string $key ): ?RegistrationType {
 		foreach ( $this->types as $type ) {
 			if ( $type->key === $key ) {
@@ -71,11 +96,18 @@ final class RegistrationTypeCollection {
 		return null;
 	}
 
+	/**
+	 * Sprawdza, czy kolekcja zawiera typ o podanym kluczu.
+	 *
+	 * @param string $key Klucz typu zgłoszenia.
+	 */
 	public function has( string $key ): bool {
 		return null !== $this->get( $key );
 	}
 
 	/**
+	 * Zwraca mapę klucz typu => limit miejsc.
+	 *
 	 * @return array<string,int|null>
 	 */
 	public function capacities(): array {

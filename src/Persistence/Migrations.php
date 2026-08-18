@@ -1,4 +1,9 @@
 <?php
+/**
+ * Tworzenie i wersjonowanie tabel wtyczki.
+ *
+ * @package EvReg
+ */
 
 declare( strict_types=1 );
 
@@ -17,12 +22,20 @@ final class Migrations {
 
 	private const TABLE_PREFIX = 'evreg_';
 
+	/**
+	 * Zwraca pełną, prefiksowaną nazwę tabeli wtyczki.
+	 *
+	 * @param string $name Nazwa tabeli bez prefiksu.
+	 */
 	public static function table( string $name ): string {
 		global $wpdb;
 
 		return $wpdb->prefix . self::TABLE_PREFIX . $name;
 	}
 
+	/**
+	 * Tworzy tabele wtyczki i zapisuje aktualną wersję schematu.
+	 */
 	public static function install(): void {
 		global $wpdb;
 
@@ -37,6 +50,9 @@ final class Migrations {
 		update_option( self::VERSION_OPTION, self::DB_VERSION );
 	}
 
+	/**
+	 * Uruchamia instalację, gdy zapisana wersja schematu jest nieaktualna.
+	 */
 	public static function maybe_upgrade(): void {
 		if ( (int) get_option( self::VERSION_OPTION, 0 ) === self::DB_VERSION ) {
 			return;
@@ -46,6 +62,10 @@ final class Migrations {
 	}
 
 	/**
+	 * Zwraca instrukcje SQL tworzące tabele wtyczki.
+	 *
+	 * @param string $charset Klauzula znaków/kolacji dla silnika bazy danych.
+	 *
 	 * @return string[]
 	 */
 	private static function statements( string $charset ): array {
