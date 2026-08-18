@@ -6,3 +6,5 @@
 Thumbs.db
 .env
 .phpunit.result.cache
+/test-results/
+/playwright-report/
