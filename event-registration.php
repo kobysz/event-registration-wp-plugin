@@ -23,5 +23,14 @@ if ( file_exists( __DIR__ . '/vendor/autoload.php' ) ) {
 
 \EvReg\Plugin::boot( __FILE__ );
 
-register_activation_hook( __FILE__, array( \EvReg\Persistence\Migrations::class, 'install' ) );
+add_action( 'plugins_loaded', array( \EvReg\Admin\EventPostType::class, 'register' ) );
+add_action( 'plugins_loaded', array( \EvReg\Admin\Capabilities::class, 'register' ) );
+
+register_activation_hook(
+	__FILE__,
+	static function (): void {
+		\EvReg\Persistence\Migrations::install();
+		\EvReg\Admin\Capabilities::grant();
+	}
+);
 add_action( 'plugins_loaded', array( \EvReg\Persistence\Migrations::class, 'maybe_upgrade' ) );
