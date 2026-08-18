@@ -1,7 +1,18 @@
 {
   "name": "event-registration",
   "private": true,
+  "scripts": {
+    "build": "wp-scripts build assets/admin/index.js --output-path=build/admin",
+    "start": "wp-scripts start assets/admin/index.js --output-path=build/admin",
+    "test:js": "wp-scripts test-unit-js --config jest.config.js",
+    "test:e2e": "playwright test"
+  },
   "devDependencies": {
-    "@wordpress/env": "^10.0.0"
+    "@wordpress/api-fetch": "^7.4.0",
+    "@wordpress/components": "^28.4.0",
+    "@wordpress/element": "^6.4.0",
+    "@wordpress/env": "^10.0.0",
+    "@wordpress/i18n": "^5.4.0",
+    "@wordpress/scripts": "^27.9.0"
   }
 }
