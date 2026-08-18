@@ -1,0 +1,109 @@
+<?php
+
+declare( strict_types=1 );
+
+namespace EvReg\Persistence;
+
+defined( 'ABSPATH' ) || exit;
+
+/**
+ * Tworzenie i wersjonowanie tabel wtyczki.
+ */
+final class Migrations {
+
+	public const DB_VERSION = 1;
+
+	public const VERSION_OPTION = 'evreg_db_version';
+
+	private const TABLE_PREFIX = 'evreg_';
+
+	public static function table( string $name ): string {
+		global $wpdb;
+
+		return $wpdb->prefix . self::TABLE_PREFIX . $name;
+	}
+
+	public static function install(): void {
+		global $wpdb;
+
+		require_once ABSPATH . 'wp-admin/includes/upgrade.php';
+
+		$charset = $wpdb->get_charset_collate();
+
+		foreach ( self::statements( $charset ) as $sql ) {
+			dbDelta( $sql );
+		}
+
+		update_option( self::VERSION_OPTION, self::DB_VERSION );
+	}
+
+	public static function maybe_upgrade(): void {
+		if ( (int) get_option( self::VERSION_OPTION, 0 ) === self::DB_VERSION ) {
+			return;
+		}
+
+		self::install();
+	}
+
+	/**
+	 * @return string[]
+	 */
+	private static function statements( string $charset ): array {
+		$registrations = self::table( 'registrations' );
+		$bookings      = self::table( 'accommodation_bookings' );
+		$mail_queue    = self::table( 'mail_queue' );
+
+		return array(
+			"CREATE TABLE {$registrations} (
+				id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+				event_id bigint(20) unsigned NOT NULL,
+				type_key varchar(64) NOT NULL,
+				status varchar(20) NOT NULL,
+				email varchar(191) NOT NULL,
+				name varchar(191) NOT NULL,
+				token char(32) NOT NULL,
+				data longtext NOT NULL,
+				price_total decimal(10,2) NOT NULL DEFAULT 0,
+				note text NULL,
+				created_at datetime NOT NULL,
+				expires_at datetime NULL,
+				confirmed_at datetime NULL,
+				updated_at datetime NOT NULL,
+				PRIMARY KEY  (id),
+				KEY idx_event_email (event_id, email),
+				KEY idx_event_status (event_id, status),
+				KEY idx_token (token),
+				KEY idx_expiry (status, expires_at)
+			) ENGINE=InnoDB {$charset};",
+
+			"CREATE TABLE {$bookings} (
+				id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+				registration_id bigint(20) unsigned NOT NULL,
+				package_key varchar(64) NOT NULL,
+				room_type_key varchar(64) NOT NULL,
+				roommate_pref varchar(191) NULL,
+				price decimal(10,2) NOT NULL DEFAULT 0,
+				PRIMARY KEY  (id),
+				KEY idx_registration (registration_id),
+				KEY idx_inventory (package_key, room_type_key)
+			) ENGINE=InnoDB {$charset};",
+
+			"CREATE TABLE {$mail_queue} (
+				id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+				registration_id bigint(20) unsigned NULL,
+				event_id bigint(20) unsigned NOT NULL,
+				template_key varchar(64) NOT NULL,
+				recipient varchar(191) NOT NULL,
+				subject text NOT NULL,
+				body longtext NOT NULL,
+				status varchar(20) NOT NULL,
+				attempts tinyint(3) unsigned NOT NULL DEFAULT 0,
+				last_error text NULL,
+				scheduled_at datetime NOT NULL,
+				sent_at datetime NULL,
+				PRIMARY KEY  (id),
+				KEY idx_dispatch (status, scheduled_at)
+			) ENGINE=InnoDB {$charset};",
+		);
+	}
+}
