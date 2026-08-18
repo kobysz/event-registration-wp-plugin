@@ -33,20 +33,22 @@ final class EventPostType {
 		register_post_type(
 			self::POST_TYPE,
 			array(
-				'labels'       => array(
+				'labels'          => array(
 					'name'          => __( 'Wydarzenia', 'event-registration' ),
 					'singular_name' => __( 'Wydarzenie', 'event-registration' ),
 					'add_new_item'  => __( 'Dodaj wydarzenie', 'event-registration' ),
 					'edit_item'     => __( 'Edytuj wydarzenie', 'event-registration' ),
 				),
-				'public'       => false,
-				'show_ui'      => true,
-				'show_in_menu' => true,
-				'show_in_rest' => false,
-				'menu_icon'    => 'dashicons-tickets-alt',
-				'supports'     => array( 'title' ),
-				'has_archive'  => false,
-				'rewrite'      => false,
+				'public'          => false,
+				'show_ui'         => true,
+				'show_in_menu'    => true,
+				'show_in_rest'    => false,
+				'menu_icon'       => 'dashicons-tickets-alt',
+				'supports'        => array( 'title' ),
+				'has_archive'     => false,
+				'rewrite'         => false,
+				'capability_type' => array( 'evreg_event', 'evreg_events' ),
+				'map_meta_cap'    => true,
 			)
 		);
 	}

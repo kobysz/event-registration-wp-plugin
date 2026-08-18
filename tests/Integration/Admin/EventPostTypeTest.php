@@ -4,6 +4,7 @@ declare( strict_types=1 );
 
 namespace EvReg\Tests\Integration\Admin;
 
+use EvReg\Admin\Capabilities;
 use EvReg\Admin\EventPostType;
 use WP_UnitTestCase;
 
@@ -38,5 +39,25 @@ final class EventPostTypeTest extends WP_UnitTestCase {
 		$this->assertTrue(
 			apply_filters( 'use_block_editor_for_post_type', true, 'page' )
 		);
+	}
+
+	public function test_editor_cannot_edit_event_but_administrator_can(): void {
+		Capabilities::grant();
+
+		EventPostType::register();
+		do_action( 'init' );
+
+		$editor_id = self::factory()->user->create( array( 'role' => 'editor' ) );
+		$admin_id  = self::factory()->user->create( array( 'role' => 'administrator' ) );
+
+		$event_id = self::factory()->post->create(
+			array(
+				'post_type'   => EventPostType::POST_TYPE,
+				'post_author' => $admin_id,
+			)
+		);
+
+		$this->assertFalse( user_can( $editor_id, 'edit_post', $event_id ) );
+		$this->assertTrue( user_can( $admin_id, 'edit_post', $event_id ) );
 	}
 }

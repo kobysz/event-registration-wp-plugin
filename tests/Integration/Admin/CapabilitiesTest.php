@@ -22,4 +22,15 @@ final class CapabilitiesTest extends WP_UnitTestCase {
 
 		$this->assertFalse( get_role( 'subscriber' )->has_cap( Capabilities::CAP ) );
 	}
+
+	public function test_grant_gives_full_primitive_cap_set_to_administrator(): void {
+		$role = get_role( 'administrator' );
+		$role->remove_cap( 'publish_evreg_events' );
+		$role->remove_cap( 'delete_others_evreg_events' );
+
+		Capabilities::grant();
+
+		$this->assertTrue( $role->has_cap( 'publish_evreg_events' ) );
+		$this->assertTrue( $role->has_cap( 'delete_others_evreg_events' ) );
+	}
 }
