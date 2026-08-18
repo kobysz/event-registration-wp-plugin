@@ -1,0 +1,44 @@
+<?xml version="1.0"?>
+<ruleset name="Event Registration">
+    <description>Standardy kodu dla wtyczki Event Registration.</description>
+
+    <file>src</file>
+    <file>event-registration.php</file>
+
+    <exclude-pattern>*/vendor/*</exclude-pattern>
+    <exclude-pattern>*/node_modules/*</exclude-pattern>
+
+    <arg name="extensions" value="php"/>
+    <arg value="ps"/>
+
+    <rule ref="WordPress-Core">
+        <exclude name="WordPress.Files.FileName"/>
+        <exclude name="WordPress.NamingConventions.ValidVariableName"/>
+        <exclude name="WordPress.NamingConventions.ValidFunctionName.MethodNameInvalid"/>
+    </rule>
+    <rule ref="WordPress-Docs">
+        <exclude name="WordPress.Files.FileName"/>
+        <exclude name="WordPress.NamingConventions.ValidVariableName"/>
+        <exclude name="WordPress.NamingConventions.ValidFunctionName.MethodNameInvalid"/>
+    </rule>
+
+    <rule ref="WordPress.WP.I18n">
+        <properties>
+            <property name="text_domain" type="array">
+                <element value="event-registration"/>
+            </property>
+        </properties>
+    </rule>
+
+    <rule ref="WordPress.NamingConventions.PrefixAllGlobals">
+        <properties>
+            <property name="prefixes" type="array">
+                <element value="evreg"/>
+                <element value="EvReg"/>
+            </property>
+        </properties>
+    </rule>
+
+    <config name="minimum_wp_version" value="6.4"/>
+    <config name="testVersion" value="8.1-"/>
+</ruleset>

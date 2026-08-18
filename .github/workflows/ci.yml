@@ -1,0 +1,47 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  static-analysis:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.1'
+          coverage: none
+          tools: composer:v2
+
+      - run: composer install --prefer-dist --no-progress
+
+      - name: PHPCS
+        run: composer lint
+
+      - name: PHPStan
+        run: composer analyse
+
+      - name: Testy jednostkowe
+        run: composer test:unit
+
+  integration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - run: npm ci
+
+      - run: composer install --prefer-dist --no-progress
+
+      - run: node scripts/wp-env.cjs start
+
+      - name: Testy integracyjne
+        run: node scripts/wp-env.cjs run tests-cli --env-cwd=wp-content/plugins/event-registration -- vendor/bin/phpunit -c phpunit-integration.xml.dist
