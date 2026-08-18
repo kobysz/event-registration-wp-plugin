@@ -6,6 +6,7 @@ import ValidationReport from './components/ValidationReport';
 import FormTab from './tabs/FormTab';
 import TypesTab from './tabs/TypesTab';
 import AccommodationTab from './tabs/AccommodationTab';
+import SettingsTab from './tabs/SettingsTab';
 import { ensureTypeField, emptySchema } from './ops/schemaOps';
 
 const EMPTY = { schema: {}, types: [], accommodation: {}, settings: {} };
@@ -80,8 +81,6 @@ export default function App( { eventId } ) {
 }
 
 function TabRouter( { name, config, update } ) {
-	// Zakładka Ustawienia podłączana w kolejnym tasku (6). Na razie
-	// placeholder, żeby shell działał end-to-end.
 	if ( 'form' === name ) {
 		return <FormTab config={ config } update={ update } />;
 	}
@@ -91,5 +90,8 @@ function TabRouter( { name, config, update } ) {
 	if ( 'accommodation' === name ) {
 		return <AccommodationTab config={ config } update={ update } />;
 	}
-	return <p>{ name }</p>;
+	if ( 'settings' === name ) {
+		return <SettingsTab config={ config } update={ update } />;
+	}
+	return null;
 }

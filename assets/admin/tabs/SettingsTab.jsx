@@ -1,0 +1,70 @@
+import { TextControl, ToggleControl } from '@wordpress/components';
+import { __ } from '@wordpress/i18n';
+
+export default function SettingsTab( { config, update } ) {
+	const settings = config.settings || {};
+	const setSettings = update( 'settings' );
+	const set = ( key ) => ( value ) => setSettings( { ...settings, [ key ]: value } );
+
+	const emails = Array.isArray( settings.organizer_emails )
+		? settings.organizer_emails.join( ', ' )
+		: '';
+
+	return (
+		<div className="evreg-settings-tab">
+			<TextControl
+				type="date"
+				label={ __( 'Data rozpoczęcia', 'event-registration' ) }
+				value={ settings.start_date || '' }
+				onChange={ set( 'start_date' ) }
+			/>
+			<TextControl
+				type="date"
+				label={ __( 'Data zakończenia', 'event-registration' ) }
+				value={ settings.end_date || '' }
+				onChange={ set( 'end_date' ) }
+			/>
+			<TextControl
+				type="number"
+				label={ __( 'Limit miejsc (puste = brak)', 'event-registration' ) }
+				value={ settings.global_cap ?? '' }
+				onChange={ ( value ) =>
+					setSettings( {
+						...settings,
+						global_cap: '' === value ? null : parseInt( value, 10 ),
+					} )
+				}
+			/>
+			<ToggleControl
+				label={ __( 'Lista rezerwowa włączona', 'event-registration' ) }
+				checked={ settings.waitlist_enabled !== false }
+				onChange={ set( 'waitlist_enabled' ) }
+			/>
+			<TextControl
+				type="date"
+				label={ __( 'Otwarcie zapisów', 'event-registration' ) }
+				value={ settings.registration_opens || '' }
+				onChange={ set( 'registration_opens' ) }
+			/>
+			<TextControl
+				type="date"
+				label={ __( 'Zamknięcie zapisów', 'event-registration' ) }
+				value={ settings.registration_closes || '' }
+				onChange={ set( 'registration_closes' ) }
+			/>
+			<TextControl
+				label={ __( 'E-maile organizatora (oddzielone przecinkami)', 'event-registration' ) }
+				value={ emails }
+				onChange={ ( value ) =>
+					setSettings( {
+						...settings,
+						organizer_emails: value
+							.split( ',' )
+							.map( ( item ) => item.trim() )
+							.filter( Boolean ),
+					} )
+				}
+			/>
+		</div>
+	);
+}
