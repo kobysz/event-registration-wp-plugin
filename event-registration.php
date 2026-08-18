@@ -27,12 +27,16 @@ add_action( 'plugins_loaded', array( \EvReg\Admin\EventPostType::class, 'registe
 add_action( 'plugins_loaded', array( \EvReg\Admin\Capabilities::class, 'register' ) );
 add_action( 'plugins_loaded', array( \EvReg\Rest\EventConfigController::class, 'register' ) );
 add_action( 'plugins_loaded', array( \EvReg\Admin\EventConfigAssets::class, 'register' ) );
+add_action( 'plugins_loaded', array( \EvReg\Cron\ExpirePending::class, 'register' ) );
+add_action( 'plugins_loaded', array( \EvReg\Cron\ExpirePending::class, 'schedule' ) );
 
 register_activation_hook(
 	__FILE__,
 	static function (): void {
 		\EvReg\Persistence\Migrations::install();
 		\EvReg\Admin\Capabilities::grant();
+		\EvReg\Cron\ExpirePending::schedule();
 	}
 );
+register_deactivation_hook( __FILE__, array( \EvReg\Cron\ExpirePending::class, 'unschedule' ) );
 add_action( 'plugins_loaded', array( \EvReg\Persistence\Migrations::class, 'maybe_upgrade' ) );
