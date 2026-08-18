@@ -34,27 +34,37 @@ final class SchemaAssembler {
 		$sections = $schema['sections'] ?? array();
 
 		if ( is_array( $sections ) ) {
-			foreach ( $sections as $s => $section ) {
+			foreach ( $sections as $sectionIndex => $section ) {
+				if ( ! is_array( $section ) ) {
+					unset( $sections[ $sectionIndex ] );
+					continue;
+				}
+
 				$fields = $section['fields'] ?? array();
 
 				if ( ! is_array( $fields ) ) {
 					continue;
 				}
 
-				foreach ( $fields as $f => $field ) {
+				foreach ( $fields as $fieldIndex => $field ) {
+					if ( ! is_array( $field ) ) {
+						unset( $fields[ $fieldIndex ] );
+						continue;
+					}
+
 					$key  = $field['key'] ?? '';
 					$type = $field['type'] ?? '';
 
 					if ( FormSchema::TYPE_FIELD_KEY === $key ) {
-						$fields[ $f ]['options'] = $options;
+						$fields[ $fieldIndex ]['options'] = $options;
 					}
 
 					if ( FieldType::Accommodation->value === $type ) {
-						$fields[ $f ]['config'] = $accommodation;
+						$fields[ $fieldIndex ]['config'] = $accommodation;
 					}
 				}
 
-				$sections[ $s ]['fields'] = $fields;
+				$sections[ $sectionIndex ]['fields'] = $fields;
 			}
 		}
 

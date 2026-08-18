@@ -19,6 +19,16 @@ final class Capabilities {
 	public const CAP = 'edit_evreg_events';
 
 	/**
+	 * Wersja zestawu capabilities. Podbij przy zmianie CAPS, by wymusić samonaprawę.
+	 */
+	public const CAP_VERSION = 1;
+
+	/**
+	 * Nazwa opcji przechowującej ostatnio nadaną wersję capabilities.
+	 */
+	private const VERSION_OPTION = 'evreg_caps_version';
+
+	/**
 	 * Pełny zestaw prymitywnych capabilities CPT evreg_event.
 	 *
 	 * @var string[]
@@ -54,8 +64,22 @@ final class Capabilities {
 	}
 
 	/**
-	 * Miejsce na hooki runtime związane z capability. Obecnie brak.
+	 * Podpina samonaprawę capabilities do zwykłego żądania panelu admina.
 	 */
 	public static function register(): void {
+		add_action( 'admin_init', array( self::class, 'maybe_grant' ) );
+	}
+
+	/**
+	 * Nadaje capabilities, jeśli zapisana wersja jest nieaktualna (samonaprawa
+	 * dla instalacji zaktualizowanych bez ponownej aktywacji wtyczki).
+	 */
+	public static function maybe_grant(): void {
+		if ( (int) get_option( self::VERSION_OPTION, 0 ) === self::CAP_VERSION ) {
+			return;
+		}
+
+		self::grant();
+		update_option( self::VERSION_OPTION, self::CAP_VERSION );
 	}
 }

@@ -33,4 +33,27 @@ final class CapabilitiesTest extends WP_UnitTestCase {
 		$this->assertTrue( $role->has_cap( 'publish_evreg_events' ) );
 		$this->assertTrue( $role->has_cap( 'delete_others_evreg_events' ) );
 	}
+
+	public function test_maybe_grant_self_heals_when_version_stale(): void {
+		$role = get_role( 'administrator' );
+		$role->remove_cap( Capabilities::CAP );
+		$role->remove_cap( 'publish_evreg_events' );
+		delete_option( 'evreg_caps_version' );
+
+		Capabilities::maybe_grant();
+
+		$this->assertTrue( $role->has_cap( Capabilities::CAP ) );
+		$this->assertTrue( $role->has_cap( 'publish_evreg_events' ) );
+		$this->assertSame( Capabilities::CAP_VERSION, (int) get_option( 'evreg_caps_version' ) );
+	}
+
+	public function test_maybe_grant_is_noop_when_version_current(): void {
+		update_option( 'evreg_caps_version', Capabilities::CAP_VERSION );
+		$role = get_role( 'administrator' );
+		$role->remove_cap( Capabilities::CAP );
+
+		Capabilities::maybe_grant();
+
+		$this->assertFalse( $role->has_cap( Capabilities::CAP ) );
+	}
 }

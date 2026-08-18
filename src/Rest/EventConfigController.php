@@ -101,7 +101,7 @@ final class EventConfigController {
 			return new WP_Error(
 				'evreg_forbidden',
 				__( 'Brak uprawnień do edycji tego wydarzenia.', 'event-registration' ),
-				array( 'status' => 401 )
+				array( 'status' => rest_authorization_required_code() )
 			);
 		}
 

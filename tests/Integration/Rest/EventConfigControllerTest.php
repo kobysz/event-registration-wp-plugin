@@ -60,6 +60,16 @@ final class EventConfigControllerTest extends WP_UnitTestCase {
 		$this->assertSame( 401, $response->get_status() );
 	}
 
+	public function test_authenticated_user_without_capability_gets_403(): void {
+		$subscriber_id = self::factory()->user->create( array( 'role' => 'subscriber' ) );
+		wp_set_current_user( $subscriber_id );
+
+		$request  = new WP_REST_Request( 'GET', "/evreg/v1/events/{$this->event_id}/config" );
+		$response = rest_do_request( $request );
+
+		$this->assertSame( 403, $response->get_status() );
+	}
+
 	public function test_put_saves_and_returns_valid_report(): void {
 		wp_set_current_user( $this->admin_id );
 

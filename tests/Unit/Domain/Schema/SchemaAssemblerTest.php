@@ -124,4 +124,39 @@ final class SchemaAssemblerTest extends TestCase {
 		$this->assertNotNull( $field );
 		$this->assertSame( array(), $field->config );
 	}
+
+	public function test_assemble_ignores_scalar_section_entry(): void {
+		$schema = array(
+			'version'  => 1,
+			'sections' => array( 'foo' ),
+		);
+
+		$this->expectException( SchemaException::class );
+
+		$this->assembler->validate( $schema, $this->raw_types(), $this->raw_accommodation() );
+	}
+
+	public function test_assemble_ignores_scalar_field_entry(): void {
+		$schema = array(
+			'version'  => 1,
+			'sections' => array(
+				array(
+					'key'    => 'dane',
+					'title'  => 'Dane',
+					'fields' => array(
+						'garbage',
+						array( 'key' => '__type', 'type' => 'radio', 'label' => 'Typ' ),
+					),
+				),
+			),
+		);
+
+		$result = $this->assembler->assemble( $schema, $this->raw_types(), $this->raw_accommodation() );
+
+		$type_field = $result->findField( '__type' );
+
+		$this->assertNotNull( $type_field );
+		$values = array_map( static fn ( $option ) => $option->value, $type_field->options );
+		$this->assertSame( array( 'uczestnik', 'online' ), $values );
+	}
 }
