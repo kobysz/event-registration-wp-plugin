@@ -31,7 +31,7 @@ final class MultiChoiceValidator implements FieldValidator {
 		}
 
 		$values = array_map(
-			static fn ( $item ): string => trim( (string) $item ),
+			static fn ( $item ): string => is_array( $item ) ? '' : trim( (string) $item ),
 			is_array( $raw ) ? $raw : array( $raw )
 		);
 

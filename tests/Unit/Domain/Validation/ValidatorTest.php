@@ -122,6 +122,20 @@ final class ValidatorTest extends TestCase {
 		$this->assertSame( 'not_in_options', $result->errors()['atrakcje'] );
 	}
 
+	/**
+	 * Regresja: element listy checkbox-group będący tablicą (spreparowane pole
+	 * POST, np. atrakcje[a][]=x) musi zostać odrzucony bez emitowania ostrzeżenia
+	 * "Array to string conversion" przy rzutowaniu na string.
+	 */
+	public function test_reports_array_element_in_multi_choice_as_not_in_options(): void {
+		$answers             = $this->valid_answers();
+		$answers['atrakcje'] = array( 'kolacja', array( 'x' ) );
+
+		$result = $this->validator->validate( $this->schema(), $answers );
+
+		$this->assertSame( 'not_in_options', $result->errors()['atrakcje'] );
+	}
+
 	public function test_hidden_fields_are_not_required(): void {
 		$answers           = $this->valid_answers();
 		$answers['__type'] = 'online';

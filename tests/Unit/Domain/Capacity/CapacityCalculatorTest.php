@@ -74,6 +74,37 @@ final class CapacityCalculatorTest extends TestCase {
 		$this->assertSame( 'event_full', $decision->reason );
 	}
 
+	/**
+	 * Regresja: limit globalny równy 0 oznacza "pełne" (0 miejsc), a nie brak
+	 * limitu — to odróżnia go od `null`. Sprawdzenie musi być `>=`, nie `>`.
+	 */
+	public function test_global_limit_of_zero_is_full_with_waitlist(): void {
+		$decision = $this->calculator->decide(
+			$this->limits( 0, true ),
+			$this->taken( 0 ),
+			'uczestnik',
+			null
+		);
+
+		$this->assertSame( Outcome::Waitlisted, $decision->outcome );
+		$this->assertSame( 'event_full', $decision->reason );
+	}
+
+	/**
+	 * Regresja: jak wyżej, ale bez listy rezerwowej zgłoszenie musi zostać odrzucone.
+	 */
+	public function test_global_limit_of_zero_is_full_without_waitlist(): void {
+		$decision = $this->calculator->decide(
+			$this->limits( 0, false ),
+			$this->taken( 0 ),
+			'uczestnik',
+			null
+		);
+
+		$this->assertSame( Outcome::Rejected, $decision->outcome );
+		$this->assertSame( 'event_full', $decision->reason );
+	}
+
 	public function test_waitlists_when_type_is_full(): void {
 		$decision = $this->calculator->decide(
 			$this->limits(),
