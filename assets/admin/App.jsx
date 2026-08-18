@@ -3,6 +3,7 @@ import { Button, TabPanel, Spinner, Notice } from '@wordpress/components';
 import { __ } from '@wordpress/i18n';
 import { loadConfig, saveConfig } from './api';
 import ValidationReport from './components/ValidationReport';
+import FormTab from './tabs/FormTab';
 
 const EMPTY = { schema: {}, types: [], accommodation: {}, settings: {} };
 
@@ -73,8 +74,11 @@ export default function App( { eventId } ) {
 	);
 }
 
-function TabRouter( { name } ) {
-	// Zakładki podłączane w kolejnych taskach (3–6). Na razie placeholder,
-	// żeby shell działał end-to-end.
+function TabRouter( { name, config, update } ) {
+	// Pozostałe zakładki podłączane w kolejnych taskach (4–6). Na razie
+	// placeholder, żeby shell działał end-to-end.
+	if ( 'form' === name ) {
+		return <FormTab config={ config } update={ update } />;
+	}
 	return <p>{ name }</p>;
 }
