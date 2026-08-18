@@ -35,6 +35,23 @@ final class RegistrationTypeCollectionTest extends TestCase {
 		$keys  = array_map( static fn ( $type ) => $type->key, $types->active() );
 
 		$this->assertSame( array( 'uczestnik', 'online' ), $keys );
+
+		// Inactive type sits in the MIDDLE here (not last, as in raw()), so filtering
+		// without array_values() would leave gapped keys [0, 2] instead of [0, 1].
+		$reordered = RegistrationTypeCollection::fromArray(
+			array(
+				array( 'key' => 'a', 'label' => 'A', 'price' => 1.0, 'active' => true ),
+				array( 'key' => 'b', 'label' => 'B', 'price' => 1.0, 'active' => false ),
+				array( 'key' => 'c', 'label' => 'C', 'price' => 1.0, 'active' => true ),
+			)
+		);
+		$reorderedActive = $reordered->active();
+
+		$this->assertSame(
+			array( 'a', 'c' ),
+			array_map( static fn ( $type ) => $type->key, $reorderedActive )
+		);
+		$this->assertSame( array( 0, 1 ), array_keys( $reorderedActive ) );
 	}
 
 	public function test_capacities_maps_key_to_limit(): void {
@@ -61,6 +78,26 @@ final class RegistrationTypeCollectionTest extends TestCase {
 		RegistrationTypeCollection::fromArray(
 			array( array( 'key' => 'x', 'label' => 'X', 'price' => -1.0 ) )
 		);
+	}
+
+	public function test_rejects_negative_capacity(): void {
+		try {
+			RegistrationTypeCollection::fromArray(
+				array( array( 'key' => 'x', 'label' => 'X', 'price' => 1.0, 'capacity' => -1 ) )
+			);
+			$this->fail( 'Expected SchemaException was not thrown for negative capacity.' );
+		} catch ( SchemaException $e ) {
+			$this->assertStringContainsString( 'x', $e->getMessage() );
+		}
+	}
+
+	public function test_capacity_zero_is_preserved_as_zero_not_null(): void {
+		$types = RegistrationTypeCollection::fromArray(
+			array( array( 'key' => 'full', 'label' => 'Pełny', 'price' => 10.0, 'capacity' => 0 ) )
+		);
+
+		$this->assertSame( 0, $types->get( 'full' )->capacity );
+		$this->assertSame( array( 'full' => 0 ), $types->capacities() );
 	}
 
 	public function test_round_trips(): void {
