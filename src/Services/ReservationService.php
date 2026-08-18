@@ -145,4 +145,37 @@ final class ReservationService {
 			throw $e;
 		}
 	}
+
+	/**
+	 * Potwierdza zgłoszenie na podstawie tokenu z linku mailowego.
+	 *
+	 * @param string $token Token zgłoszenia.
+	 */
+	public function confirm( string $token ): ConfirmationResult {
+		$row = $this->repository->findByToken( $token );
+
+		if ( null === $row ) {
+			return ConfirmationResult::notFound();
+		}
+
+		$status = RegistrationStatus::tryFrom( (string) $row['status'] );
+
+		return match ( $status ) {
+			RegistrationStatus::Pending   => $this->doConfirm( (int) $row['id'] ),
+			RegistrationStatus::Confirmed => ConfirmationResult::alreadyConfirmed(),
+			RegistrationStatus::Cancelled => ConfirmationResult::expired(),
+			RegistrationStatus::Waitlist  => ConfirmationResult::onWaitlist(),
+			default                       => ConfirmationResult::notFound(),
+		};
+	}
+
+	/**
+	 * Oznacza zgłoszenie jako potwierdzone.
+	 *
+	 * @param int $registration_id ID zgłoszenia.
+	 */
+	private function doConfirm( int $registration_id ): ConfirmationResult {
+		$this->repository->markConfirmed( $registration_id );
+		return ConfirmationResult::confirmed();
+	}
 }
