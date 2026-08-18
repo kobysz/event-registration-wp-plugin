@@ -1,3 +1,4 @@
+import { __ } from '@wordpress/i18n';
 import { TYPE_FIELD_KEY } from './fieldTypes';
 
 const clone = ( value ) => JSON.parse( JSON.stringify( value ) );
@@ -85,14 +86,22 @@ export function ensureTypeField( schema ) {
 	const next = clone( schema );
 
 	if ( ! next.sections || next.sections.length === 0 ) {
-		next.sections = [ { key: 'dane', title: 'Dane', description: '', condition: null, fields: [] } ];
+		next.sections = [
+			{
+				key: 'dane',
+				title: __( 'Dane', 'event-registration' ),
+				description: '',
+				condition: null,
+				fields: [],
+			},
+		];
 	}
 
 	next.sections[ 0 ].fields = next.sections[ 0 ].fields || [];
 	next.sections[ 0 ].fields.unshift( {
 		key: TYPE_FIELD_KEY,
 		type: 'radio',
-		label: 'Typ zgłoszenia',
+		label: __( 'Typ zgłoszenia', 'event-registration' ),
 	} );
 
 	return next;

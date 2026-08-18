@@ -31,8 +31,18 @@ export default function FieldRow( { field, onChange, onRemove, onMove } ) {
 				</p>
 			) }
 			<div className="evreg-field-row__actions">
-				<Button onClick={ () => onMove( 'up' ) }>↑</Button>
-				<Button onClick={ () => onMove( 'down' ) }>↓</Button>
+				<Button
+					aria-label={ __( 'Przesuń w górę', 'event-registration' ) }
+					onClick={ () => onMove( 'up' ) }
+				>
+					↑
+				</Button>
+				<Button
+					aria-label={ __( 'Przesuń w dół', 'event-registration' ) }
+					onClick={ () => onMove( 'down' ) }
+				>
+					↓
+				</Button>
 				{ ! special && (
 					<Button isDestructive onClick={ onRemove }>
 						{ __( 'Usuń', 'event-registration' ) }

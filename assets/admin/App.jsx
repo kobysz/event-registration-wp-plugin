@@ -4,6 +4,7 @@ import { __ } from '@wordpress/i18n';
 import { loadConfig, saveConfig } from './api';
 import ValidationReport from './components/ValidationReport';
 import FormTab from './tabs/FormTab';
+import { ensureTypeField, emptySchema } from './ops/schemaOps';
 
 const EMPTY = { schema: {}, types: [], accommodation: {}, settings: {} };
 
@@ -18,7 +19,9 @@ export default function App( { eventId } ) {
 		loadConfig( eventId )
 			.then( ( data ) => {
 				setConfig( {
-					schema: data.schema || {},
+					schema: ensureTypeField(
+						data.schema && data.schema.sections ? data.schema : emptySchema()
+					),
 					types: data.types || [],
 					accommodation: data.accommodation || {},
 					settings: data.settings || {},

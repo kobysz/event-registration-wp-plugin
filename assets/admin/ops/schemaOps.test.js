@@ -78,4 +78,35 @@ describe( 'schemaOps', () => {
 		addField( schema, 'dane', { key: 'x', type: 'text', label: 'X' } );
 		expect( JSON.stringify( schema ) ).toBe( before );
 	} );
+
+	it( 'ensureTypeField z pustej schemy daje kompletną, poprawną schemę (to zapisuje App przy wczytaniu)', () => {
+		const schema = ensureTypeField( emptySchema() );
+		expect( schema.version ).toBe( 1 );
+		const keys = schema.sections.flatMap( ( s ) => s.fields ).map( ( f ) => f.key );
+		expect( keys ).toContain( '__type' );
+	} );
+
+	it( 'moveField przesuwa pole w dół', () => {
+		let schema = addSection( emptySchema(), 'dane', 'Dane' );
+		schema = addField( schema, 'dane', { key: 'a', type: 'text', label: 'A' } );
+		schema = addField( schema, 'dane', { key: 'b', type: 'text', label: 'B' } );
+		schema = moveField( schema, 'a', 'down' );
+		expect( schema.sections[ 0 ].fields.map( ( f ) => f.key ) ).toEqual( [ 'b', 'a' ] );
+	} );
+
+	it( 'moveField w górę na pierwszym polu nic nie zmienia', () => {
+		let schema = addSection( emptySchema(), 'dane', 'Dane' );
+		schema = addField( schema, 'dane', { key: 'a', type: 'text', label: 'A' } );
+		schema = addField( schema, 'dane', { key: 'b', type: 'text', label: 'B' } );
+		schema = moveField( schema, 'a', 'up' );
+		expect( schema.sections[ 0 ].fields.map( ( f ) => f.key ) ).toEqual( [ 'a', 'b' ] );
+	} );
+
+	it( 'moveField w dół na ostatnim polu nic nie zmienia', () => {
+		let schema = addSection( emptySchema(), 'dane', 'Dane' );
+		schema = addField( schema, 'dane', { key: 'a', type: 'text', label: 'A' } );
+		schema = addField( schema, 'dane', { key: 'b', type: 'text', label: 'B' } );
+		schema = moveField( schema, 'b', 'down' );
+		expect( schema.sections[ 0 ].fields.map( ( f ) => f.key ) ).toEqual( [ 'a', 'b' ] );
+	} );
 } );
