@@ -16,7 +16,7 @@ defined( 'ABSPATH' ) || exit;
  */
 final class Migrations {
 
-	public const DB_VERSION = 1;
+	public const DB_VERSION = 2;
 
 	public const VERSION_OPTION = 'evreg_db_version';
 
@@ -72,6 +72,7 @@ final class Migrations {
 		$registrations = self::table( 'registrations' );
 		$bookings      = self::table( 'accommodation_bookings' );
 		$mail_queue    = self::table( 'mail_queue' );
+		$locks         = self::table( 'locks' );
 
 		return array(
 			"CREATE TABLE {$registrations} (
@@ -123,6 +124,11 @@ final class Migrations {
 				sent_at datetime NULL,
 				PRIMARY KEY  (id),
 				KEY idx_dispatch (status, scheduled_at)
+			) ENGINE=InnoDB {$charset};",
+
+			"CREATE TABLE {$locks} (
+				event_id bigint(20) unsigned NOT NULL,
+				PRIMARY KEY  (event_id)
 			) ENGINE=InnoDB {$charset};",
 		);
 	}
