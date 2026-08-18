@@ -5,6 +5,7 @@ declare( strict_types=1 );
 namespace EvReg\Domain\Validation;
 
 use EvReg\Domain\Schema\FieldType;
+use EvReg\Domain\Validation\Validators\AccommodationValidator;
 use EvReg\Domain\Validation\Validators\BooleanValidator;
 use EvReg\Domain\Validation\Validators\ChoiceValidator;
 use EvReg\Domain\Validation\Validators\DateValidator;
@@ -34,6 +35,7 @@ final class FieldValidatorRegistry {
 		$this->register( FieldType::Radio, $choice );
 		$this->register( FieldType::CheckboxGroup, new MultiChoiceValidator() );
 		$this->register( FieldType::Checkbox, new BooleanValidator() );
+		$this->register( FieldType::Accommodation, new AccommodationValidator() );
 	}
 
 	public function register( FieldType $type, FieldValidator $validator ): void {
