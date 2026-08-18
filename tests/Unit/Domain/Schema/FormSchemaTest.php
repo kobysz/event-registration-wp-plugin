@@ -115,6 +115,34 @@ final class FormSchemaTest extends TestCase {
 		FormSchema::fromArray( $data );
 	}
 
+	public function test_rejects_choice_field_without_options(): void {
+		$data = $this->valid_schema();
+		unset( $data['sections'][0]['fields'][0]['options'] );
+
+		$this->expectException( SchemaException::class );
+		$this->expectExceptionMessage( '__type' );
+
+		FormSchema::fromArray( $data );
+	}
+
+	public function test_rejects_condition_operator_without_value(): void {
+		$data = $this->valid_schema();
+		$data['sections'][1]['condition']['operator'] = 'equals';
+		unset( $data['sections'][1]['condition']['value'] );
+
+		$this->expectException( SchemaException::class );
+		$this->expectExceptionMessage( 'equals' );
+
+		FormSchema::fromArray( $data );
+	}
+
+	public function test_section_of_finds_owning_section_or_null(): void {
+		$schema = FormSchema::fromArray( $this->valid_schema() );
+
+		$this->assertSame( 'noclegi', $schema->sectionOf( 'nocleg' )->key );
+		$this->assertNull( $schema->sectionOf( 'brak-takiego-pola' ) );
+	}
+
 	public function test_empty_schema_has_no_sections(): void {
 		$this->assertSame( array(), FormSchema::empty()->sections() );
 	}
