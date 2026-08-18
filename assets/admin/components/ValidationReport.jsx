@@ -1,3 +1,4 @@
+import { __ } from '@wordpress/i18n';
 import { messageForCode } from '../ops/validationMessages';
 
 export default function ValidationReport( { validation } ) {
@@ -8,7 +9,7 @@ export default function ValidationReport( { validation } ) {
 	if ( validation.valid ) {
 		return (
 			<div className="notice notice-success inline">
-				<p>Konfiguracja jest poprawna.</p>
+				<p>{ __( 'Konfiguracja jest poprawna.', 'event-registration' ) }</p>
 			</div>
 		);
 	}
@@ -16,7 +17,7 @@ export default function ValidationReport( { validation } ) {
 	return (
 		<div className="notice notice-warning inline">
 			<ul>
-				{ validation.errors.map( ( error, index ) => (
+				{ ( validation.errors || [] ).map( ( error, index ) => (
 					<li key={ index }>{ messageForCode( error.code, error.detail ) }</li>
 				) ) }
 			</ul>
