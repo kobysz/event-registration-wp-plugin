@@ -213,7 +213,7 @@ final class RegistrationRepository {
 	public function expirePending( string $now ): int {
 		global $wpdb;
 
-		return (int) $wpdb->query(
+		$result = $wpdb->query(
 			$wpdb->prepare(
 				// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 				"UPDATE {$this->registrations()} SET status = %s, updated_at = %s WHERE status = %s AND expires_at IS NOT NULL AND expires_at < %s",
@@ -223,5 +223,13 @@ final class RegistrationRepository {
 				$now
 			)
 		);
+
+		if ( false === $result ) {
+			// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
+			error_log( 'evreg expirePending failed: ' . $wpdb->last_error );
+			return 0;
+		}
+
+		return (int) $result;
 	}
 }

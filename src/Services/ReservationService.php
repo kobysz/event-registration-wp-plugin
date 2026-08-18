@@ -79,6 +79,12 @@ final class ReservationService {
 		$wpdb->query( 'START TRANSACTION' );
 
 		try {
+			// KRYTYCZNA KOLEJNOŚĆ: lockEvent() (SELECT ... FOR UPDATE) MUSI wykonać się
+			// przed pierwszym odczytem COUNT (duplikat/zajętość). Pod InnoDB REPEATABLE
+			// READ migawka odczytu transakcji ustala się przy pierwszym spójnym odczycie —
+			// blokada jako pierwsza wymusza, że zablokowany rywal ustali migawkę dopiero
+			// po commicie poprzednika (widzi jego zatwierdzony wiersz). To jedyna rzecz
+			// zapobiegająca zajęciu ostatniego miejsca przez dwóch rywali. NIE ZMIENIAJ KOLEJNOŚCI.
 			$this->repository->lockEvent( $event_id );
 
 			if ( $this->repository->activeRegistrationExists( $event_id, $request->email ) ) {
