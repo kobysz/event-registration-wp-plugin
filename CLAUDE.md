@@ -6,7 +6,9 @@ Operacyjny przewodnik po tym repo dla sesji AI. Fakty tu zebrane były wielokrot
 
 Wtyczka WordPress do budowania formularzy rejestracji na wydarzenia (pola formularza, typy zgłoszenia z cenami/limitami, noclegi, potwierdzenia mailowe, eksport). Instalowana na wielu stronach (jeden event = jedna instalacja WP nie obowiązuje — CPT wspiera wiele eventów). Budowana jak produkt (i18n, uninstall, brak hardkodowania pod stronę), używana wewnętrznie.
 
-Roadmapa 6 planów, każdy w cyklu spec → plan → wykonanie subagentami (superpowers). **Plan 1 (domena) i Plan 2 (CPT + REST + React admin) scalone do master.** Kolejny: Plan 3 (formularz publiczny + rezerwacja). Specyfikacje i plany w `docs/superpowers/`.
+Roadmapa 6 planów, każdy w cyklu spec → plan → wykonanie subagentami (superpowers). Scalone do master: **Plan 1 (domena), Plan 2 (CPT + REST + React admin), Plan 3A (transakcyjny backend rezerwacji)**. Kolejny: Plan 3B (formularz publiczny — render ze złożonej schemy, submisja przez admin-post wołająca `ReservationService::reserve`, blok+shortcode, endpoint potwierdzenia, JS warunki, Playwright E2E). Specyfikacje i plany w `docs/superpowers/`.
+
+Rdzeń rezerwacji (3A): nośny inwariant — w `ReservationService::reserve` `lockEvent()` (SELECT … FOR UPDATE wiersza `evreg_locks` per event) MUSI poprzedzać pierwszy COUNT zajętości (snapshot-timing InnoDB REPEATABLE READ). Nie zmieniać kolejności. Zajętość liczona świeżo z tabeli zgłoszeń (pending+confirmed zajmują miejsce).
 
 ## Środowisko i komendy — KRYTYCZNE
 

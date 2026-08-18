@@ -76,7 +76,7 @@ Wtyczka jest w budowie (roadmapa 6 planów). Gotowe:
 
 1. ✅ Warstwa domeny (schema formularza, warunki, walidacja, typy, noclegi, ceny, decyzja o limitach)
 2. ✅ Konfiguracja eventu w adminie (CPT, REST, React admin z czterema zakładkami)
-3. ⬜ Formularz publiczny + transakcyjna rezerwacja miejsc
+3. 🔶 Formularz publiczny + transakcyjna rezerwacja miejsc — backend rezerwacji (3A) gotowy; formularz publiczny (3B) w toku
 4. ⬜ Kolejka mailowa (double opt-in, retry, wygasanie)
 5. ⬜ Panel zgłoszeń (CRUD, eksport, lista rezerwowa)
 6. ⬜ Auto-aktualizacja + utwardzenie CI
