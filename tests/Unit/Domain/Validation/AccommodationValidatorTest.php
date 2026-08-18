@@ -87,6 +87,31 @@ final class AccommodationValidatorTest extends TestCase {
 		$this->assertSame( 'roommate_not_allowed', $outcome->errorCode );
 	}
 
+	public function test_rejects_roommate_over_max_length(): void {
+		$at_limit = str_repeat( 'a', AccommodationValidator::MAX_ROOMMATE_LENGTH );
+		$over_limit = str_repeat( 'a', AccommodationValidator::MAX_ROOMMATE_LENGTH + 1 );
+
+		$boundary_outcome = $this->validator->validate(
+			$this->field(),
+			array( 'package' => 'n12', 'room' => 'double', 'roommate' => $at_limit )
+		);
+
+		$this->assertTrue( $boundary_outcome->isValid(), 'Exactly MAX_ROOMMATE_LENGTH characters must still be accepted.' );
+
+		$over_outcome = $this->validator->validate(
+			$this->field(),
+			array( 'package' => 'n12', 'room' => 'double', 'roommate' => $over_limit )
+		);
+
+		$this->assertSame( 'too_long', $over_outcome->errorCode );
+	}
+
+	public function test_rejects_empty_selection_when_required_even_if_none_allowed(): void {
+		$outcome = $this->validator->validate( $this->field( true, true ), array() );
+
+		$this->assertSame( 'required', $outcome->errorCode );
+	}
+
 	/**
 	 * Regresja: wybór noclegu jest obiektem, a nie skalarem — walidator całego
 	 * formularza nie może rzutować go na string przy sprawdzaniu pustości.

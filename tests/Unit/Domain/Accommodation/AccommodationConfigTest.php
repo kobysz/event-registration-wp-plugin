@@ -91,6 +91,7 @@ final class AccommodationConfigTest extends TestCase {
 		$raw['inventory'][] = array( 'package' => 'n12', 'room' => 'single', 'capacity' => 3, 'price' => 200.0 );
 
 		$this->expectException( SchemaException::class );
+		$this->expectExceptionMessage( 'n12|single' );
 
 		AccommodationConfig::fromArray( $raw );
 	}
