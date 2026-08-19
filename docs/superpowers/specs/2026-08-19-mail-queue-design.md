@@ -25,7 +25,7 @@ teksty wtyczki. Mail `bulk` i promocja z listy rezerwowej to **Plan 5**.
 - `Domain/Mail/` — `TemplateRenderer`, `Placeholders`, `SummaryBuilder`, `RetryPolicy` (czyste, bez WP)
 - `Mail/` — `DefaultTemplates`, `TemplateResolver`, `PlaceholderFactory`, `MailQueue`, `Dispatcher`, `Subscriber`
 - `MailQueueRepository` — jedyne `$wpdb` dla kolejki
-- Migracja `DB_VERSION` 2 → 3: `UNIQUE KEY uniq_registration_template (registration_id, template_key)`
+- Migracja `DB_VERSION` 2 → 3: kolumna `headers` + `UNIQUE KEY uniq_registration_template (registration_id,template_key)`
 - Hooki cyklu życia w `ReservationService` i `ExpirePending`; `expirePending()` zwraca wygasłe wiersze
 - Cron `evreg_dispatch_mail` (co minutę + natychmiastowy strzał) i `evreg_purge_mail_queue` (dziennie)
 - Pięć maili: `optin`, `confirmed`, `waitlist`, `expired`, `admin_new`
@@ -122,13 +122,18 @@ w ustalonej kolejności (patrz Plan 3A, §8).
 ## 5. Model danych
 
 Tabela `evreg_mail_queue` istnieje od Planu 1 (utworzona, nigdy nieużywana). Migracja
-`DB_VERSION` 2 → 3 dokłada indeks:
+`DB_VERSION` 2 → 3 dokłada indeks i kolumnę:
 
 ```sql
-UNIQUE KEY uniq_registration_template (registration_id, template_key)
+headers text NULL
+UNIQUE KEY uniq_registration_template (registration_id,template_key)
 ```
 
-`dbDelta` doda indeks bez skryptu czyszczącego — kolejka nigdy nie działała, więc tabela
+`headers` trzyma nagłówki maila jako JSON tablicy linii (`["Reply-To: jan@example.com"]`).
+Bez tej kolumny `Reply-To` na powiadomieniu organizatora nie przetrwałby do momentu wysyłki —
+dispatcher czyta wyłącznie wiersz kolejki, nigdy zgłoszenia. Puste dla maili bez nagłówków.
+
+`dbDelta` doda jedno i drugie bez skryptu czyszczącego — kolejka nigdy nie działała, więc tabela
 jest pusta na każdej istniejącej instalacji.
 
 `registration_id` pozostaje `NULL`-owalne. MySQL traktuje `NULL` w indeksie unikalnym jako
@@ -243,7 +248,7 @@ Przebieg:
 3. Na wiersz: claim — `UPDATE ... SET status='sending', attempts=attempts+1, scheduled_at=teraz
    WHERE id=? AND status='queued'`. `affected <> 1` znaczy, że wiersz wziął ktoś inny;
    pomiń bez błędu.
-4. `wp_mail($recipient, $subject, $body, $headers)`.
+4. `wp_mail($recipient, $subject, $body, $headers)` — nagłówki dekodowane z kolumny `headers`.
 5. `true` → `sent` + `sent_at`. `false` albo wyjątek → `RetryPolicy::next(attempts)`:
    liczba → `queued` z nowym `scheduled_at`; `null` → `failed`. W obu razach `last_error`.
 
