@@ -16,7 +16,7 @@ defined( 'ABSPATH' ) || exit;
  */
 final class Migrations {
 
-	public const DB_VERSION = 2;
+	public const DB_VERSION = 3;
 
 	public const VERSION_OPTION = 'evreg_db_version';
 
@@ -117,13 +117,15 @@ final class Migrations {
 				recipient varchar(191) NOT NULL,
 				subject text NOT NULL,
 				body longtext NOT NULL,
+				headers text NULL,
 				status varchar(20) NOT NULL,
 				attempts tinyint(3) unsigned NOT NULL DEFAULT 0,
 				last_error text NULL,
 				scheduled_at datetime NOT NULL,
 				sent_at datetime NULL,
 				PRIMARY KEY  (id),
-				KEY idx_dispatch (status, scheduled_at)
+				KEY idx_dispatch (status, scheduled_at),
+				UNIQUE KEY uniq_registration_template (registration_id,template_key)
 			) ENGINE=InnoDB {$charset};",
 
 			"CREATE TABLE {$locks} (

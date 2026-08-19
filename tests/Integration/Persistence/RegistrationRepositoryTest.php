@@ -101,13 +101,15 @@ final class RegistrationRepositoryTest extends WP_UnitTestCase {
 		$this->assertNotNull( $found['confirmed_at'] );
 	}
 
-	public function test_expire_pending_cancels_past_due_and_returns_count(): void {
-		$this->repository->insertRegistration( $this->row( array( 'status' => 'pending', 'expires_at' => '2000-01-01 00:00:00', 'token' => str_repeat( 'j', 32 ) ) ) );
+	public function test_expire_pending_cancels_past_due_and_returns_rows(): void {
+		$due = $this->repository->insertRegistration( $this->row( array( 'status' => 'pending', 'expires_at' => '2000-01-01 00:00:00', 'token' => str_repeat( 'j', 32 ) ) ) );
 		$this->repository->insertRegistration( $this->row( array( 'status' => 'pending', 'expires_at' => '2099-01-01 00:00:00', 'token' => str_repeat( 'k', 32 ) ) ) );
 
-		$count = $this->repository->expirePending( '2020-01-01 00:00:00' );
+		$rows = $this->repository->expirePending( '2020-01-01 00:00:00' );
 
-		$this->assertSame( 1, $count );
+		$this->assertCount( 1, $rows );
+		$this->assertSame( $due, $rows[0]['id'] );
+		$this->assertIsInt( $rows[0]['event_id'] );
 		$this->assertSame( 'cancelled', $this->repository->findByToken( str_repeat( 'j', 32 ) )['status'] );
 		$this->assertSame( 'pending', $this->repository->findByToken( str_repeat( 'k', 32 ) )['status'] );
 	}

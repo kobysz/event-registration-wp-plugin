@@ -30,7 +30,7 @@ final class LocksMigrationTest extends WP_UnitTestCase {
 		$this->assertSame( array( 'event_id' ), $columns );
 	}
 
-	public function test_db_version_is_two(): void {
-		$this->assertSame( 2, Migrations::DB_VERSION );
+	public function test_db_version_is_at_least_two(): void {
+		$this->assertGreaterThanOrEqual( 2, Migrations::DB_VERSION );
 	}
 }

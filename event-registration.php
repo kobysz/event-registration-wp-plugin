@@ -33,6 +33,11 @@ add_action( 'plugins_loaded', array( \EvReg\Frontend\Block::class, 'register' ) 
 add_action( 'plugins_loaded', array( \EvReg\Frontend\ConfirmationController::class, 'register' ) );
 add_action( 'plugins_loaded', array( \EvReg\Cron\ExpirePending::class, 'register' ) );
 add_action( 'plugins_loaded', array( \EvReg\Cron\ExpirePending::class, 'schedule' ) );
+add_action( 'plugins_loaded', array( \EvReg\Mail\Subscriber::class, 'register' ) );
+add_action( 'plugins_loaded', array( \EvReg\Cron\DispatchMail::class, 'register' ) );
+add_action( 'plugins_loaded', array( \EvReg\Cron\DispatchMail::class, 'schedule' ) );
+add_action( 'plugins_loaded', array( \EvReg\Cron\PurgeMailQueue::class, 'register' ) );
+add_action( 'plugins_loaded', array( \EvReg\Cron\PurgeMailQueue::class, 'schedule' ) );
 
 add_action(
 	'init',
@@ -50,7 +55,18 @@ register_activation_hook(
 		\EvReg\Admin\Capabilities::grant();
 		\EvReg\Cron\ExpirePending::register();
 		\EvReg\Cron\ExpirePending::schedule();
+		\EvReg\Cron\DispatchMail::register();
+		\EvReg\Cron\DispatchMail::schedule();
+		\EvReg\Cron\PurgeMailQueue::register();
+		\EvReg\Cron\PurgeMailQueue::schedule();
 	}
 );
-register_deactivation_hook( __FILE__, array( \EvReg\Cron\ExpirePending::class, 'unschedule' ) );
+register_deactivation_hook(
+	__FILE__,
+	static function (): void {
+		\EvReg\Cron\ExpirePending::unschedule();
+		\EvReg\Cron\DispatchMail::unschedule();
+		\EvReg\Cron\PurgeMailQueue::unschedule();
+	}
+);
 add_action( 'plugins_loaded', array( \EvReg\Persistence\Migrations::class, 'maybe_upgrade' ) );

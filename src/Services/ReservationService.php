@@ -60,13 +60,17 @@ final class ReservationService {
 	 * Rezerwuje miejsce dla zgłoszenia w ramach jednej transakcji z blokadą per event.
 	 *
 	 * Kolejność: START → lockEvent → guard duplikatu → zajętość → decyzja →
-	 * (ROLLBACK przy rejected) → insert (+booking gdy przyznano zakwaterowanie) → COMMIT.
-	 * Przy dowolnym wyjątku: ROLLBACK i ponowne rzucenie.
+	 * (ROLLBACK przy rejected) → insert (+booking gdy przyznano zakwaterowanie) → COMMIT →
+	 * (poza try/catch) do_action cyklu życia. Przy dowolnym wyjątku wewnątrz transakcji:
+	 * ROLLBACK i ponowne rzucenie. Hook odpala się strukturalnie po zamknięciu try/catch,
+	 * więc rzut z nasłuchu propaguje się do wywołującego bez wpływu na już zatwierdzony wiersz.
 	 *
 	 * @param int                $event_id ID eventu.
 	 * @param ReservationRequest $request  Dane zgłoszenia.
 	 *
-	 * @throws \Throwable Gdy operacja w transakcji się nie powiedzie; transakcja jest wycofywana przed ponownym rzuceniem.
+	 * @throws \Throwable Gdy operacja w transakcji się nie powiedzie (ROLLBACK przed ponownym rzuceniem)
+	 *                    albo gdy nasłuch evreg_registration_reserved/evreg_registration_waitlisted
+	 *                    rzuci po COMMIT (wiersz pozostaje zatwierdzony).
 	 */
 	public function reserve( int $event_id, ReservationRequest $request ): ReservationResult {
 		global $wpdb;
@@ -141,15 +145,26 @@ final class ReservationService {
 
 			$wpdb->query( 'COMMIT' );
 
-			if ( $is_waitlist ) {
-				return ReservationResult::waitlisted( $id, $token, (string) $decision->reason );
-			}
-
-			return ReservationResult::reserved( $id, $token, $decision->accommodationGranted, $decision->reason );
+			$result = $is_waitlist
+				? ReservationResult::waitlisted( $id, $token, (string) $decision->reason )
+				: ReservationResult::reserved( $id, $token, $decision->accommodationGranted, $decision->reason );
 		} catch ( \Throwable $e ) {
 			$wpdb->query( 'ROLLBACK' );
 			throw $e;
 		}
+
+		// Hooki cyklu życia odpalają się celowo POZA try/catch, już po $result
+		// zbudowanym wewnątrz udanej transakcji: gdyby leżały wewnątrz try, rzut
+		// z nasłuchu trafiłby do (no-op) ROLLBACK powyżej i wypłynąłby jako fałszywa
+		// porażka rezerwacji mimo trwale zatwierdzonego wiersza. Tutaj rzut nasłuchu
+		// propaguje się do wywołującego bez cofania COMMIT — wiersz zostaje zapisany.
+		if ( $is_waitlist ) {
+			do_action( 'evreg_registration_waitlisted', $id, $event_id );
+		} else {
+			do_action( 'evreg_registration_reserved', $id, $event_id, $token );
+		}
+
+		return $result;
 	}
 
 	/**
@@ -167,7 +182,7 @@ final class ReservationService {
 		$status = RegistrationStatus::tryFrom( (string) $row['status'] );
 
 		return match ( $status ) {
-			RegistrationStatus::Pending   => $this->doConfirm( (int) $row['id'] ),
+			RegistrationStatus::Pending   => $this->doConfirm( (int) $row['id'], (int) $row['event_id'] ),
 			RegistrationStatus::Confirmed => ConfirmationResult::alreadyConfirmed(),
 			RegistrationStatus::Cancelled => ConfirmationResult::expired(),
 			RegistrationStatus::Waitlist  => ConfirmationResult::onWaitlist(),
@@ -176,12 +191,16 @@ final class ReservationService {
 	}
 
 	/**
-	 * Oznacza zgłoszenie jako potwierdzone.
+	 * Oznacza zgłoszenie jako potwierdzone i ogłasza zdarzenie.
 	 *
 	 * @param int $registration_id ID zgłoszenia.
+	 * @param int $event_id        ID eventu.
 	 */
-	private function doConfirm( int $registration_id ): ConfirmationResult {
+	private function doConfirm( int $registration_id, int $event_id ): ConfirmationResult {
 		$this->repository->markConfirmed( $registration_id );
+
+		do_action( 'evreg_registration_confirmed', $registration_id, $event_id );
+
 		return ConfirmationResult::confirmed();
 	}
 }

@@ -65,13 +65,17 @@ final class ExpirePending {
 	}
 
 	/**
-	 * Wygasza przeterminowane rezerwacje pending.
+	 * Wygasza przeterminowane rezerwacje pending i ogłasza zdarzenia.
 	 */
 	public static function run(): void {
-		$count = ( new RegistrationRepository() )->expirePending( current_time( 'mysql', true ) );
+		$expired = ( new RegistrationRepository() )->expirePending( current_time( 'mysql', true ) );
 
-		if ( $count > 0 ) {
-			do_action( 'evreg_pending_expired', $count );
+		foreach ( $expired as $registration ) {
+			do_action( 'evreg_registration_expired', $registration['id'], $registration['event_id'] );
+		}
+
+		if ( array() !== $expired ) {
+			do_action( 'evreg_pending_expired', count( $expired ) );
 		}
 	}
 }

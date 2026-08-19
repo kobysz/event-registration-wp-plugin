@@ -64,7 +64,9 @@ final class EventConfigRepository {
 
 			$encoded = wp_json_encode( $config[ $key ], JSON_PRESERVE_ZERO_FRACTION );
 
-			update_post_meta( $event_id, $meta_key, false === $encoded ? '' : $encoded );
+			// update_post_meta() unslashes the value; pre-slash so backslash-escapes in the
+			// JSON (e.g. \uXXXX, \") survive the round trip instead of being corrupted.
+			update_post_meta( $event_id, $meta_key, false === $encoded ? '' : wp_slash( $encoded ) );
 		}
 	}
 
