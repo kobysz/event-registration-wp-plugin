@@ -341,6 +341,102 @@ final class RegistrationRepository {
 	}
 
 	/**
+	 * Ustawia status zgłoszenia na anulowany.
+	 *
+	 * @param int $id ID zgłoszenia.
+	 */
+	public function markCancelled( int $id ): void {
+		global $wpdb;
+
+		$wpdb->update(
+			$this->registrations(),
+			array(
+				'status'     => RegistrationStatus::Cancelled->value,
+				'updated_at' => current_time( 'mysql', true ),
+			),
+			array( 'id' => $id ),
+			array( '%s', '%s' ),
+			array( '%d' )
+		); // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+	}
+
+	/**
+	 * Ustawia status na pending i nowy termin wygaśnięcia (promocja z waitlisty).
+	 *
+	 * @param int    $id         ID zgłoszenia.
+	 * @param string $expires_at Termin wygaśnięcia (Y-m-d H:i:s, UTC).
+	 */
+	public function markPending( int $id, string $expires_at ): void {
+		global $wpdb;
+
+		$wpdb->update(
+			$this->registrations(),
+			array(
+				'status'     => RegistrationStatus::Pending->value,
+				'expires_at' => $expires_at,
+				'updated_at' => current_time( 'mysql', true ),
+			),
+			array( 'id' => $id ),
+			array( '%s', '%s', '%s' ),
+			array( '%d' )
+		); // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+	}
+
+	/**
+	 * Kasuje rezerwacje noclegowe zgłoszenia.
+	 *
+	 * @param int $id ID zgłoszenia.
+	 */
+	public function deleteAccommodationBooking( int $id ): void {
+		global $wpdb;
+
+		$wpdb->delete( $this->bookings(), array( 'registration_id' => $id ), array( '%d' ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+	}
+
+	/**
+	 * Kasuje wiersze kolejki maili powiązane ze zgłoszeniem (sprzątanie osieroconych).
+	 *
+	 * @param int $id ID zgłoszenia.
+	 */
+	public function deleteMailQueueByRegistration( int $id ): void {
+		global $wpdb;
+
+		$wpdb->delete( Migrations::table( 'mail_queue' ), array( 'registration_id' => $id ), array( '%d' ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+	}
+
+	/**
+	 * Trwale kasuje wiersz zgłoszenia.
+	 *
+	 * @param int $id ID zgłoszenia.
+	 */
+	public function hardDelete( int $id ): void {
+		global $wpdb;
+
+		$wpdb->delete( $this->registrations(), array( 'id' => $id ), array( '%d' ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+	}
+
+	/**
+	 * Zapisuje notatkę organizatora.
+	 *
+	 * @param int    $id   ID zgłoszenia.
+	 * @param string $note Treść notatki.
+	 */
+	public function updateNote( int $id, string $note ): void {
+		global $wpdb;
+
+		$wpdb->update(
+			$this->registrations(),
+			array(
+				'note'       => $note,
+				'updated_at' => current_time( 'mysql', true ),
+			),
+			array( 'id' => $id ),
+			array( '%s', '%s' ),
+			array( '%d' )
+		); // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+	}
+
+	/**
 	 * Anuluje zgłoszenia oczekujące, których termin wygasł przed podanym momentem.
 	 *
 	 * @param string $now Aktualny moment (Y-m-d H:i:s) do porównania z expires_at.
