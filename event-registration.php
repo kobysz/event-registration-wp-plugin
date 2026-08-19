@@ -27,8 +27,21 @@ add_action( 'plugins_loaded', array( \EvReg\Admin\EventPostType::class, 'registe
 add_action( 'plugins_loaded', array( \EvReg\Admin\Capabilities::class, 'register' ) );
 add_action( 'plugins_loaded', array( \EvReg\Rest\EventConfigController::class, 'register' ) );
 add_action( 'plugins_loaded', array( \EvReg\Admin\EventConfigAssets::class, 'register' ) );
+add_action( 'plugins_loaded', array( \EvReg\Frontend\SubmitHandler::class, 'register' ) );
+add_action( 'plugins_loaded', array( \EvReg\Frontend\Shortcode::class, 'register' ) );
+add_action( 'plugins_loaded', array( \EvReg\Frontend\Block::class, 'register' ) );
+add_action( 'plugins_loaded', array( \EvReg\Frontend\ConfirmationController::class, 'register' ) );
 add_action( 'plugins_loaded', array( \EvReg\Cron\ExpirePending::class, 'register' ) );
 add_action( 'plugins_loaded', array( \EvReg\Cron\ExpirePending::class, 'schedule' ) );
+
+add_action(
+	'init',
+	static function (): void {
+		$url = plugin_dir_url( \EvReg\Plugin::plugin_file() );
+		wp_register_style( 'evreg-public', $url . 'assets/public/form.css', array(), \EvReg\Plugin::VERSION );
+		wp_register_script( 'evreg-public', $url . 'assets/public/form.js', array(), \EvReg\Plugin::VERSION, true );
+	}
+);
 
 register_activation_hook(
 	__FILE__,

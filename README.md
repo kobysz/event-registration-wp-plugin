@@ -63,9 +63,13 @@ npm run test:e2e
 src/
 ├─ Domain/         Czysta logika (schema, warunki, walidacja, ceny, limity, assembler) — zero WordPressa
 ├─ Admin/          CPT, capability, enqueue aplikacji React
-├─ Persistence/    Migracje tabel, repozytorium konfiguracji
-└─ Rest/           Endpoint konfiguracji eventu
+├─ Persistence/    Migracje tabel, repozytoria konfiguracji i zgłoszeń
+├─ Services/       Transakcyjna rezerwacja i potwierdzenie miejsc
+├─ Rest/           Endpoint konfiguracji eventu
+├─ Cron/           Wygaszanie zgłoszeń pending
+└─ Frontend/       Formularz publiczny (loader, render, submit, blok/shortcode, potwierdzenie)
 assets/admin/      Aplikacja React (edytor konfiguracji) — logika w ops/*, komponenty cienkie
+assets/public/     Statyczny form.js (warunki) + form.css
 tests/             Unit (bez WP), Integration (wp-env), e2e (Playwright)
 docs/superpowers/  Specyfikacje i plany implementacji
 ```
@@ -76,7 +80,7 @@ Wtyczka jest w budowie (roadmapa 6 planów). Gotowe:
 
 1. ✅ Warstwa domeny (schema formularza, warunki, walidacja, typy, noclegi, ceny, decyzja o limitach)
 2. ✅ Konfiguracja eventu w adminie (CPT, REST, React admin z czterema zakładkami)
-3. 🔶 Formularz publiczny + transakcyjna rezerwacja miejsc — backend rezerwacji (3A) gotowy; formularz publiczny (3B) w toku
+3. ✅ Formularz publiczny + transakcyjna rezerwacja miejsc (blok/shortcode, render serwerowy, antyspam, PRG, endpoint potwierdzenia double opt-in, warunki JS)
 4. ⬜ Kolejka mailowa (double opt-in, retry, wygasanie)
 5. ⬜ Panel zgłoszeń (CRUD, eksport, lista rezerwowa)
 6. ⬜ Auto-aktualizacja + utwardzenie CI
