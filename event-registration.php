@@ -26,6 +26,7 @@ if ( file_exists( __DIR__ . '/vendor/autoload.php' ) ) {
 add_action( 'plugins_loaded', array( \EvReg\Admin\EventPostType::class, 'register' ) );
 add_action( 'plugins_loaded', array( \EvReg\Admin\Capabilities::class, 'register' ) );
 add_action( 'plugins_loaded', array( \EvReg\Rest\EventConfigController::class, 'register' ) );
+add_action( 'plugins_loaded', array( \EvReg\Rest\MailTemplateController::class, 'register' ) );
 add_action( 'plugins_loaded', array( \EvReg\Admin\EventConfigAssets::class, 'register' ) );
 add_action( 'plugins_loaded', array( \EvReg\Frontend\SubmitHandler::class, 'register' ) );
 add_action( 'plugins_loaded', array( \EvReg\Frontend\Shortcode::class, 'register' ) );

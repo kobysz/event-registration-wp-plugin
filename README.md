@@ -80,10 +80,10 @@ docs/superpowers/  Specyfikacje i plany implementacji
 Wtyczka jest w budowie (roadmapa 6 planów). Gotowe:
 
 1. ✅ Warstwa domeny (schema formularza, warunki, walidacja, typy, noclegi, ceny, decyzja o limitach)
-2. ✅ Konfiguracja eventu w adminie (CPT, REST, React admin z czterema zakładkami)
+2. ✅ Konfiguracja eventu w adminie (CPT, REST, React admin z pięcioma zakładkami)
 3. ✅ Formularz publiczny + transakcyjna rezerwacja miejsc (blok/shortcode, render serwerowy, antyspam, PRG, endpoint potwierdzenia double opt-in, warunki JS)
 4. ✅ Kolejka mailowa — silnik (double opt-in, retry, wygasanie, powiadomienia organizatora)
-5. ⬜ Edytor szablonów maili i ekran kolejki w adminie (Plan 4B)
+5. 🔶 Admin maili — edytor szablonów per event gotowy; ekran kolejki (podgląd/wznowienie) osobny plan
 6. ⬜ Panel zgłoszeń (CRUD, eksport, lista rezerwowa)
 7. ⬜ Auto-aktualizacja + utwardzenie CI
 

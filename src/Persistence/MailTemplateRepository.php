@@ -12,9 +12,9 @@ namespace EvReg\Persistence;
 defined( 'ABSPATH' ) || exit;
 
 /**
- * Odczyt szablonów maili zapisanych przy evencie.
+ * Odczyt i zapis szablonów maili zapisanych przy evencie.
  *
- * Plan 4A tylko czyta. Zapis (edytor w adminie) dochodzi w Planie 4B.
+ * Odczyt od Planu 4A, zapis (edytor w adminie) dodany w Planie 4B.
  */
 final class MailTemplateRepository {
 
@@ -41,6 +41,44 @@ final class MailTemplateRepository {
 		$decoded = json_decode( $raw, true );
 
 		return is_array( $decoded ) ? $this->normalize( $decoded ) : array();
+	}
+
+	/**
+	 * Zapisuje nadpisania szablonów eventu. Puste pola i typy są odsiewane;
+	 * pusty wynik kasuje meta.
+	 *
+	 * @param int                                $event_id  ID posta eventu.
+	 * @param array<string,array<string,string>> $templates Surowe nadpisania z żądania.
+	 */
+	public function save( int $event_id, array $templates ): void {
+		$clean = array();
+
+		foreach ( $templates as $key => $template ) {
+			if ( ! is_string( $key ) || ! is_array( $template ) ) {
+				continue;
+			}
+
+			$fields = array();
+
+			foreach ( array( 'subject', 'body' ) as $field ) {
+				$value = $template[ $field ] ?? '';
+
+				if ( is_string( $value ) && '' !== $value ) {
+					$fields[ $field ] = $value;
+				}
+			}
+
+			if ( array() !== $fields ) {
+				$clean[ $key ] = $fields;
+			}
+		}
+
+		if ( array() === $clean ) {
+			delete_post_meta( $event_id, self::META_KEY );
+			return;
+		}
+
+		update_post_meta( $event_id, self::META_KEY, wp_slash( (string) wp_json_encode( $clean ) ) );
 	}
 
 	/**

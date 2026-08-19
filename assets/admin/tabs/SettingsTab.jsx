@@ -1,4 +1,4 @@
-import { TextControl, ToggleControl } from '@wordpress/components';
+import { TextControl, ToggleControl, SelectControl } from '@wordpress/components';
 import { __ } from '@wordpress/i18n';
 
 export default function SettingsTab( { config, update } ) {
@@ -6,8 +6,8 @@ export default function SettingsTab( { config, update } ) {
 	const setSettings = update( 'settings' );
 	const set = ( key ) => ( value ) => setSettings( { ...settings, [ key ]: value } );
 
-	const emails = Array.isArray( settings.organizer_emails )
-		? settings.organizer_emails.join( ', ' )
+	const emails = Array.isArray( settings.notify_emails )
+		? settings.notify_emails.join( ', ' )
 		: '';
 
 	return (
@@ -58,11 +58,25 @@ export default function SettingsTab( { config, update } ) {
 				onChange={ ( value ) =>
 					setSettings( {
 						...settings,
-						organizer_emails: value
+						notify_emails: value
 							.split( ',' )
 							.map( ( item ) => item.trim() )
 							.filter( Boolean ),
 					} )
+				}
+			/>
+			<SelectControl
+				label={ __( 'Strona z formularzem (link potwierdzenia)', 'event-registration' ) }
+				value={ String( settings.form_page_id || 0 ) }
+				options={ [
+					{ value: '0', label: __( '— użyj strony wydarzenia —', 'event-registration' ) },
+					...( ( window.evregAdmin && window.evregAdmin.pages ) || [] ).map( ( page ) => ( {
+						value: String( page.value ),
+						label: page.label,
+					} ) ),
+				] }
+				onChange={ ( value ) =>
+					setSettings( { ...settings, form_page_id: parseInt( value, 10 ) } )
 				}
 			/>
 		</div>
