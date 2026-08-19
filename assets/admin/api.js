@@ -13,3 +13,17 @@ export function saveConfig( eventId, config ) {
 		data: config,
 	} );
 }
+
+const templatesBase = ( eventId ) => `/evreg/v1/events/${ eventId }/mail-templates`;
+
+export function loadTemplates( eventId ) {
+	return apiFetch( { path: templatesBase( eventId ) } );
+}
+
+export function saveTemplates( eventId, templates ) {
+	return apiFetch( {
+		path: templatesBase( eventId ),
+		method: 'POST',
+		data: { templates },
+	} );
+}

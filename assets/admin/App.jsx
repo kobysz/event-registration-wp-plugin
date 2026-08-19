@@ -1,13 +1,15 @@
 import { useState, useEffect } from '@wordpress/element';
 import { Button, TabPanel, Spinner, Notice } from '@wordpress/components';
 import { __ } from '@wordpress/i18n';
-import { loadConfig, saveConfig } from './api';
+import { loadConfig, saveConfig, loadTemplates, saveTemplates } from './api';
 import ValidationReport from './components/ValidationReport';
 import FormTab from './tabs/FormTab';
 import TypesTab from './tabs/TypesTab';
 import AccommodationTab from './tabs/AccommodationTab';
 import SettingsTab from './tabs/SettingsTab';
+import MailTemplatesTab from './tabs/MailTemplatesTab';
 import { ensureTypeField, emptySchema } from './ops/schemaOps';
+import { mergeLoaded, normalizeForSave } from './ops/mailTemplateOps';
 
 const EMPTY = { schema: {}, types: [], accommodation: {}, settings: {} };
 
@@ -17,6 +19,7 @@ export default function App( { eventId } ) {
 	const [ loading, setLoading ] = useState( true );
 	const [ saving, setSaving ] = useState( false );
 	const [ error, setError ] = useState( '' );
+	const [ templateDefaults, setTemplateDefaults ] = useState( {} );
 
 	useEffect( () => {
 		if ( ! eventId ) {
@@ -38,6 +41,15 @@ export default function App( { eventId } ) {
 			} )
 			.catch( () => setError( __( 'Nie udało się wczytać konfiguracji.', 'event-registration' ) ) )
 			.finally( () => setLoading( false ) );
+
+		loadTemplates( eventId )
+			.then( ( data ) => {
+				setConfig( ( prev ) => ( { ...prev, mailTemplates: mergeLoaded( data.templates || {} ) } ) );
+				setTemplateDefaults( data.defaults || {} );
+			} )
+			.catch( () =>
+				setError( __( 'Nie udało się wczytać szablonów maili.', 'event-registration' ) )
+			);
 	}, [ eventId ] );
 
 	const update = ( key ) => ( value ) =>
@@ -46,9 +58,26 @@ export default function App( { eventId } ) {
 	const onSave = () => {
 		setSaving( true );
 		setError( '' );
-		saveConfig( eventId, config )
-			.then( ( data ) => setValidation( data.validation || null ) )
-			.catch( () => setError( __( 'Zapis nie powiódł się.', 'event-registration' ) ) )
+		Promise.allSettled( [
+			saveConfig( eventId, config ),
+			saveTemplates( eventId, normalizeForSave( config.mailTemplates || {} ) ),
+		] )
+			.then( ( [ cfg, tpl ] ) => {
+				if ( 'fulfilled' === cfg.status ) {
+					setValidation( cfg.value.validation || null );
+				}
+				if ( 'fulfilled' === tpl.status ) {
+					setConfig( ( prev ) => ( { ...prev, mailTemplates: mergeLoaded( tpl.value.templates || {} ) } ) );
+					setTemplateDefaults( tpl.value.defaults || {} );
+				}
+				if ( 'rejected' === cfg.status && 'rejected' === tpl.status ) {
+					setError( __( 'Zapis nie powiódł się.', 'event-registration' ) );
+				} else if ( 'rejected' === cfg.status ) {
+					setError( __( 'Konfiguracja nie zapisana; szablony zapisane.', 'event-registration' ) );
+				} else if ( 'rejected' === tpl.status ) {
+					setError( __( 'Szablony nie zapisane; konfiguracja zapisana.', 'event-registration' ) );
+				}
+			} )
 			.finally( () => setSaving( false ) );
 	};
 
@@ -69,6 +98,7 @@ export default function App( { eventId } ) {
 		{ name: 'types', title: __( 'Typy zgłoszenia', 'event-registration' ) },
 		{ name: 'accommodation', title: __( 'Noclegi', 'event-registration' ) },
 		{ name: 'settings', title: __( 'Ustawienia', 'event-registration' ) },
+		{ name: 'mail', title: __( 'Szablony maili', 'event-registration' ) },
 	];
 
 	return (
@@ -81,6 +111,7 @@ export default function App( { eventId } ) {
 						name={ tab.name }
 						config={ config }
 						update={ update }
+						templateDefaults={ templateDefaults }
 					/>
 				) }
 			</TabPanel>
@@ -93,7 +124,7 @@ export default function App( { eventId } ) {
 	);
 }
 
-function TabRouter( { name, config, update } ) {
+function TabRouter( { name, config, update, templateDefaults } ) {
 	if ( 'form' === name ) {
 		return <FormTab config={ config } update={ update } />;
 	}
@@ -105,6 +136,15 @@ function TabRouter( { name, config, update } ) {
 	}
 	if ( 'settings' === name ) {
 		return <SettingsTab config={ config } update={ update } />;
+	}
+	if ( 'mail' === name ) {
+		return (
+			<MailTemplatesTab
+				templates={ config.mailTemplates }
+				defaults={ templateDefaults }
+				update={ update }
+			/>
+		);
 	}
 	return null;
 }
