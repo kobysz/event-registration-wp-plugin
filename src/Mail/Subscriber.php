@@ -148,7 +148,7 @@ final class Subscriber {
 
 		$values  = self::placeholders()->build( $row );
 		$queue   = self::mailQueue();
-		$headers = array( 'Reply-To: ' . (string) $row['email'] );
+		$headers = array( 'Reply-To: ' . sanitize_email( (string) $row['email'] ) );
 
 		foreach ( self::recipients( $event_id ) as $recipient ) {
 			$queue->enqueue(

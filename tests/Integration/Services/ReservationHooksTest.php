@@ -117,6 +117,51 @@ final class ReservationHooksTest extends WP_UnitTestCase {
 		$this->assertSame( $this->event_id, $this->captured[0]['event'] );
 	}
 
+	/**
+	 * Dowodzi, że emisja hooka jest strukturalnie POZA blokiem try/catch transakcji:
+	 * podpina SUROWY (nieowinięty własnym try/catch, w przeciwieństwie do Mail\Subscriber)
+	 * nasłuch, który rzuca \RuntimeException. Gdyby do_action nadal leżał wewnątrz try
+	 * reserve(), rzut trafiłby do (no-op) ROLLBACK i zamaskował trwale zatwierdzony wiersz
+	 * jako porażkę. Po przeniesieniu emisji poza try/catch rzut z nasłuchu propaguje się
+	 * do wywołującego bez wpływu na już zatwierdzoną transakcję — dowodem jest to, że
+	 * wiersz zgłoszenia pozostaje w bazie ze statusem "pending" NIEZALEŻNIE od tego, czy
+	 * wyjątek dotarł do testu, czy PHPUnit/hooki WP go po drodze pochłonęły.
+	 */
+	public function test_reserved_hook_throwing_listener_does_not_undo_committed_row(): void {
+		$captured_token = null;
+
+		add_action(
+			'evreg_registration_reserved',
+			static function ( int $id, int $event_id, string $token ) use ( &$captured_token ): void {
+				$captured_token = $token;
+				throw new \RuntimeException( 'evreg raw listener boom' );
+			},
+			10,
+			3
+		);
+
+		$threw = false;
+
+		try {
+			$this->service->reserve( $this->event_id, $this->request( 'boom@example.com' ) );
+		} catch ( \RuntimeException $e ) {
+			$threw = true;
+			$this->assertSame( 'evreg raw listener boom', $e->getMessage() );
+		}
+
+		$this->assertTrue( $threw, 'Rzut z surowego nasłuchu musiał propagować się do wywołującego (poza try/catch reserve()).' );
+		$this->assertNotNull( $captured_token, 'Nasłuch musiał zostać wywołany z tokenem zgłoszenia — dowód, że hook odpalił się po COMMIT.' );
+
+		$row = ( new RegistrationRepository() )->findByToken( (string) $captured_token );
+
+		$this->assertNotNull( $row, 'Wiersz zgłoszenia musi istnieć — COMMIT wykonał się przed rzutem z nasłuchu.' );
+		$this->assertSame(
+			'pending',
+			$row['status'],
+			'Wiersz musi pozostać "pending" (zatwierdzony), a nie zostać cofnięty przez ROLLBACK po rzucie z nasłuchu.'
+		);
+	}
+
 	public function test_rejected_reservation_fires_nothing(): void {
 		$config = new EventConfigRepository();
 		$config->save( $this->event_id, array( 'settings' => array( 'waitlist_enabled' => false ) ) );

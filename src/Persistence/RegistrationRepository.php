@@ -287,6 +287,10 @@ final class RegistrationRepository {
 			return array();
 		}
 
+		// Zwracane wiersze to kandydaci z SELECT sprzed UPDATE, nie tylko te, które TA rozmowa
+		// przestawiła na Cancelled — przy nakładających się przebiegach crona nasłuch może więc
+		// odpalić się też dla wiersza już anulowanego przez inny przebieg; dla maila nieszkodliwe
+		// (unikalny indeks kolejki dedupuje), ale dla przyszłego nie-mailowego nasłuchu to nieszczelny kontrakt.
 		return array_map(
 			static fn ( array $row ): array => array(
 				'id'       => (int) $row['id'],
