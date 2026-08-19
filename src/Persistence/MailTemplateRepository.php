@@ -12,9 +12,9 @@ namespace EvReg\Persistence;
 defined( 'ABSPATH' ) || exit;
 
 /**
- * Odczyt szablonów maili zapisanych przy evencie.
+ * Odczyt i zapis szablonów maili zapisanych przy evencie.
  *
- * Plan 4A tylko czyta. Zapis (edytor w adminie) dochodzi w Planie 4B.
+ * Odczyt od Planu 4A, zapis (edytor w adminie) dodany w Planie 4B.
  */
 final class MailTemplateRepository {
 
