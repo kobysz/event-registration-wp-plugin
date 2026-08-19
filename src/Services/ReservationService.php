@@ -142,8 +142,12 @@ final class ReservationService {
 			$wpdb->query( 'COMMIT' );
 
 			if ( $is_waitlist ) {
+				do_action( 'evreg_registration_waitlisted', $id, $event_id );
+
 				return ReservationResult::waitlisted( $id, $token, (string) $decision->reason );
 			}
+
+			do_action( 'evreg_registration_reserved', $id, $event_id, $token );
 
 			return ReservationResult::reserved( $id, $token, $decision->accommodationGranted, $decision->reason );
 		} catch ( \Throwable $e ) {
@@ -167,7 +171,7 @@ final class ReservationService {
 		$status = RegistrationStatus::tryFrom( (string) $row['status'] );
 
 		return match ( $status ) {
-			RegistrationStatus::Pending   => $this->doConfirm( (int) $row['id'] ),
+			RegistrationStatus::Pending   => $this->doConfirm( (int) $row['id'], (int) $row['event_id'] ),
 			RegistrationStatus::Confirmed => ConfirmationResult::alreadyConfirmed(),
 			RegistrationStatus::Cancelled => ConfirmationResult::expired(),
 			RegistrationStatus::Waitlist  => ConfirmationResult::onWaitlist(),
@@ -176,12 +180,16 @@ final class ReservationService {
 	}
 
 	/**
-	 * Oznacza zgłoszenie jako potwierdzone.
+	 * Oznacza zgłoszenie jako potwierdzone i ogłasza zdarzenie.
 	 *
 	 * @param int $registration_id ID zgłoszenia.
+	 * @param int $event_id        ID eventu.
 	 */
-	private function doConfirm( int $registration_id ): ConfirmationResult {
+	private function doConfirm( int $registration_id, int $event_id ): ConfirmationResult {
 		$this->repository->markConfirmed( $registration_id );
+
+		do_action( 'evreg_registration_confirmed', $registration_id, $event_id );
+
 		return ConfirmationResult::confirmed();
 	}
 }

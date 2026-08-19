@@ -246,28 +246,53 @@ final class RegistrationRepository {
 	 *
 	 * @param string $now Aktualny moment (Y-m-d H:i:s) do porównania z expires_at.
 	 *
-	 * @return int Liczba anulowanych zgłoszeń.
+	 * @return array<int,array{id: int, event_id: int}> Wygaszone zgłoszenia.
 	 */
-	public function expirePending( string $now ): int {
+	public function expirePending( string $now ): array {
 		global $wpdb;
 
-		$result = $wpdb->query(
+		$candidates = $wpdb->get_results(
 			$wpdb->prepare(
 				// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-				"UPDATE {$this->registrations()} SET status = %s, updated_at = %s WHERE status = %s AND expires_at IS NOT NULL AND expires_at < %s",
-				RegistrationStatus::Cancelled->value,
-				current_time( 'mysql', true ),
+				"SELECT id, event_id FROM {$this->registrations()} WHERE status = %s AND expires_at IS NOT NULL AND expires_at < %s",
 				RegistrationStatus::Pending->value,
 				$now
+			),
+			ARRAY_A
+		);
+
+		if ( ! is_array( $candidates ) || array() === $candidates ) {
+			return array();
+		}
+
+		$ids          = array_map( static fn ( array $row ): int => (int) $row['id'], $candidates );
+		$placeholders = implode( ', ', array_fill( 0, count( $ids ), '%d' ) );
+
+		$result = $wpdb->query(
+			// phpcs:ignore WordPress.DB.PreparedSQLPlaceholders.ReplacementsWrongNumber -- $placeholders ma zmienną, ale dopasowaną do $ids liczbę elementów.
+			$wpdb->prepare(
+				// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+				"UPDATE {$this->registrations()} SET status = %s, updated_at = %s WHERE id IN ({$placeholders}) AND status = %s",
+				array_merge(
+					array( RegistrationStatus::Cancelled->value, current_time( 'mysql', true ) ),
+					$ids,
+					array( RegistrationStatus::Pending->value )
+				)
 			)
 		);
 
 		if ( false === $result ) {
 			// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
 			error_log( 'evreg expirePending failed: ' . $wpdb->last_error );
-			return 0;
+			return array();
 		}
 
-		return (int) $result;
+		return array_map(
+			static fn ( array $row ): array => array(
+				'id'       => (int) $row['id'],
+				'event_id' => (int) $row['event_id'],
+			),
+			$candidates
+		);
 	}
 }

@@ -72,4 +72,27 @@ final class ExpirePendingTest extends WP_UnitTestCase {
 
 		$this->assertNotFalse( wp_next_scheduled( ExpirePending::HOOK ) );
 	}
+
+	public function test_run_fires_expired_hook_per_registration(): void {
+		$captured = array();
+		add_action(
+			'evreg_registration_expired',
+			static function ( int $registration_id, int $event_id ) use ( &$captured ): void {
+				$captured[] = array( $registration_id, $event_id );
+			},
+			10,
+			2
+		);
+
+		$this->insert( array( 'expires_at' => '2000-01-01 00:00:00', 'email' => 'due1@example.com' ) );
+		$this->insert( array( 'expires_at' => '2000-01-01 00:00:00', 'email' => 'due2@example.com' ) );
+		$this->insert( array( 'expires_at' => '2099-01-01 00:00:00', 'email' => 'future@example.com' ) );
+
+		ExpirePending::run();
+
+		remove_all_actions( 'evreg_registration_expired' );
+
+		$this->assertCount( 2, $captured );
+		$this->assertSame( 1, $captured[0][1] );
+	}
 }
