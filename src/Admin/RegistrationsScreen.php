@@ -9,6 +9,7 @@ declare( strict_types=1 );
 
 namespace EvReg\Admin;
 
+use EvReg\Domain\Registration\RegistrationTypeCollection;
 use EvReg\Frontend\EventFormLoader;
 use EvReg\Persistence\EventConfigRepository;
 use EvReg\Persistence\RegistrationRepository;
@@ -160,7 +161,7 @@ final class RegistrationsScreen {
 		self::detail_row( __( 'Status', 'event-registration' ), RegistrationsListTable::status_label( (string) $row['status'] ) );
 		self::detail_row( __( 'Imię i nazwisko', 'event-registration' ), (string) $row['name'] );
 		self::detail_row( __( 'E-mail', 'event-registration' ), (string) $row['email'] );
-		self::detail_row( __( 'Typ', 'event-registration' ), (string) $row['type_key'] );
+		self::detail_row( __( 'Typ', 'event-registration' ), self::type_label( $event_id, (string) $row['type_key'] ) );
 		self::detail_row( __( 'Kwota', 'event-registration' ), (string) $row['price_total'] );
 		self::detail_row( __( 'Zgłoszono', 'event-registration' ), (string) $row['created_at'] );
 		self::detail_row( __( 'Potwierdzono', 'event-registration' ), (string) ( $row['confirmed_at'] ?? '' ) );
@@ -173,6 +174,24 @@ final class RegistrationsScreen {
 		self::render_actions( $id, (string) $row['status'] );
 
 		echo '</div>';
+	}
+
+	/**
+	 * Zwraca etykietę typu z configu eventu, fallback: sam klucz.
+	 *
+	 * @param int    $event_id ID eventu.
+	 * @param string $type_key Klucz typu.
+	 */
+	private static function type_label( int $event_id, string $type_key ): string {
+		if ( 0 === $event_id || '' === $type_key ) {
+			return $type_key;
+		}
+
+		$config = ( new EventConfigRepository() )->get( $event_id );
+		$types  = RegistrationTypeCollection::fromArray( is_array( $config['types'] ) ? $config['types'] : array() );
+		$type   = $types->get( $type_key );
+
+		return null === $type ? $type_key : $type->label;
 	}
 
 	/**
@@ -326,17 +345,21 @@ final class RegistrationsScreen {
 	}
 
 	/**
-	 * Przekierowuje na listę z kodem komunikatu (PRG).
+	 * Przekierowuje na listę (albo, z $extra, na inny widok) z kodem komunikatu (PRG).
 	 *
-	 * @param string $code Kod wyniku.
+	 * @param string              $code  Kod wyniku.
+	 * @param array<string,mixed> $extra Dodatkowe argumenty query (np. widok szczegółów).
 	 */
-	private static function redirect( string $code ): void {
+	private static function redirect( string $code, array $extra = array() ): void {
 		wp_safe_redirect(
 			add_query_arg(
-				array(
-					'post_type' => EventPostType::POST_TYPE,
-					'page'      => self::SLUG,
-					'evreg_msg' => $code,
+				array_merge(
+					array(
+						'post_type' => EventPostType::POST_TYPE,
+						'page'      => self::SLUG,
+						'evreg_msg' => $code,
+					),
+					$extra
 				),
 				admin_url( 'edit.php' )
 			)
@@ -375,6 +398,12 @@ final class RegistrationsScreen {
 
 		( new RegistrationRepository() )->updateNote( $id, $note );
 
-		self::redirect( 'note' );
+		self::redirect(
+			'note',
+			array(
+				'action' => 'view',
+				'id'     => $id,
+			)
+		);
 	}
 }

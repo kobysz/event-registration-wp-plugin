@@ -22,10 +22,10 @@ final class RegistrationsListTableTest extends WP_UnitTestCase {
 		set_current_screen( 'evreg_event_page_evreg-registrations' );
 	}
 
-	private function seed( string $status, string $token ): int {
+	private function seed( string $status, string $token, int $event_id = 1 ): int {
 		return $this->repository->insertRegistration(
 			array(
-				'event_id'    => 1,
+				'event_id'    => $event_id,
 				'type_key'    => 'uczestnik',
 				'status'      => $status,
 				'email'       => $token . '@example.com',
@@ -62,6 +62,22 @@ final class RegistrationsListTableTest extends WP_UnitTestCase {
 
 		$this->assertCount( 1, $table->items );
 		$this->assertSame( 'waitlist', $table->items[0]['status'] );
+	}
+
+	public function test_prepare_items_filters_by_event_id(): void {
+		$this->seed( 'pending', str_repeat( 'a', 32 ), 1 );
+		$this->seed( 'pending', str_repeat( 'b', 32 ), 2 );
+
+		$_REQUEST['event_id'] = 2;
+		$_GET['event_id']     = 2;
+
+		$table = new RegistrationsListTable();
+		$table->prepare_items();
+
+		unset( $_REQUEST['event_id'], $_GET['event_id'] );
+
+		$this->assertCount( 1, $table->items );
+		$this->assertSame( 2, (int) $table->items[0]['event_id'] );
 	}
 
 	public function test_status_label_translates(): void {

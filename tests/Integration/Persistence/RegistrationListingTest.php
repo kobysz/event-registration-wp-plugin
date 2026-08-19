@@ -111,4 +111,14 @@ final class RegistrationListingTest extends WP_UnitTestCase {
 		sort( $types );
 		$this->assertSame( array( 'uczestnik', 'wykladowca' ), $types );
 	}
+
+	public function test_distinct_event_ids(): void {
+		$this->seed( array( 'event_id' => 2, 'token' => str_repeat( 'a', 32 ) ) );
+		$this->seed( array( 'event_id' => 1, 'token' => str_repeat( 'b', 32 ) ) );
+		$this->seed( array( 'event_id' => 1, 'token' => str_repeat( 'c', 32 ) ) );
+
+		$ids = $this->repository->distinctEventIds();
+
+		$this->assertSame( array( 1, 2 ), $ids );
+	}
 }

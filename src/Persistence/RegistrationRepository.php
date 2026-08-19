@@ -296,6 +296,22 @@ final class RegistrationRepository {
 	}
 
 	/**
+	 * Zwraca unikalne ID eventów obecnych w zgłoszeniach.
+	 *
+	 * @return array<int,int>
+	 */
+	public function distinctEventIds(): array {
+		global $wpdb;
+
+		$ids = $wpdb->get_col(
+			// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+			"SELECT DISTINCT event_id FROM {$this->registrations()} ORDER BY event_id ASC"
+		); // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+
+		return array_map( 'intval', is_array( $ids ) ? $ids : array() );
+	}
+
+	/**
 	 * Zwraca rezerwację noclegową zgłoszenia albo null.
 	 *
 	 * @param int $registration_id ID zgłoszenia.

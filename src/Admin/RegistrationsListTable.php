@@ -227,6 +227,19 @@ final class RegistrationsListTable extends \WP_List_Table {
 		}
 		echo '</select>';
 
+		echo '<select name="event_id">';
+		echo '<option value="0">' . esc_html__( 'Wszystkie wydarzenia', 'event-registration' ) . '</option>';
+		foreach ( $this->repository->distinctEventIds() as $event_id ) {
+			$title = get_the_title( $event_id );
+			printf(
+				'<option value="%d"%s>%s</option>',
+				$event_id,
+				selected( $event, $event_id, false ),
+				esc_html( '' === $title ? '#' . $event_id : $title )
+			);
+		}
+		echo '</select>';
+
 		if ( $event > 0 ) {
 			echo '<select name="type_key">';
 			echo '<option value="">' . esc_html__( 'Wszystkie typy', 'event-registration' ) . '</option>';
