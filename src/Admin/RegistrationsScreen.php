@@ -1,0 +1,380 @@
+<?php
+/**
+ * Ekran admina panelu zgłoszeń: submenu, lista, szczegóły, akcje cyklu życia.
+ *
+ * @package EvReg
+ */
+
+declare( strict_types=1 );
+
+namespace EvReg\Admin;
+
+use EvReg\Frontend\EventFormLoader;
+use EvReg\Persistence\EventConfigRepository;
+use EvReg\Persistence\RegistrationRepository;
+use EvReg\Services\ReservationService;
+
+defined( 'ABSPATH' ) || exit;
+
+/**
+ * Ekran admina panelu zgłoszeń.
+ */
+final class RegistrationsScreen {
+
+	public const SLUG           = 'evreg-registrations';
+	public const ACTION_CONFIRM = 'evreg_reg_confirm';
+	public const ACTION_CANCEL  = 'evreg_reg_cancel';
+	public const ACTION_PROMOTE = 'evreg_reg_promote';
+	public const ACTION_DELETE  = 'evreg_reg_delete';
+	public const ACTION_NOTE    = 'evreg_reg_note';
+
+	/**
+	 * Podpina submenu i handlery akcji.
+	 */
+	public static function register(): void {
+		add_action( 'admin_menu', array( self::class, 'add_menu' ) );
+		add_action( 'admin_post_' . self::ACTION_CONFIRM, array( self::class, 'handle_confirm' ) );
+		add_action( 'admin_post_' . self::ACTION_CANCEL, array( self::class, 'handle_cancel' ) );
+		add_action( 'admin_post_' . self::ACTION_PROMOTE, array( self::class, 'handle_promote' ) );
+		add_action( 'admin_post_' . self::ACTION_DELETE, array( self::class, 'handle_delete' ) );
+		add_action( 'admin_post_' . self::ACTION_NOTE, array( self::class, 'handle_note' ) );
+	}
+
+	/**
+	 * Rejestruje submenu pod menu CPT wydarzeń.
+	 */
+	public static function add_menu(): void {
+		add_submenu_page(
+			'edit.php?post_type=' . EventPostType::POST_TYPE,
+			__( 'Zgłoszenia', 'event-registration' ),
+			__( 'Zgłoszenia', 'event-registration' ),
+			Capabilities::CAP,
+			self::SLUG,
+			array( self::class, 'render' )
+		);
+	}
+
+	/**
+	 * Renderuje listę albo ekran szczegółów.
+	 */
+	public static function render(): void {
+		if ( ! current_user_can( Capabilities::CAP ) ) {
+			wp_die( esc_html__( 'Brak uprawnień.', 'event-registration' ) );
+		}
+
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- routing widoku.
+		$action = isset( $_GET['action'] ) ? sanitize_text_field( wp_unslash( (string) $_GET['action'] ) ) : '';
+
+		if ( 'view' === $action ) {
+			// phpcs:ignore WordPress.Security.NonceVerification.Recommended
+			self::render_detail( (int) ( $_GET['id'] ?? 0 ) );
+			return;
+		}
+
+		self::render_list();
+	}
+
+	/**
+	 * Renderuje tabelę listy z filtrami i komunikatem akcji.
+	 */
+	private static function render_list(): void {
+		$table = new RegistrationsListTable();
+		$table->prepare_items();
+
+		echo '<div class="wrap">';
+		echo '<h1>' . esc_html__( 'Zgłoszenia', 'event-registration' ) . '</h1>';
+
+		self::render_notice();
+
+		echo '<form method="get">';
+		printf( '<input type="hidden" name="post_type" value="%s" />', esc_attr( EventPostType::POST_TYPE ) );
+		printf( '<input type="hidden" name="page" value="%s" />', esc_attr( self::SLUG ) );
+		$table->display();
+		echo '</form>';
+		echo '</div>';
+	}
+
+	/**
+	 * Renderuje komunikat wyniku akcji z parametru evreg_msg.
+	 */
+	private static function render_notice(): void {
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended
+		if ( ! isset( $_GET['evreg_msg'] ) ) {
+			return;
+		}
+
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended
+		$code     = sanitize_text_field( wp_unslash( (string) $_GET['evreg_msg'] ) );
+		$messages = array(
+			'confirmed'      => array( 'success', __( 'Zgłoszenie potwierdzone.', 'event-registration' ) ),
+			'cancelled'      => array( 'success', __( 'Zgłoszenie anulowane, miejsce zwolnione.', 'event-registration' ) ),
+			'promoted'       => array( 'success', __( 'Awansowano z listy rezerwowej — wysłano prośbę o potwierdzenie.', 'event-registration' ) ),
+			'deleted'        => array( 'success', __( 'Zgłoszenie trwale usunięte.', 'event-registration' ) ),
+			'note'           => array( 'success', __( 'Notatka zapisana.', 'event-registration' ) ),
+			'rejected'       => array( 'error', __( 'Brak wolnych miejsc — nie można awansować.', 'event-registration' ) ),
+			'invalid_status' => array( 'error', __( 'Akcja niedozwolona dla tego statusu.', 'event-registration' ) ),
+			'not_found'      => array( 'error', __( 'Nie znaleziono zgłoszenia.', 'event-registration' ) ),
+		);
+
+		if ( ! isset( $messages[ $code ] ) ) {
+			return;
+		}
+
+		printf(
+			'<div class="notice notice-%s is-dismissible"><p>%s</p></div>',
+			esc_attr( $messages[ $code ][0] ),
+			esc_html( $messages[ $code ][1] )
+		);
+	}
+
+	/**
+	 * Renderuje ekran szczegółów zgłoszenia (read-only + notatka).
+	 *
+	 * @param int $id ID zgłoszenia.
+	 */
+	private static function render_detail( int $id ): void {
+		$repository = new RegistrationRepository();
+		$row        = $repository->findById( $id );
+		$back       = add_query_arg(
+			array(
+				'post_type' => EventPostType::POST_TYPE,
+				'page'      => self::SLUG,
+			),
+			admin_url( 'edit.php' )
+		);
+
+		echo '<div class="wrap">';
+		echo '<h1>' . esc_html__( 'Szczegóły zgłoszenia', 'event-registration' ) . '</h1>';
+		printf( '<p><a href="%s">%s</a></p>', esc_url( $back ), esc_html__( '← wróć do listy', 'event-registration' ) );
+
+		if ( null === $row ) {
+			echo '<div class="notice notice-error"><p>' . esc_html__( 'Nie znaleziono zgłoszenia.', 'event-registration' ) . '</p></div></div>';
+			return;
+		}
+
+		self::render_notice();
+
+		$event_id = (int) $row['event_id'];
+
+		echo '<table class="widefat striped"><tbody>';
+		self::detail_row( __( 'Status', 'event-registration' ), RegistrationsListTable::status_label( (string) $row['status'] ) );
+		self::detail_row( __( 'Imię i nazwisko', 'event-registration' ), (string) $row['name'] );
+		self::detail_row( __( 'E-mail', 'event-registration' ), (string) $row['email'] );
+		self::detail_row( __( 'Typ', 'event-registration' ), (string) $row['type_key'] );
+		self::detail_row( __( 'Kwota', 'event-registration' ), (string) $row['price_total'] );
+		self::detail_row( __( 'Zgłoszono', 'event-registration' ), (string) $row['created_at'] );
+		self::detail_row( __( 'Potwierdzono', 'event-registration' ), (string) ( $row['confirmed_at'] ?? '' ) );
+		self::detail_row( __( 'Wygasa', 'event-registration' ), (string) ( $row['expires_at'] ?? '' ) );
+		echo '</tbody></table>';
+
+		self::render_answers( $event_id, (string) $row['data'] );
+		self::render_booking( $repository->findAccommodationBooking( $id ) );
+		self::render_note_form( $id, (string) ( $row['note'] ?? '' ) );
+		self::render_actions( $id, (string) $row['status'] );
+
+		echo '</div>';
+	}
+
+	/**
+	 * Renderuje odpowiedzi uczestnika ze złożonej schemy.
+	 *
+	 * @param int    $event_id ID eventu.
+	 * @param string $data     JSON odpowiedzi.
+	 */
+	private static function render_answers( int $event_id, string $data ): void {
+		$schema = ( new EventFormLoader( new EventConfigRepository() ) )->load( $event_id );
+
+		if ( null === $schema ) {
+			return;
+		}
+
+		$answers = json_decode( $data, true );
+		$answers = is_array( $answers ) ? $answers : array();
+
+		echo '<h2>' . esc_html__( 'Odpowiedzi', 'event-registration' ) . '</h2>';
+		echo '<table class="widefat striped"><tbody>';
+
+		foreach ( $schema->allFields() as $field ) {
+			if ( ! $field->type->isInput() ) {
+				continue;
+			}
+
+			$value = $answers[ $field->key ] ?? '';
+			$text  = is_array( $value ) ? implode( ', ', array_map( 'strval', $value ) ) : (string) $value;
+			self::detail_row( $field->label, $text );
+		}
+
+		echo '</tbody></table>';
+	}
+
+	/**
+	 * Renderuje rezerwację noclegową, jeśli istnieje.
+	 *
+	 * @param array<string,mixed>|null $booking Wiersz bookingu albo null.
+	 */
+	private static function render_booking( ?array $booking ): void {
+		if ( null === $booking ) {
+			return;
+		}
+
+		echo '<h2>' . esc_html__( 'Nocleg', 'event-registration' ) . '</h2>';
+		echo '<table class="widefat striped"><tbody>';
+		self::detail_row( __( 'Pakiet', 'event-registration' ), (string) $booking['package_key'] );
+		self::detail_row( __( 'Pokój', 'event-registration' ), (string) $booking['room_type_key'] );
+		self::detail_row( __( 'Współlokator', 'event-registration' ), (string) ( $booking['roommate_pref'] ?? '' ) );
+		echo '</tbody></table>';
+	}
+
+	/**
+	 * Renderuje formularz notatki.
+	 *
+	 * @param int    $id   ID zgłoszenia.
+	 * @param string $note Bieżąca notatka.
+	 */
+	private static function render_note_form( int $id, string $note ): void {
+		echo '<h2>' . esc_html__( 'Notatka organizatora', 'event-registration' ) . '</h2>';
+		echo '<form method="post" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '">';
+		printf( '<input type="hidden" name="action" value="%s" />', esc_attr( self::ACTION_NOTE ) );
+		printf( '<input type="hidden" name="id" value="%d" />', $id );
+		wp_nonce_field( self::ACTION_NOTE . '_' . $id );
+		printf( '<textarea name="note" rows="4" class="large-text">%s</textarea>', esc_textarea( $note ) );
+		echo '<p>';
+		submit_button( __( 'Zapisz notatkę', 'event-registration' ), 'secondary', 'submit', false );
+		echo '</p></form>';
+	}
+
+	/**
+	 * Renderuje przyciski akcji cyklu życia wg statusu.
+	 *
+	 * @param int    $id     ID zgłoszenia.
+	 * @param string $status Status zgłoszenia.
+	 */
+	private static function render_actions( int $id, string $status ): void {
+		$buttons = array();
+
+		if ( 'pending' === $status ) {
+			$buttons[] = self::action_button( self::ACTION_CONFIRM, $id, __( 'Potwierdź', 'event-registration' ), 'primary' );
+		}
+		if ( 'waitlist' === $status ) {
+			$buttons[] = self::action_button( self::ACTION_PROMOTE, $id, __( 'Promuj', 'event-registration' ), 'primary' );
+		}
+		if ( in_array( $status, array( 'pending', 'confirmed', 'waitlist' ), true ) ) {
+			$buttons[] = self::action_button( self::ACTION_CANCEL, $id, __( 'Anuluj', 'event-registration' ), 'secondary' );
+		}
+		if ( 'cancelled' === $status ) {
+			$buttons[] = self::action_button( self::ACTION_DELETE, $id, __( 'Usuń trwale', 'event-registration' ), 'delete' );
+		}
+
+		if ( array() === $buttons ) {
+			return;
+		}
+
+		echo '<h2>' . esc_html__( 'Akcje', 'event-registration' ) . '</h2><p>' . implode( ' ', $buttons ) . '</p>'; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- przyciski już escapowane w action_button.
+	}
+
+	/**
+	 * Buduje przycisk akcji (link z nonce).
+	 *
+	 * @param string $action  Nazwa akcji.
+	 * @param int    $id      ID zgłoszenia.
+	 * @param string $label   Etykieta.
+	 * @param string $variant Wariant klasy (primary|secondary|delete).
+	 */
+	private static function action_button( string $action, int $id, string $label, string $variant ): string {
+		$class = 'delete' === $variant ? 'button button-link-delete' : ( 'primary' === $variant ? 'button button-primary' : 'button' );
+
+		return sprintf(
+			'<a class="%s" href="%s">%s</a>',
+			esc_attr( $class ),
+			esc_url( wp_nonce_url( admin_url( 'admin-post.php?action=' . $action . '&id=' . $id ), $action . '_' . $id ) ),
+			esc_html( $label )
+		);
+	}
+
+	/**
+	 * Renderuje jeden wiersz tabeli szczegółów.
+	 *
+	 * @param string $label Etykieta.
+	 * @param string $value Wartość (escapowana).
+	 */
+	private static function detail_row( string $label, string $value ): void {
+		printf( '<tr><th scope="row" style="width:180px;">%s</th><td>%s</td></tr>', esc_html( $label ), esc_html( $value ) );
+	}
+
+	/**
+	 * Wspólny guard nonce+cap dla akcji, zwraca ID zgłoszenia.
+	 *
+	 * @param string $action Nazwa akcji (do nonce).
+	 */
+	private static function guard( string $action ): int {
+		$id = (int) ( $_POST['id'] ?? $_GET['id'] ?? 0 ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+
+		check_admin_referer( $action . '_' . $id );
+
+		if ( ! current_user_can( Capabilities::CAP ) ) {
+			wp_die( esc_html__( 'Brak uprawnień.', 'event-registration' ) );
+		}
+
+		return $id;
+	}
+
+	/**
+	 * Składa ReservationService.
+	 */
+	private static function service(): ReservationService {
+		return new ReservationService( new RegistrationRepository(), new EventConfigRepository() );
+	}
+
+	/**
+	 * Przekierowuje na listę z kodem komunikatu (PRG).
+	 *
+	 * @param string $code Kod wyniku.
+	 */
+	private static function redirect( string $code ): void {
+		wp_safe_redirect(
+			add_query_arg(
+				array(
+					'post_type' => EventPostType::POST_TYPE,
+					'page'      => self::SLUG,
+					'evreg_msg' => $code,
+				),
+				admin_url( 'edit.php' )
+			)
+		);
+		exit;
+	}
+
+	/** Handler potwierdzenia. */
+	public static function handle_confirm(): void {
+		$id = self::guard( self::ACTION_CONFIRM );
+		self::redirect( self::service()->confirmManually( $id )->code );
+	}
+
+	/** Handler anulowania. */
+	public static function handle_cancel(): void {
+		$id = self::guard( self::ACTION_CANCEL );
+		self::redirect( self::service()->cancel( $id )->code );
+	}
+
+	/** Handler promocji z waitlisty. */
+	public static function handle_promote(): void {
+		$id = self::guard( self::ACTION_PROMOTE );
+		self::redirect( self::service()->promoteFromWaitlist( $id )->code );
+	}
+
+	/** Handler trwałego usunięcia. */
+	public static function handle_delete(): void {
+		$id = self::guard( self::ACTION_DELETE );
+		self::redirect( self::service()->deleteRegistration( $id )->code );
+	}
+
+	/** Handler zapisu notatki. */
+	public static function handle_note(): void {
+		$id   = self::guard( self::ACTION_NOTE );
+		$note = isset( $_POST['note'] ) ? sanitize_textarea_field( wp_unslash( (string) $_POST['note'] ) ) : '';
+
+		( new RegistrationRepository() )->updateNote( $id, $note );
+
+		self::redirect( 'note' );
+	}
+}
