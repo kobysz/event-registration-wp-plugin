@@ -78,4 +78,22 @@ final class EventConfigRepositoryTest extends WP_UnitTestCase {
 		$this->assertSame( array( 'global_cap' => 50 ), $config['settings'] );
 		$this->assertSame( $this->sample_config()['types'], $config['types'] );
 	}
+
+	public function test_save_preserves_non_ascii_characters(): void {
+		$config = $this->sample_config();
+
+		$config['schema']['sections'][0]['fields'][0]['label'] = 'Imię i nazwisko';
+		$config['accommodation']                               = array(
+			'packages'  => array( array( 'key' => 'n12', 'label' => 'Noc 1–2' ) ),
+			'rooms'     => array(),
+			'inventory' => array(),
+		);
+
+		$this->repository->save( $this->event_id, $config );
+
+		$reloaded = $this->repository->get( $this->event_id );
+
+		$this->assertSame( 'Imię i nazwisko', $reloaded['schema']['sections'][0]['fields'][0]['label'] );
+		$this->assertSame( 'Noc 1–2', $reloaded['accommodation']['packages'][0]['label'] );
+	}
 }
