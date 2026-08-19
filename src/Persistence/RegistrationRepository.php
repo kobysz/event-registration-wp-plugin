@@ -181,6 +181,44 @@ final class RegistrationRepository {
 	}
 
 	/**
+	 * Zwraca zgłoszenie po ID.
+	 *
+	 * @param int $id ID zgłoszenia.
+	 *
+	 * @return array<string,mixed>|null
+	 */
+	public function findById( int $id ): ?array {
+		global $wpdb;
+
+		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		$row = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$this->registrations()} WHERE id = %d", $id ), ARRAY_A );
+
+		return is_array( $row ) ? $row : null;
+	}
+
+	/**
+	 * Zwraca rezerwację noclegową zgłoszenia albo null.
+	 *
+	 * @param int $registration_id ID zgłoszenia.
+	 *
+	 * @return array<string,mixed>|null
+	 */
+	public function findAccommodationBooking( int $registration_id ): ?array {
+		global $wpdb;
+
+		$row = $wpdb->get_row(
+			$wpdb->prepare(
+				// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+				"SELECT * FROM {$this->bookings()} WHERE registration_id = %d ORDER BY id ASC LIMIT 1",
+				$registration_id
+			),
+			ARRAY_A
+		);
+
+		return is_array( $row ) ? $row : null;
+	}
+
+	/**
 	 * Oznacza zgłoszenie jako potwierdzone i zapisuje znacznik czasu.
 	 *
 	 * @param int $registration_id ID zgłoszenia.
