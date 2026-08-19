@@ -334,4 +334,29 @@ final class MailQueueRepository {
 
 		return array_map( 'intval', is_array( $ids ) ? $ids : array() );
 	}
+
+	/**
+	 * Wznawia wiersz w stanie failed: zeruje próby i przywraca do kolejki.
+	 * Wiersz w innym stanie jest nietknięty (warunek WHERE status='failed').
+	 *
+	 * @param int $id ID wiersza.
+	 *
+	 * @return bool True, gdy dokładnie jeden wiersz (failed) został wznowiony.
+	 */
+	public function requeueFailed( int $id ): bool {
+		global $wpdb;
+
+		$result = $wpdb->query(
+			$wpdb->prepare(
+				// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+				"UPDATE {$this->table()} SET status = %s, attempts = 0, scheduled_at = %s, last_error = NULL, sent_at = NULL WHERE id = %d AND status = %s",
+				self::STATUS_QUEUED,
+				current_time( 'mysql', true ),
+				$id,
+				self::STATUS_FAILED
+			)
+		); // phpcs:ignore WordPress.DB.DirectDatabaseQuery,WordPress.DB.PreparedSQL.NotPrepared
+
+		return 1 === (int) $result;
+	}
 }
