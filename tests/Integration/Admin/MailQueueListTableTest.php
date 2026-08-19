@@ -100,6 +100,17 @@ final class MailQueueListTableTest extends WP_UnitTestCase {
 		$this->assertStringNotContainsString( '<b>', $output );
 	}
 
+	public function test_status_label_translates_known_status(): void {
+		$label = MailQueueListTable::status_label( 'failed' );
+
+		$this->assertNotSame( '', $label );
+		$this->assertNotSame( 'failed', $label );
+	}
+
+	public function test_status_label_falls_back_to_raw_value_for_unknown_status(): void {
+		$this->assertSame( 'mystery', MailQueueListTable::status_label( 'mystery' ) );
+	}
+
 	public function test_requeue_action_only_for_failed_rows(): void {
 		$table = new MailQueueListTable();
 

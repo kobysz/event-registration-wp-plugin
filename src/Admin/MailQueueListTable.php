@@ -99,7 +99,28 @@ final class MailQueueListTable extends \WP_List_Table {
 			return '' === $title ? '#' . (int) ( $item['event_id'] ?? 0 ) : esc_html( $title );
 		}
 
+		if ( 'status' === $column ) {
+			return esc_html( self::status_label( (string) ( $item['status'] ?? '' ) ) );
+		}
+
 		return esc_html( (string) ( $item[ $column ] ?? '' ) );
+	}
+
+	/**
+	 * Mapuje surowy status kolejki na tłumaczoną etykietę.
+	 *
+	 * @param string $status Surowa wartość statusu (MailQueueRepository::STATUS_*).
+	 * @return string Tłumaczona etykieta; nieznany/pusty status wraca bez zmian.
+	 */
+	public static function status_label( string $status ): string {
+		$labels = array(
+			MailQueueRepository::STATUS_QUEUED  => __( 'W kolejce', 'event-registration' ),
+			MailQueueRepository::STATUS_SENDING => __( 'Wysyłanie', 'event-registration' ),
+			MailQueueRepository::STATUS_SENT    => __( 'Wysłany', 'event-registration' ),
+			MailQueueRepository::STATUS_FAILED  => __( 'Nieudany', 'event-registration' ),
+		);
+
+		return $labels[ $status ] ?? $status;
 	}
 
 	/**
@@ -165,7 +186,7 @@ final class MailQueueListTable extends \WP_List_Table {
 				'<option value="%s"%s>%s</option>',
 				esc_attr( $status ),
 				selected( $current_status, $status, false ),
-				esc_html( $status )
+				esc_html( self::status_label( $status ) )
 			);
 		}
 		echo '</select>';

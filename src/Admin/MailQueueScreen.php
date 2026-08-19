@@ -99,13 +99,7 @@ final class MailQueueScreen {
 	 */
 	private static function render_detail( int $id ): void {
 		$row      = ( new MailQueueRepository() )->find( $id );
-		$back_url = add_query_arg(
-			array(
-				'post_type' => EventPostType::POST_TYPE,
-				'page'      => self::SLUG,
-			),
-			admin_url( 'edit.php' )
-		);
+		$back_url = self::list_url();
 
 		echo '<div class="wrap">';
 		echo '<h1>' . esc_html__( 'Szczegóły maila', 'event-registration' ) . '</h1>';
@@ -119,7 +113,7 @@ final class MailQueueScreen {
 		$title = get_the_title( (int) $row['event_id'] );
 
 		echo '<table class="widefat striped"><tbody>';
-		self::detail_row( __( 'Status', 'event-registration' ), (string) $row['status'] );
+		self::detail_row( __( 'Status', 'event-registration' ), MailQueueListTable::status_label( (string) $row['status'] ) );
 		self::detail_row( __( 'Odbiorca', 'event-registration' ), (string) $row['recipient'] );
 		self::detail_row( __( 'Wydarzenie', 'event-registration' ), '' === $title ? '#' . (int) $row['event_id'] : $title );
 		self::detail_row( __( 'Typ maila', 'event-registration' ), (string) $row['template_key'] );
@@ -173,16 +167,28 @@ final class MailQueueScreen {
 
 		$ok = ( new MailQueueRepository() )->requeueFailed( $id );
 
-		$redirect = add_query_arg(
-			array(
-				'post_type'      => EventPostType::POST_TYPE,
-				'page'           => self::SLUG,
-				'evreg_requeued' => $ok ? '1' : '0',
-			),
-			admin_url( 'edit.php' )
-		);
+		$redirect = self::list_url( array( 'evreg_requeued' => $ok ? '1' : '0' ) );
 
 		wp_safe_redirect( $redirect );
 		exit;
+	}
+
+	/**
+	 * Buduje URL listy kolejki (edit.php z post_type + page), opcjonalnie z dodatkowymi parametrami.
+	 *
+	 * @param array<string,mixed> $extra Dodatkowe parametry zapytania.
+	 * @return string URL listy kolejki.
+	 */
+	private static function list_url( array $extra = array() ): string {
+		return add_query_arg(
+			array_merge(
+				array(
+					'post_type' => EventPostType::POST_TYPE,
+					'page'      => self::SLUG,
+				),
+				$extra
+			),
+			admin_url( 'edit.php' )
+		);
 	}
 }
