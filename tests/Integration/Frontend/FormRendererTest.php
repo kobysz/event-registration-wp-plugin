@@ -90,4 +90,18 @@ final class FormRendererTest extends WP_UnitTestCase {
 		$this->assertStringContainsString( 'zły@@adres', $html );          // wartość odtworzona
 		$this->assertStringContainsString( 'evreg-field-error', $html );   // klasa błędu
 	}
+
+	public function test_non_scalar_submitted_value_renders_as_empty_without_warning(): void {
+		// Symuluje wrogie wejście `email[]=x`: Validator odrzuca pole, ale surowa
+		// wartość z $_POST trafia do SubmitResult::invalid() jako tablica.
+		$result = SubmitResult::invalid(
+			array( 'email' => 'invalid_email' ),
+			array( 'email' => array( 'x', 'y' ) )
+		);
+
+		$html = $this->renderer->render( $this->schema(), 1, $result );
+
+		$this->assertStringContainsString( 'name="email" value=""', $html );
+		$this->assertStringNotContainsString( 'Array', $html );
+	}
 }

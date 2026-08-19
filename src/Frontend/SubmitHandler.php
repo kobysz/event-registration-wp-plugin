@@ -216,14 +216,14 @@ final class SubmitHandler {
 	}
 
 	/**
-	 * Znajduje wartość pierwszego widocznego pola typu e-mail.
+	 * Znajduje wartość pierwszego widocznego, niepustego pola typu e-mail.
 	 *
 	 * @param FormSchema          $schema Schemat formularza.
 	 * @param array<string,mixed> $values Znormalizowane wartości z Validatora.
 	 */
 	private function extractEmail( FormSchema $schema, array $values ): string {
 		foreach ( $schema->allFields() as $field ) {
-			if ( FieldType::Email === $field->type && isset( $values[ $field->key ] ) ) {
+			if ( FieldType::Email === $field->type && isset( $values[ $field->key ] ) && '' !== (string) $values[ $field->key ] ) {
 				return (string) $values[ $field->key ];
 			}
 		}

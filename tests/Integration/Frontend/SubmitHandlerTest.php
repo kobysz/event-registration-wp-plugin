@@ -115,4 +115,52 @@ final class SubmitHandlerTest extends WP_UnitTestCase {
 
 		$this->assertSame( 'waitlisted', $result->code() );
 	}
+
+	public function test_blank_optional_email_does_not_shadow_later_required_email(): void {
+		$event_id = self::factory()->post->create( array( 'post_type' => 'evreg_event' ) );
+		( new EventConfigRepository() )->save(
+			$event_id,
+			array(
+				'schema' => array(
+					'version'  => 1,
+					'sections' => array(
+						array(
+							'key'    => 'dane',
+							'title'  => 'Dane',
+							'fields' => array(
+								array( 'key' => '__type', 'type' => 'radio', 'label' => 'Typ' ),
+								array( 'key' => 'imie', 'type' => 'text', 'label' => 'Imię', 'required' => true ),
+								array( 'key' => 'email_opt', 'type' => 'email', 'label' => 'E-mail opcjonalny', 'required' => false ),
+								array( 'key' => 'email', 'type' => 'email', 'label' => 'E-mail', 'required' => true ),
+							),
+						),
+					),
+				),
+				'types'         => array( array( 'key' => 'uczestnik', 'label' => 'Uczestnik', 'price' => 450.0, 'capacity' => 5 ) ),
+				'accommodation' => array( 'packages' => array(), 'rooms' => array(), 'inventory' => array() ),
+				'settings'      => array( 'global_cap' => null, 'waitlist_enabled' => true ),
+			)
+		);
+
+		$submit = static fn () => array(
+			'evreg_hp'  => '',
+			'evreg_ts'  => (string) ( time() - 10 ),
+			'__type'    => 'uczestnik',
+			'imie'      => 'Jan',
+			'email_opt' => '',
+			'email'     => 'second@example.com',
+		);
+
+		$result = $this->handler->process( $event_id, $submit() );
+
+		$this->assertTrue( $result->isSuccess(), 'Puste opcjonalne pole e-mail nie powinno przesłaniać wypełnionego wymaganego pola e-mail.' );
+		$this->assertNotSame( 'config_error', $result->code() );
+
+		// Ponowne zgłoszenie z tym samym drugim (wypełnionym) e-mailem powinno zostać
+		// wykryte jako duplikat, co potwierdza, że rezerwacja użyła 'second@example.com',
+		// a nie pustego 'email_opt'.
+		$duplicate = $this->handler->process( $event_id, $submit() );
+
+		$this->assertSame( 'duplicate', $duplicate->code() );
+	}
 }

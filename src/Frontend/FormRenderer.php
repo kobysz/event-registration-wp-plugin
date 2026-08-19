@@ -131,12 +131,12 @@ final class FormRenderer {
 
 		switch ( $field->type ) {
 			case FieldType::Textarea:
-				return '<textarea id="' . $id . '" name="' . $name . '"' . $req . '>' . esc_textarea( (string) ( $value ?? '' ) ) . '</textarea>';
+				return '<textarea id="' . $id . '" name="' . $name . '"' . $req . '>' . esc_textarea( $this->scalarValue( $value ) ) . '</textarea>';
 
 			case FieldType::Select:
 				$opts = '';
 				foreach ( $field->options as $option ) {
-					$opts .= '<option value="' . esc_attr( $option->value ) . '"' . selected( (string) $value, $option->value, false ) . '>' . esc_html( $option->label ) . '</option>';
+					$opts .= '<option value="' . esc_attr( $option->value ) . '"' . selected( $this->scalarValue( $value ), $option->value, false ) . '>' . esc_html( $option->label ) . '</option>';
 				}
 				return '<select id="' . $id . '" name="' . $name . '"' . $req . '><option value="">—</option>' . $opts . '</select>';
 
@@ -147,29 +147,38 @@ final class FormRenderer {
 				return $this->renderChoices( $field->options, $name . '[]', 'checkbox', $value );
 
 			case FieldType::Checkbox:
-				return '<input type="checkbox" id="' . $id . '" name="' . $name . '" value="1"' . checked( '1', (string) $value, false ) . $req . '>';
+				return '<input type="checkbox" id="' . $id . '" name="' . $name . '" value="1"' . checked( '1', $this->scalarValue( $value ), false ) . $req . '>';
 
 			case FieldType::Accommodation:
 				return $this->renderAccommodation( $field, $value );
 
 			case FieldType::Number:
-				return '<input type="number" id="' . $id . '" name="' . $name . '" value="' . esc_attr( (string) ( $value ?? '' ) ) . '"' . $req . '>';
+				return '<input type="number" id="' . $id . '" name="' . $name . '" value="' . esc_attr( $this->scalarValue( $value ) ) . '"' . $req . '>';
 
 			case FieldType::Date:
-				return '<input type="date" id="' . $id . '" name="' . $name . '" value="' . esc_attr( (string) ( $value ?? '' ) ) . '"' . $req . '>';
+				return '<input type="date" id="' . $id . '" name="' . $name . '" value="' . esc_attr( $this->scalarValue( $value ) ) . '"' . $req . '>';
 
 			case FieldType::Email:
-				return '<input type="email" id="' . $id . '" name="' . $name . '" value="' . esc_attr( (string) ( $value ?? '' ) ) . '"' . $req . '>';
+				return '<input type="email" id="' . $id . '" name="' . $name . '" value="' . esc_attr( $this->scalarValue( $value ) ) . '"' . $req . '>';
 
 			case FieldType::Tel:
-				return '<input type="tel" id="' . $id . '" name="' . $name . '" value="' . esc_attr( (string) ( $value ?? '' ) ) . '"' . $req . '>';
+				return '<input type="tel" id="' . $id . '" name="' . $name . '" value="' . esc_attr( $this->scalarValue( $value ) ) . '"' . $req . '>';
 
 			case FieldType::Hidden:
-				return '<input type="hidden" name="' . $name . '" value="' . esc_attr( (string) ( $value ?? '' ) ) . '">';
+				return '<input type="hidden" name="' . $name . '" value="' . esc_attr( $this->scalarValue( $value ) ) . '">';
 
 			default: // Text i pozostałe.
-				return '<input type="text" id="' . $id . '" name="' . $name . '" value="' . esc_attr( (string) ( $value ?? '' ) ) . '"' . $req . '>';
+				return '<input type="text" id="' . $id . '" name="' . $name . '" value="' . esc_attr( $this->scalarValue( $value ) ) . '"' . $req . '>';
 		}
+	}
+
+	/**
+	 * Rzutuje wartość skalarnego pola na string; nie-skalar (np. tablica z ataku `field[]=x`) daje pusty string.
+	 *
+	 * @param mixed $value Wpisana wartość do odtworzenia.
+	 */
+	private function scalarValue( mixed $value ): string {
+		return is_scalar( $value ) ? (string) $value : '';
 	}
 
 	/**
