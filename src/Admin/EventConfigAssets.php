@@ -65,7 +65,33 @@ final class EventConfigAssets {
 
 		$event_id = isset( $_GET['post'] ) ? (int) $_GET['post'] : 0; // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- odczyt ID ekranu, nie akcja.
 
-		wp_localize_script( self::HANDLE, 'evregAdmin', array( 'eventId' => $event_id ) );
+		$pages = array_map(
+			static function ( WP_Post $page ): array {
+				return array(
+					'value' => $page->ID,
+					'label' => $page->post_title,
+				);
+			},
+			get_posts(
+				array(
+					'post_type'        => 'page',
+					'post_status'      => 'publish',
+					'numberposts'      => 200,
+					'orderby'          => 'title',
+					'order'            => 'ASC',
+					'suppress_filters' => false,
+				)
+			)
+		);
+
+		wp_localize_script(
+			self::HANDLE,
+			'evregAdmin',
+			array(
+				'eventId' => $event_id,
+				'pages'   => $pages,
+			)
+		);
 	}
 
 	/**
