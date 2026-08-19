@@ -10,6 +10,7 @@ declare( strict_types=1 );
 namespace EvReg\Services;
 
 use EvReg\Domain\Accommodation\AccommodationConfig;
+use EvReg\Domain\Accommodation\AccommodationSelection;
 use EvReg\Domain\Capacity\CapacityCalculator;
 use EvReg\Domain\Capacity\CapacityLimits;
 use EvReg\Domain\Capacity\Outcome;
@@ -268,5 +269,114 @@ final class ReservationService {
 		}
 
 		return AdminActionResult::cancelled();
+	}
+
+	/**
+	 * Awansuje zgłoszenie z listy rezerwowej na pending, jeśli jest miejsce.
+	 *
+	 * Powtarza inwariant lock→count z reserve(): lockEvent PRZED occupancy. Przy wolnym
+	 * miejscu: waitlist→pending + nowy expires_at, emituje evreg_registration_reserved
+	 * (mail opt-in z 4A). Brak miejsc: rejected. Hook emitowany po COMMIT.
+	 *
+	 * @param int $id ID zgłoszenia.
+	 *
+	 * @throws \Throwable Gdy operacja w transakcji się nie powiedzie (ROLLBACK przed ponownym rzuceniem).
+	 */
+	public function promoteFromWaitlist( int $id ): AdminActionResult {
+		global $wpdb;
+
+		$row = $this->repository->findById( $id );
+
+		if ( null === $row ) {
+			return AdminActionResult::notFound();
+		}
+
+		if ( RegistrationStatus::Waitlist->value !== $row['status'] ) {
+			return AdminActionResult::invalidStatus();
+		}
+
+		$event_id      = (int) $row['event_id'];
+		$config        = $this->config->get( $event_id );
+		$types         = RegistrationTypeCollection::fromArray( is_array( $config['types'] ) ? $config['types'] : array() );
+		$accommodation = AccommodationConfig::fromArray( is_array( $config['accommodation'] ) ? $config['accommodation'] : array() );
+		$settings      = is_array( $config['settings'] ) ? $config['settings'] : array();
+
+		$booking   = $this->repository->findAccommodationBooking( $id );
+		$selection = null === $booking
+			? null
+			: new AccommodationSelection( (string) $booking['package_key'], (string) $booking['room_type_key'], (string) ( $booking['roommate_pref'] ?? '' ) );
+
+		$wpdb->query( 'START TRANSACTION' );
+
+		try {
+			// KRYTYCZNA KOLEJNOŚĆ: lockEvent PRZED occupancy (jak reserve). NIE ZMIENIAJ.
+			$this->repository->lockEvent( $event_id );
+
+			$limits = new CapacityLimits(
+				isset( $settings['global_cap'] ) && null !== $settings['global_cap'] ? (int) $settings['global_cap'] : null,
+				$types->capacities(),
+				$accommodation->capacities(),
+				(bool) ( $settings['waitlist_enabled'] ?? true )
+			);
+
+			$decision = $this->calculator->decide(
+				$limits,
+				$this->repository->occupancy( $event_id ),
+				(string) $row['type_key'],
+				$selection
+			);
+
+			if ( Outcome::Accepted !== $decision->outcome ) {
+				$wpdb->query( 'ROLLBACK' );
+				return AdminActionResult::rejected( null === $decision->reason ? null : (string) $decision->reason );
+			}
+
+			$expires_at = gmdate( 'Y-m-d H:i:s', strtotime( self::PENDING_TTL, time() ) );
+			$this->repository->markPending( $id, $expires_at );
+
+			$wpdb->query( 'COMMIT' );
+		} catch ( \Throwable $e ) {
+			$wpdb->query( 'ROLLBACK' );
+			throw $e;
+		}
+
+		do_action( 'evreg_registration_reserved', $id, $event_id, (string) $row['token'] );
+
+		return AdminActionResult::promoted();
+	}
+
+	/**
+	 * Trwale usuwa anulowane zgłoszenie wraz z noclegiem i osieroconymi wierszami kolejki.
+	 *
+	 * @param int $id ID zgłoszenia.
+	 *
+	 * @throws \Throwable Gdy operacja w transakcji się nie powiedzie (ROLLBACK przed ponownym rzuceniem).
+	 */
+	public function deleteRegistration( int $id ): AdminActionResult {
+		global $wpdb;
+
+		$row = $this->repository->findById( $id );
+
+		if ( null === $row ) {
+			return AdminActionResult::notFound();
+		}
+
+		if ( RegistrationStatus::Cancelled->value !== $row['status'] ) {
+			return AdminActionResult::invalidStatus();
+		}
+
+		$wpdb->query( 'START TRANSACTION' );
+
+		try {
+			$this->repository->deleteAccommodationBooking( $id );
+			$this->repository->deleteMailQueueByRegistration( $id );
+			$this->repository->hardDelete( $id );
+			$wpdb->query( 'COMMIT' );
+		} catch ( \Throwable $e ) {
+			$wpdb->query( 'ROLLBACK' );
+			throw $e;
+		}
+
+		return AdminActionResult::deleted();
 	}
 }
