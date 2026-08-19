@@ -27,6 +27,7 @@ add_action( 'plugins_loaded', array( \EvReg\Admin\EventPostType::class, 'registe
 add_action( 'plugins_loaded', array( \EvReg\Admin\Capabilities::class, 'register' ) );
 add_action( 'plugins_loaded', array( \EvReg\Rest\EventConfigController::class, 'register' ) );
 add_action( 'plugins_loaded', array( \EvReg\Admin\EventConfigAssets::class, 'register' ) );
+add_action( 'plugins_loaded', array( \EvReg\Frontend\SubmitHandler::class, 'register' ) );
 add_action( 'plugins_loaded', array( \EvReg\Cron\ExpirePending::class, 'register' ) );
 add_action( 'plugins_loaded', array( \EvReg\Cron\ExpirePending::class, 'schedule' ) );
 
