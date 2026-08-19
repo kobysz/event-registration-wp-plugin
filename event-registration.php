@@ -30,6 +30,7 @@ add_action( 'plugins_loaded', array( \EvReg\Admin\EventConfigAssets::class, 'reg
 add_action( 'plugins_loaded', array( \EvReg\Frontend\SubmitHandler::class, 'register' ) );
 add_action( 'plugins_loaded', array( \EvReg\Frontend\Shortcode::class, 'register' ) );
 add_action( 'plugins_loaded', array( \EvReg\Frontend\Block::class, 'register' ) );
+add_action( 'plugins_loaded', array( \EvReg\Frontend\ConfirmationController::class, 'register' ) );
 add_action( 'plugins_loaded', array( \EvReg\Cron\ExpirePending::class, 'register' ) );
 add_action( 'plugins_loaded', array( \EvReg\Cron\ExpirePending::class, 'schedule' ) );
 
