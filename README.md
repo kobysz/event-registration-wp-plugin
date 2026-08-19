@@ -83,7 +83,7 @@ Wtyczka jest w budowie (roadmapa 6 planów). Gotowe:
 2. ✅ Konfiguracja eventu w adminie (CPT, REST, React admin z pięcioma zakładkami)
 3. ✅ Formularz publiczny + transakcyjna rezerwacja miejsc (blok/shortcode, render serwerowy, antyspam, PRG, endpoint potwierdzenia double opt-in, warunki JS)
 4. ✅ Kolejka mailowa — silnik (double opt-in, retry, wygasanie, powiadomienia organizatora)
-5. 🔶 Admin maili — edytor szablonów per event gotowy; ekran kolejki (podgląd/wznowienie) osobny plan
+5. ✅ Admin maili — edytor szablonów per event + ekran kolejki (lista, filtry, podgląd, wznowienie failed)
 6. ⬜ Panel zgłoszeń (CRUD, eksport, lista rezerwowa)
 7. ⬜ Auto-aktualizacja + utwardzenie CI
 
