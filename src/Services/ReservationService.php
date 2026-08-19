@@ -203,4 +203,70 @@ final class ReservationService {
 
 		return ConfirmationResult::confirmed();
 	}
+
+	/**
+	 * Ręcznie potwierdza zgłoszenie pending BEZ wysyłki maila.
+	 *
+	 * Nie emituje evreg_registration_confirmed — inaczej Subscriber (4A) wysłałby mail.
+	 * Dla przypadków, gdy uczestnik potwierdził telefonicznie.
+	 *
+	 * @param int $id ID zgłoszenia.
+	 */
+	public function confirmManually( int $id ): AdminActionResult {
+		$row = $this->repository->findById( $id );
+
+		if ( null === $row ) {
+			return AdminActionResult::notFound();
+		}
+
+		if ( RegistrationStatus::Pending->value !== $row['status'] ) {
+			return AdminActionResult::invalidStatus();
+		}
+
+		$this->repository->markConfirmed( $id );
+
+		return AdminActionResult::confirmed();
+	}
+
+	/**
+	 * Anuluje zgłoszenie (miękkie): status=cancelled, kasuje nocleg, zwalnia miejsce.
+	 *
+	 * Anulowanie tylko zmniejsza zajętość, więc nie wymaga blokady lock→count.
+	 *
+	 * @param int $id ID zgłoszenia.
+	 *
+	 * @throws \Throwable Gdy operacja w transakcji się nie powiedzie (ROLLBACK przed ponownym rzuceniem).
+	 */
+	public function cancel( int $id ): AdminActionResult {
+		global $wpdb;
+
+		$row = $this->repository->findById( $id );
+
+		if ( null === $row ) {
+			return AdminActionResult::notFound();
+		}
+
+		$cancellable = array(
+			RegistrationStatus::Pending->value,
+			RegistrationStatus::Confirmed->value,
+			RegistrationStatus::Waitlist->value,
+		);
+
+		if ( ! in_array( (string) $row['status'], $cancellable, true ) ) {
+			return AdminActionResult::invalidStatus();
+		}
+
+		$wpdb->query( 'START TRANSACTION' );
+
+		try {
+			$this->repository->markCancelled( $id );
+			$this->repository->deleteAccommodationBooking( $id );
+			$wpdb->query( 'COMMIT' );
+		} catch ( \Throwable $e ) {
+			$wpdb->query( 'ROLLBACK' );
+			throw $e;
+		}
+
+		return AdminActionResult::cancelled();
+	}
 }
