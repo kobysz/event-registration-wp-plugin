@@ -20,6 +20,7 @@ export default function App( { eventId } ) {
 	const [ saving, setSaving ] = useState( false );
 	const [ error, setError ] = useState( '' );
 	const [ templateDefaults, setTemplateDefaults ] = useState( {} );
+	const [ templatesLoaded, setTemplatesLoaded ] = useState( false );
 
 	useEffect( () => {
 		if ( ! eventId ) {
@@ -46,6 +47,7 @@ export default function App( { eventId } ) {
 			.then( ( data ) => {
 				setConfig( ( prev ) => ( { ...prev, mailTemplates: mergeLoaded( data.templates || {} ) } ) );
 				setTemplateDefaults( data.defaults || {} );
+				setTemplatesLoaded( true );
 			} )
 			.catch( () =>
 				setError( __( 'Nie udało się wczytać szablonów maili.', 'event-registration' ) )
@@ -58,14 +60,30 @@ export default function App( { eventId } ) {
 	const onSave = () => {
 		setSaving( true );
 		setError( '' );
-		Promise.allSettled( [
-			saveConfig( eventId, config ),
-			saveTemplates( eventId, normalizeForSave( config.mailTemplates || {} ) ),
-		] )
+
+		// Never issue a templates save before the initial load has completed: an
+		// unloaded (or failed-load) `config.mailTemplates` would normalize to an
+		// empty set and the REST endpoint does a full replace, wiping any
+		// previously saved overrides. Only save templates once we know we have
+		// a real snapshot to normalize.
+		const tasks = [ saveConfig( eventId, config ) ];
+		if ( templatesLoaded ) {
+			tasks.push( saveTemplates( eventId, normalizeForSave( config.mailTemplates || {} ) ) );
+		}
+
+		Promise.allSettled( tasks )
 			.then( ( [ cfg, tpl ] ) => {
 				if ( 'fulfilled' === cfg.status ) {
 					setValidation( cfg.value.validation || null );
 				}
+
+				if ( ! templatesLoaded ) {
+					if ( 'rejected' === cfg.status ) {
+						setError( __( 'Zapis nie powiódł się.', 'event-registration' ) );
+					}
+					return;
+				}
+
 				if ( 'fulfilled' === tpl.status ) {
 					setConfig( ( prev ) => ( { ...prev, mailTemplates: mergeLoaded( tpl.value.templates || {} ) } ) );
 					setTemplateDefaults( tpl.value.defaults || {} );
