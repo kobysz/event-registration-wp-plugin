@@ -80,7 +80,7 @@ final class SubmitHandler {
 
 		$event_id = isset( $_POST['evreg_event'] ) ? (int) $_POST['evreg_event'] : 0; // phpcs:ignore WordPress.Security.NonceVerification.Missing
 
-		if ( ! isset( $_POST['evreg-nonce'] ) || ! wp_verify_nonce( sanitize_text_field( wp_unslash( (string) $_POST['evreg-nonce'] ) ), 'evreg_submit_' . $event_id ) ) {
+		if ( ! isset( $_POST['evreg-nonce'] ) || ! is_string( $_POST['evreg-nonce'] ) || ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['evreg-nonce'] ) ), 'evreg_submit_' . $event_id ) ) {
 			self::$results[ $event_id ] = SubmitResult::spam();
 			return;
 		}
