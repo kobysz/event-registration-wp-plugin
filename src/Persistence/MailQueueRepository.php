@@ -248,4 +248,115 @@ final class MailQueueRepository {
 
 		return false === $result ? 0 : (int) $result;
 	}
+
+	/**
+	 * Buduje klauzulę WHERE i argumenty z filtrów. Nieznany status i event_id <= 0 są ignorowane.
+	 *
+	 * @param array{status?: string, event_id?: int} $filters Filtry listy.
+	 *
+	 * @return array{0: string, 1: array<int,mixed>} Para [klauzula WHERE (z wiodącym ' WHERE ' albo pusta), argumenty].
+	 */
+	private function whereFromFilters( array $filters ): array {
+		$clauses = array();
+		$args    = array();
+
+		$statuses = array( self::STATUS_QUEUED, self::STATUS_SENDING, self::STATUS_SENT, self::STATUS_FAILED );
+
+		if ( isset( $filters['status'] ) && in_array( $filters['status'], $statuses, true ) ) {
+			$clauses[] = 'status = %s';
+			$args[]    = $filters['status'];
+		}
+
+		if ( isset( $filters['event_id'] ) && (int) $filters['event_id'] > 0 ) {
+			$clauses[] = 'event_id = %d';
+			$args[]    = (int) $filters['event_id'];
+		}
+
+		$where = array() === $clauses ? '' : ' WHERE ' . implode( ' AND ', $clauses );
+
+		return array( $where, $args );
+	}
+
+	/**
+	 * Zwraca stronę wierszy kolejki wg filtrów, najnowsze naprzód.
+	 *
+	 * @param array{status?: string, event_id?: int} $filters  Filtry listy.
+	 * @param int                                    $per_page Liczba wierszy na stronę.
+	 * @param int                                    $offset   Przesunięcie.
+	 *
+	 * @return array<int,array<string,mixed>>
+	 */
+	public function paginate( array $filters, int $per_page, int $offset ): array {
+		global $wpdb;
+
+		list( $where, $args ) = $this->whereFromFilters( $filters );
+		$args[]               = $per_page;
+		$args[]               = $offset;
+
+		$rows = $wpdb->get_results(
+			// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQLPlaceholders.ReplacementsWrongNumber -- $args ma zmienną, ale dopasowaną do placeholderów liczbę elementów.
+			$wpdb->prepare( "SELECT * FROM {$this->table()}{$where} ORDER BY id DESC LIMIT %d OFFSET %d", $args ),
+			ARRAY_A
+		); // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+
+		return is_array( $rows ) ? $rows : array();
+	}
+
+	/**
+	 * Liczy wiersze kolejki spełniające filtry.
+	 *
+	 * @param array{status?: string, event_id?: int} $filters Filtry listy.
+	 */
+	public function countByFilter( array $filters ): int {
+		global $wpdb;
+
+		list( $where, $args ) = $this->whereFromFilters( $filters );
+
+		if ( array() === $args ) {
+			// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.DirectDatabaseQuery
+			return (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$this->table()}" );
+		}
+
+		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.DirectDatabaseQuery,WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare -- $where i $args mają zmienną, ale dopasowaną liczbę placeholderów.
+		return (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$this->table()}{$where}", $args ) );
+	}
+
+	/**
+	 * Zwraca unikalne ID eventów obecnych w kolejce.
+	 *
+	 * @return array<int,int>
+	 */
+	public function distinctEventIds(): array {
+		global $wpdb;
+
+		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.DirectDatabaseQuery
+		$ids = $wpdb->get_col( "SELECT DISTINCT event_id FROM {$this->table()} ORDER BY event_id ASC" );
+
+		return array_map( 'intval', is_array( $ids ) ? $ids : array() );
+	}
+
+	/**
+	 * Wznawia wiersz w stanie failed: zeruje próby i przywraca do kolejki.
+	 * Wiersz w innym stanie jest nietknięty (warunek WHERE status='failed').
+	 *
+	 * @param int $id ID wiersza.
+	 *
+	 * @return bool True, gdy dokładnie jeden wiersz (failed) został wznowiony.
+	 */
+	public function requeueFailed( int $id ): bool {
+		global $wpdb;
+
+		$result = $wpdb->query(
+			$wpdb->prepare(
+				// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+				"UPDATE {$this->table()} SET status = %s, attempts = 0, scheduled_at = %s, last_error = NULL, sent_at = NULL WHERE id = %d AND status = %s",
+				self::STATUS_QUEUED,
+				current_time( 'mysql', true ),
+				$id,
+				self::STATUS_FAILED
+			)
+		); // phpcs:ignore WordPress.DB.DirectDatabaseQuery,WordPress.DB.PreparedSQL.NotPrepared
+
+		return 1 === (int) $result;
+	}
 }
