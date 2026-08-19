@@ -36,7 +36,7 @@ final class FormRenderer {
 		$out .= '<input type="hidden" name="evreg_submit" value="1">';
 		$out .= '<input type="hidden" name="evreg_ts" value="' . esc_attr( (string) time() ) . '">';
 		$out .= '<div class="evreg-hp" aria-hidden="true" style="position:absolute;left:-9999px;">'
-			. '<label>Zostaw puste <input type="text" name="evreg_hp" value="" tabindex="-1" autocomplete="off"></label></div>';
+			. '<label>' . esc_html__( 'Zostaw puste', 'event-registration' ) . ' <input type="text" name="evreg_hp" value="" tabindex="-1" autocomplete="off"></label></div>';
 
 		foreach ( $schema->sections() as $section ) {
 			$out .= $this->renderSection( $section, $result );
