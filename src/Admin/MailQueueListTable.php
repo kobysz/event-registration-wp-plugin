@@ -121,7 +121,7 @@ final class MailQueueListTable extends \WP_List_Table {
 				esc_url(
 					add_query_arg(
 						array(
-							'page'   => 'evreg-mail-queue',
+							'page'   => MailQueueScreen::SLUG,
 							'action' => 'view',
 							'id'     => $id,
 						),
@@ -135,7 +135,7 @@ final class MailQueueListTable extends \WP_List_Table {
 		if ( MailQueueRepository::STATUS_FAILED === ( $item['status'] ?? '' ) ) {
 			$actions['requeue'] = sprintf(
 				'<a href="%s">%s</a>',
-				esc_url( wp_nonce_url( admin_url( 'admin-post.php?action=evreg_requeue_mail&id=' . $id ), 'evreg_requeue_mail_' . $id ) ),
+				esc_url( wp_nonce_url( admin_url( 'admin-post.php?action=' . MailQueueScreen::REQUEUE_ACTION . '&id=' . $id ), MailQueueScreen::REQUEUE_ACTION . '_' . $id ) ),
 				esc_html__( 'Wznów', 'event-registration' )
 			);
 		}

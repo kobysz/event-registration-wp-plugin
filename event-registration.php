@@ -39,6 +39,7 @@ add_action( 'plugins_loaded', array( \EvReg\Cron\DispatchMail::class, 'register'
 add_action( 'plugins_loaded', array( \EvReg\Cron\DispatchMail::class, 'schedule' ) );
 add_action( 'plugins_loaded', array( \EvReg\Cron\PurgeMailQueue::class, 'register' ) );
 add_action( 'plugins_loaded', array( \EvReg\Cron\PurgeMailQueue::class, 'schedule' ) );
+add_action( 'plugins_loaded', array( \EvReg\Admin\MailQueueScreen::class, 'register' ) );
 
 add_action(
 	'init',
