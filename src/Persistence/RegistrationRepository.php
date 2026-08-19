@@ -197,6 +197,121 @@ final class RegistrationRepository {
 	}
 
 	/**
+	 * Buduje klauzulę WHERE i argumenty z filtrów listy zgłoszeń.
+	 *
+	 * @param array{status?: string, type_key?: string, event_id?: int} $filters Filtry.
+	 *
+	 * @return array{0: string, 1: array<int,mixed>}
+	 */
+	private function registrationWhere( array $filters ): array {
+		$clauses  = array();
+		$args     = array();
+		$statuses = array(
+			RegistrationStatus::Pending->value,
+			RegistrationStatus::Confirmed->value,
+			RegistrationStatus::Waitlist->value,
+			RegistrationStatus::Cancelled->value,
+		);
+
+		if ( isset( $filters['status'] ) && in_array( $filters['status'], $statuses, true ) ) {
+			$clauses[] = 'status = %s';
+			$args[]    = $filters['status'];
+		}
+
+		if ( isset( $filters['type_key'] ) && '' !== (string) $filters['type_key'] ) {
+			$clauses[] = 'type_key = %s';
+			$args[]    = (string) $filters['type_key'];
+		}
+
+		if ( isset( $filters['event_id'] ) && (int) $filters['event_id'] > 0 ) {
+			$clauses[] = 'event_id = %d';
+			$args[]    = (int) $filters['event_id'];
+		}
+
+		$where = array() === $clauses ? '' : ' WHERE ' . implode( ' AND ', $clauses );
+
+		return array( $where, $args );
+	}
+
+	/**
+	 * Zwraca stronę zgłoszeń wg filtrów, najnowsze naprzód.
+	 *
+	 * @param array{status?: string, type_key?: string, event_id?: int} $filters  Filtry.
+	 * @param int                                                       $per_page Wiersze na stronę.
+	 * @param int                                                       $offset   Przesunięcie.
+	 *
+	 * @return array<int,array<string,mixed>>
+	 */
+	public function paginateRegistrations( array $filters, int $per_page, int $offset ): array {
+		global $wpdb;
+
+		list( $where, $args ) = $this->registrationWhere( $filters );
+		$args[]               = $per_page;
+		$args[]               = $offset;
+
+		$rows = $wpdb->get_results(
+			// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare,WordPress.DB.PreparedSQLPlaceholders.ReplacementsWrongNumber -- $args ma zmienną, ale dopasowaną do placeholderów liczbę elementów.
+			$wpdb->prepare( "SELECT * FROM {$this->registrations()}{$where} ORDER BY id DESC LIMIT %d OFFSET %d", $args ),
+			ARRAY_A
+		); // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+
+		return is_array( $rows ) ? $rows : array();
+	}
+
+	/**
+	 * Liczy zgłoszenia spełniające filtry.
+	 *
+	 * @param array{status?: string, type_key?: string, event_id?: int} $filters Filtry.
+	 */
+	public function countRegistrations( array $filters ): int {
+		global $wpdb;
+
+		list( $where, $args ) = $this->registrationWhere( $filters );
+
+		if ( array() === $args ) {
+			// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.DirectDatabaseQuery
+			return (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$this->registrations()}" );
+		}
+
+		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare,WordPress.DB.DirectDatabaseQuery
+		return (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$this->registrations()}{$where}", $args ) );
+	}
+
+	/**
+	 * Zwraca unikalne klucze typów zgłoszeń obecne w evencie.
+	 *
+	 * @param int $event_id ID eventu.
+	 *
+	 * @return array<int,string>
+	 */
+	public function distinctTypeKeys( int $event_id ): array {
+		global $wpdb;
+
+		$keys = $wpdb->get_col(
+			// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+			$wpdb->prepare( "SELECT DISTINCT type_key FROM {$this->registrations()} WHERE event_id = %d ORDER BY type_key ASC", $event_id )
+		); // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+
+		return array_map( 'strval', is_array( $keys ) ? $keys : array() );
+	}
+
+	/**
+	 * Zwraca unikalne ID eventów obecnych w zgłoszeniach.
+	 *
+	 * @return array<int,int>
+	 */
+	public function distinctEventIds(): array {
+		global $wpdb;
+
+		$ids = $wpdb->get_col(
+			// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+			"SELECT DISTINCT event_id FROM {$this->registrations()} ORDER BY event_id ASC"
+		); // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+
+		return array_map( 'intval', is_array( $ids ) ? $ids : array() );
+	}
+
+	/**
 	 * Zwraca rezerwację noclegową zgłoszenia albo null.
 	 *
 	 * @param int $registration_id ID zgłoszenia.
@@ -239,6 +354,102 @@ final class RegistrationRepository {
 			array( '%s', '%s', '%s' ),
 			array( '%d' )
 		);
+	}
+
+	/**
+	 * Ustawia status zgłoszenia na anulowany.
+	 *
+	 * @param int $id ID zgłoszenia.
+	 */
+	public function markCancelled( int $id ): void {
+		global $wpdb;
+
+		$wpdb->update(
+			$this->registrations(),
+			array(
+				'status'     => RegistrationStatus::Cancelled->value,
+				'updated_at' => current_time( 'mysql', true ),
+			),
+			array( 'id' => $id ),
+			array( '%s', '%s' ),
+			array( '%d' )
+		); // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+	}
+
+	/**
+	 * Ustawia status na pending i nowy termin wygaśnięcia (promocja z waitlisty).
+	 *
+	 * @param int    $id         ID zgłoszenia.
+	 * @param string $expires_at Termin wygaśnięcia (Y-m-d H:i:s, UTC).
+	 */
+	public function markPending( int $id, string $expires_at ): void {
+		global $wpdb;
+
+		$wpdb->update(
+			$this->registrations(),
+			array(
+				'status'     => RegistrationStatus::Pending->value,
+				'expires_at' => $expires_at,
+				'updated_at' => current_time( 'mysql', true ),
+			),
+			array( 'id' => $id ),
+			array( '%s', '%s', '%s' ),
+			array( '%d' )
+		); // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+	}
+
+	/**
+	 * Kasuje rezerwacje noclegowe zgłoszenia.
+	 *
+	 * @param int $id ID zgłoszenia.
+	 */
+	public function deleteAccommodationBooking( int $id ): void {
+		global $wpdb;
+
+		$wpdb->delete( $this->bookings(), array( 'registration_id' => $id ), array( '%d' ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+	}
+
+	/**
+	 * Kasuje wiersze kolejki maili powiązane ze zgłoszeniem (sprzątanie osieroconych).
+	 *
+	 * @param int $id ID zgłoszenia.
+	 */
+	public function deleteMailQueueByRegistration( int $id ): void {
+		global $wpdb;
+
+		$wpdb->delete( Migrations::table( 'mail_queue' ), array( 'registration_id' => $id ), array( '%d' ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+	}
+
+	/**
+	 * Trwale kasuje wiersz zgłoszenia.
+	 *
+	 * @param int $id ID zgłoszenia.
+	 */
+	public function hardDelete( int $id ): void {
+		global $wpdb;
+
+		$wpdb->delete( $this->registrations(), array( 'id' => $id ), array( '%d' ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+	}
+
+	/**
+	 * Zapisuje notatkę organizatora.
+	 *
+	 * @param int    $id   ID zgłoszenia.
+	 * @param string $note Treść notatki.
+	 */
+	public function updateNote( int $id, string $note ): void {
+		global $wpdb;
+
+		$wpdb->update(
+			$this->registrations(),
+			array(
+				'note'       => $note,
+				'updated_at' => current_time( 'mysql', true ),
+			),
+			array( 'id' => $id ),
+			array( '%s', '%s' ),
+			array( '%d' )
+		); // phpcs:ignore WordPress.DB.DirectDatabaseQuery
 	}
 
 	/**
