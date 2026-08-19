@@ -1,0 +1,21 @@
+.evreg-form { max-width: 640px; }
+.evreg-section { border: 1px solid var(--evreg-border, #ddd); padding: 1rem; margin: 0 0 1rem; }
+.evreg-section > legend { font-weight: 600; padding: 0 .5rem; }
+.evreg-field { margin: 0 0 .75rem; }
+.evreg-label { display: block; margin-bottom: .25rem; }
+.evreg-required { color: var(--evreg-required, #c00); }
+.evreg-field input[type="text"],
+.evreg-field input[type="email"],
+.evreg-field input[type="tel"],
+.evreg-field input[type="number"],
+.evreg-field input[type="date"],
+.evreg-field textarea,
+.evreg-field select { width: 100%; box-sizing: border-box; }
+.evreg-field-error input,
+.evreg-field-error textarea,
+.evreg-field-error select { border-color: var(--evreg-required, #c00); }
+.evreg-error-msg { color: var(--evreg-required, #c00); font-size: .875rem; display: block; }
+.evreg-choice { display: block; }
+.evreg-submit { margin-top: 1rem; }
+.evreg-success, .evreg-notice { padding: .75rem 1rem; margin: 0 0 1rem; border-left: 4px solid var(--evreg-accent, #2271b1); background: #f6f7f7; }
+.evreg-section[hidden] { display: none; }
