@@ -58,23 +58,33 @@ final class UninstallerTest extends WP_UnitTestCase {
 
 		update_option( Uninstaller::DELETE_OPTION, 1 );
 
-		Uninstaller::run();
+		// This test performs real (non-rolled-back) DDL: once run() wipes
+		// the schema/caps, that state is genuinely gone (no transaction to
+		// roll it back). If an assertion below throws — which is exactly
+		// what happens when Uninstaller regresses, the very thing this
+		// test guards against — a bare "restore after assertions" would
+		// never run, leaving every later test in this process without
+		// evreg_* tables or admin caps and turning one real bug into a
+		// suite-wide false-positive cascade. Guarantee the restoration
+		// (and the filter re-registration) runs regardless via `finally`.
+		try {
+			Uninstaller::run();
 
-		$this->assertEmpty( $wpdb->get_var( "SHOW TABLES LIKE '" . Migrations::table( 'registrations' ) . "'" ) );
-		$this->assertEmpty( $wpdb->get_var( "SHOW TABLES LIKE '" . Migrations::table( 'mail_queue' ) . "'" ) );
-		$this->assertFalse( get_option( Migrations::VERSION_OPTION ) );
-		$this->assertFalse( get_option( 'evreg_caps_version' ) );
-		$this->assertFalse( get_role( 'administrator' )->has_cap( 'edit_evreg_events' ) );
-		$this->assertFalse( get_post_status( $event_id ) );
-		$this->assertFalse( wp_next_scheduled( DispatchMail::HOOK ) );
-		$this->assertFalse( wp_next_scheduled( ExpirePending::HOOK ) );
-		$this->assertFalse( wp_next_scheduled( PurgeMailQueue::HOOK ) );
-		$this->assertFalse( wp_next_scheduled( MailQueue::DISPATCH_HOOK ) );
-
-		// This test performs real (non-rolled-back) DDL, so restore the
-		// schema and capabilities afterwards for any tests that run later
-		// in the same process.
-		Migrations::install();
-		Capabilities::grant();
+			$this->assertEmpty( $wpdb->get_var( "SHOW TABLES LIKE '" . Migrations::table( 'registrations' ) . "'" ) );
+			$this->assertEmpty( $wpdb->get_var( "SHOW TABLES LIKE '" . Migrations::table( 'mail_queue' ) . "'" ) );
+			$this->assertFalse( get_option( Migrations::VERSION_OPTION ) );
+			$this->assertFalse( get_option( 'evreg_caps_version' ) );
+			$this->assertFalse( get_role( 'administrator' )->has_cap( 'edit_evreg_events' ) );
+			$this->assertFalse( get_post_status( $event_id ) );
+			$this->assertFalse( wp_next_scheduled( DispatchMail::HOOK ) );
+			$this->assertFalse( wp_next_scheduled( ExpirePending::HOOK ) );
+			$this->assertFalse( wp_next_scheduled( PurgeMailQueue::HOOK ) );
+			$this->assertFalse( wp_next_scheduled( MailQueue::DISPATCH_HOOK ) );
+		} finally {
+			Migrations::install();
+			Capabilities::grant();
+			add_filter( 'query', array( $this, '_create_temporary_tables' ) );
+			add_filter( 'query', array( $this, '_drop_temporary_tables' ) );
+		}
 	}
 }
