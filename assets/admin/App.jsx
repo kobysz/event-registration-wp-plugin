@@ -121,6 +121,7 @@ export default function App( { eventId } ) {
 
 	return (
 		<div className="evreg-admin">
+			<ShortcodeBox eventId={ eventId } />
 			{ error && <Notice status="error" isDismissible={ false }>{ error }</Notice> }
 			<ValidationReport validation={ validation } />
 			<TabPanel tabs={ tabs }>
@@ -139,6 +140,46 @@ export default function App( { eventId } ) {
 				</Button>
 			</div>
 		</div>
+	);
+}
+
+function ShortcodeBox( { eventId } ) {
+	const [ copied, setCopied ] = useState( false );
+	const shortcode = `[evreg_form event="${ eventId }"]`;
+
+	const copy = () => {
+		if ( navigator.clipboard && navigator.clipboard.writeText ) {
+			navigator.clipboard.writeText( shortcode ).then( () => {
+				setCopied( true );
+				setTimeout( () => setCopied( false ), 2000 );
+			} );
+		}
+	};
+
+	return (
+		<Notice status="info" isDismissible={ false }>
+			<strong>{ __( 'Umieść formularz na stronie', 'event-registration' ) }</strong>
+			{ ' ' }
+			{ __(
+				'— wklej ten shortcode w treść dowolnej strony (albo dodaj blok „Event Registration”):',
+				'event-registration'
+			) }
+			<div style={ { marginTop: '8px', display: 'flex', gap: '8px', alignItems: 'center' } }>
+				<input
+					type="text"
+					readOnly
+					value={ shortcode }
+					onFocus={ ( e ) => e.target.select() }
+					style={ { fontFamily: 'monospace', width: '320px', maxWidth: '100%' } }
+					aria-label={ __( 'Shortcode formularza', 'event-registration' ) }
+				/>
+				<Button variant="secondary" onClick={ copy }>
+					{ copied
+						? __( 'Skopiowano', 'event-registration' )
+						: __( 'Kopiuj', 'event-registration' ) }
+				</Button>
+			</div>
+		</Notice>
 	);
 }
 
