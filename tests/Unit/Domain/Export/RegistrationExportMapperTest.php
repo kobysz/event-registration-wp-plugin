@@ -6,6 +6,7 @@ namespace EvReg\Tests\Unit\Domain\Export;
 
 use EvReg\Domain\Accommodation\AccommodationConfig;
 use EvReg\Domain\Export\RegistrationExportMapper;
+use EvReg\Domain\Schema\FieldType;
 use EvReg\Domain\Schema\FormSchema;
 use PHPUnit\Framework\TestCase;
 
@@ -250,5 +251,88 @@ final class RegistrationExportMapperTest extends TestCase {
 			array( 'package' => 'Noc 1–2', 'room' => 'unknown_room', 'roommate' => '' ),
 			$result
 		);
+	}
+
+	public function test_answerColumns_excludes_type_and_accommodation_fields(): void {
+		$schema = FormSchema::fromArray(
+			array(
+				'version'  => 1,
+				'sections' => array(
+					array(
+						'key'    => 'registration',
+						'title'  => 'Registration',
+						'fields' => array(
+							array( 'key' => 'name', 'type' => 'text', 'label' => 'Name' ),
+							array(
+								'key'     => '__type',
+								'type'    => 'radio',
+								'label'   => 'Typ',
+								'options' => array(
+									array( 'value' => 'participant', 'label' => 'Uczestnik' ),
+									array( 'value' => 'speaker', 'label' => 'Prelegent' ),
+								),
+							),
+							array( 'key' => 'email', 'type' => 'email', 'label' => 'Email' ),
+							array( 'key' => 'accommodation', 'type' => 'accommodation', 'label' => 'Nocleg' ),
+							array( 'key' => 'phone', 'type' => 'tel', 'label' => 'Phone' ),
+						),
+					),
+				),
+			)
+		);
+
+		$mapper = new RegistrationExportMapper();
+		$cols   = $mapper->answerColumns( $schema );
+
+		// Should include name, email, phone but NOT __type or accommodation
+		$this->assertCount( 3, $cols );
+		$keys = array_column( $cols, 'key' );
+		$this->assertContains( 'name', $keys );
+		$this->assertContains( 'email', $keys );
+		$this->assertContains( 'phone', $keys );
+		$this->assertNotContains( '__type', $keys );
+		$this->assertNotContains( 'accommodation', $keys );
+	}
+
+	public function test_answerCells_returns_cells_only_for_answer_columns(): void {
+		$schema = FormSchema::fromArray(
+			array(
+				'version'  => 1,
+				'sections' => array(
+					array(
+						'key'    => 'registration',
+						'title'  => 'Registration',
+						'fields' => array(
+							array( 'key' => 'name', 'type' => 'text', 'label' => 'Name' ),
+							array(
+								'key'     => '__type',
+								'type'    => 'radio',
+								'label'   => 'Typ',
+								'options' => array(
+									array( 'value' => 'participant', 'label' => 'Uczestnik' ),
+									array( 'value' => 'speaker', 'label' => 'Prelegent' ),
+								),
+							),
+							array( 'key' => 'email', 'type' => 'email', 'label' => 'Email' ),
+							array( 'key' => 'accommodation', 'type' => 'accommodation', 'label' => 'Nocleg' ),
+						),
+					),
+				),
+			)
+		);
+
+		$mapper = new RegistrationExportMapper();
+		$data   = array(
+			'name'            => 'John',
+			'__type'          => 'participant',
+			'email'           => 'john@example.com',
+			'accommodation'   => array( 'package' => 'p1', 'room' => 'r1' ),
+		);
+
+		$cells = $mapper->answerCells( $data, $schema );
+
+		// Should return 2 cells (name, email) — not 4
+		$this->assertCount( 2, $cells );
+		$this->assertSame( array( 'John', 'john@example.com' ), $cells );
 	}
 }

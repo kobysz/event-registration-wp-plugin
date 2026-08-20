@@ -10,6 +10,7 @@ declare( strict_types=1 );
 namespace EvReg\Domain\Export;
 
 use EvReg\Domain\Accommodation\AccommodationConfig;
+use EvReg\Domain\Schema\FieldType;
 use EvReg\Domain\Schema\FormSchema;
 
 /**
@@ -18,6 +19,7 @@ use EvReg\Domain\Schema\FormSchema;
 final class RegistrationExportMapper {
 	/**
 	 * Uporządkowane kolumny odpowiedzi: pola input (pomija Heading/Paragraph), nagłówek = label pola.
+	 * Pomija także pola __type i accommodation (mają dedykowane kolumny w eksporcie).
 	 *
 	 * @param FormSchema $schema Schemat formularza.
 	 * @return array<int,array{key:string,label:string}>
@@ -26,6 +28,10 @@ final class RegistrationExportMapper {
 		$cols = array();
 		foreach ( $schema->allFields() as $field ) {
 			if ( ! $field->type->isInput() ) {
+				continue;
+			}
+			// Pomija __type i accommodation — mają dedykowane kolumny.
+			if ( FormSchema::TYPE_FIELD_KEY === $field->key || FieldType::Accommodation === $field->type ) {
 				continue;
 			}
 			$cols[] = array(
