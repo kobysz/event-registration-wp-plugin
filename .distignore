@@ -1,0 +1,17 @@
+.git*
+.github
+.superpowers
+.distignore
+node_modules
+tests
+docs
+scripts
+*.dist
+phpunit*.xml*
+.wp-env.json
+playwright.config.*
+package.json
+package-lock.json
+composer.json
+composer.lock
+README.md
