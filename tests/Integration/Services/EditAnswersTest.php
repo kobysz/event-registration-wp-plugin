@@ -107,6 +107,51 @@ final class EditAnswersTest extends WP_UnitTestCase {
 		$this->assertSame( 'std', $this->repository->findById( $edited )['type_key'] );
 	}
 
+	public function test_hard_block_on_full_type_with_waitlist_enabled_default(): void {
+		// waitlist_enabled=true (the production default): CapacityCalculator::decide()
+		// returns Outcome::Waitlisted (not Rejected) for a full type. editAnswers must
+		// still hard-block on any non-Accepted outcome, mirroring promoteFromWaitlist().
+		$config = new EventConfigRepository();
+		$config->save(
+			$this->event_id,
+			array(
+				'types'         => array(
+					array( 'key' => 'std', 'label' => 'Standard', 'price' => 100.0, 'capacity' => 10 ),
+					array( 'key' => 'vip', 'label' => 'VIP', 'price' => 500.0, 'capacity' => 1 ),
+				),
+				'accommodation' => array(
+					'packages'  => array( array( 'key' => 'n1', 'label' => 'Noc 1' ) ),
+					'rooms'     => array( array( 'key' => 'std', 'label' => 'Standard' ) ),
+					'inventory' => array(
+						array( 'package' => 'n1', 'room' => 'std', 'capacity' => 1, 'price' => 50.0 ),
+					),
+				),
+				'settings'      => array( 'waitlist_enabled' => true ),
+			)
+		);
+
+		$this->seed( 'confirmed', 'vip' ); // fills vip 1/1
+		$edited = $this->seed( 'pending', 'std' );
+
+		$result = $this->service->editAnswers( $edited, $this->request( 'vip' ) );
+
+		$this->assertSame( 'capacity_full', $result->code );
+		$row = $this->repository->findById( $edited );
+		$this->assertSame( 'std', $row['type_key'] );
+		$this->assertSame( 'pending', $row['status'] );
+	}
+
+	public function test_unknown_type_key_is_invalid(): void {
+		$edited = $this->seed( 'pending', 'std' );
+
+		$result = $this->service->editAnswers( $edited, $this->request( 'nope' ) );
+
+		$this->assertSame( 'invalid_status', $result->code );
+		$row = $this->repository->findById( $edited );
+		$this->assertSame( 'std', $row['type_key'] );
+		$this->assertSame( 'pending', $row['status'] );
+	}
+
 	public function test_hard_block_on_full_accommodation(): void {
 		$other = $this->seed( 'confirmed', 'std' );
 		$this->repository->insertAccommodationBooking( $other, new AccommodationSelection( 'n1', 'std' ), 50.0 );

@@ -349,8 +349,10 @@ final class ReservationService {
 	 * Edytuje odpowiedzi zgłoszenia z re-walidacją pojemności przy zmianie typu/noclegu.
 	 *
 	 * Statusy zajmujące miejsce (pending/confirmed): transakcja lock→occupancyExcluding→decide,
-	 * twardy blok na pełny typ/nocleg. Waitlist: bez bramki, status zostaje waitlist.
-	 * Nie emituje hooków cyklu życia → brak maila. Cancelled nieedytowalne.
+	 * twardy blok na pełny typ/nocleg (Accepted to jedyny wynik dopuszczający edycję —
+	 * Waitlisted przy pełnym typie z włączoną listą rezerwową też blokuje, tak jak Rejected).
+	 * Waitlist: bez bramki, status zostaje waitlist. Nieznany typeKey → invalidStatus() przed
+	 * transakcją. Nie emituje hooków cyklu życia → brak maila. Cancelled nieedytowalne.
 	 *
 	 * @param int                $id      ID zgłoszenia.
 	 * @param ReservationRequest $request Nowe dane zgłoszenia.
@@ -376,6 +378,10 @@ final class ReservationService {
 		$settings      = is_array( $config['settings'] ) ? $config['settings'] : array();
 		$type          = $types->get( $request->typeKey );
 
+		if ( null === $type ) {
+			return AdminActionResult::invalidStatus();
+		}
+
 		$wpdb->query( 'START TRANSACTION' );
 
 		try {
@@ -399,7 +405,7 @@ final class ReservationService {
 					$request->selection
 				);
 
-				if ( Outcome::Rejected === $decision->outcome ) {
+				if ( Outcome::Accepted !== $decision->outcome ) {
 					$wpdb->query( 'ROLLBACK' );
 					return AdminActionResult::capacityFull();
 				}
@@ -409,7 +415,7 @@ final class ReservationService {
 				}
 			}
 
-			$price = null === $type ? 0.0 : $this->pricing->total( $type, $accommodation, $request->selection );
+			$price = $this->pricing->total( $type, $accommodation, $request->selection );
 
 			$this->repository->updateRegistration(
 				$id,
