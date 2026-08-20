@@ -16,8 +16,6 @@ defined( 'ABSPATH' ) || exit;
  */
 final class Plugin {
 
-	public const VERSION = '0.1.0';
-
 	public const TEXT_DOMAIN = 'event-registration';
 
 	/**
@@ -26,6 +24,13 @@ final class Plugin {
 	 * @var string
 	 */
 	private static string $plugin_file = '';
+
+	/**
+	 * Zderywowana wersja wtyczki (cache).
+	 *
+	 * @var string
+	 */
+	private static string $version = '';
 
 	/**
 	 * Zapamiętuje ścieżkę głównego pliku wtyczki.
@@ -41,5 +46,16 @@ final class Plugin {
 	 */
 	public static function plugin_file(): string {
 		return self::$plugin_file;
+	}
+
+	/**
+	 * Zwraca wersję wtyczki odczytaną z nagłówka głównego pliku (jedno źródło prawdy).
+	 */
+	public static function version(): string {
+		if ( '' === self::$version ) {
+			$data          = get_file_data( self::$plugin_file, array( 'Version' => 'Version' ) );
+			self::$version = (string) ( $data['Version'] ?? '' );
+		}
+		return self::$version;
 	}
 }

@@ -87,6 +87,13 @@ Wtyczka jest w budowie (roadmapa 6 planów). Gotowe:
 6. 🔶 Panel zgłoszeń — lista + akcje cyklu życia gotowe (5A); edycja odpowiedzi (5B) i eksport (5C) osobne plany
 7. ⬜ Auto-aktualizacja + utwardzenie CI
 
+## Wydawanie
+
+1. Podbij `Version:` w nagłówku `event-registration.php` (to jedyne źródło wersji — `Plugin::version()` je czyta).
+2. Commit, potem `git tag vX.Y.Z && git push --tags` (tag MUSI == wersja nagłówka, inaczej release-workflow padnie).
+3. `release.yml` zbuduje zip (runtime bez plików dev, wg `.distignore`) i opublikuje go jako asset `event-registration.zip` w GitHub Release.
+4. Instalacje z aktywnym auto-update dostaną aktualizację w ≤12h (cache), albo od razu po „Sprawdź aktualizacje" na ekranie wtyczek.
+
 ## Licencja
 
 GPL-2.0-or-later.

@@ -1,0 +1,51 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.1'
+          tools: composer:v2
+          coverage: none
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Sprawdź zgodność wersji z tagiem
+        run: |
+          HEADER=$(grep -oP 'Version:\s*\K[0-9.]+' event-registration.php | head -1)
+          TAG="${GITHUB_REF_NAME#v}"
+          echo "header=$HEADER tag=$TAG"
+          test "$HEADER" = "$TAG" || { echo "::error::Wersja nagłówka ($HEADER) != tag ($TAG)"; exit 1; }
+
+      - run: composer install --no-dev --optimize-autoloader --prefer-dist --no-progress
+
+      - run: npm ci
+
+      - run: npm run build
+
+      - name: Zbuduj zip
+        run: |
+          STAGE="event-registration"
+          rm -rf "$STAGE"
+          mkdir "$STAGE"
+          rsync -a --exclude-from=.distignore --exclude "$STAGE" ./ "$STAGE/"
+          zip -rq event-registration.zip "$STAGE"
+
+      - name: Utwórz release i załącz asset
+        uses: softprops/action-gh-release@v2
+        with:
+          files: event-registration.zip
+          generate_release_notes: true

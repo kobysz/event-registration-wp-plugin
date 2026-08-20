@@ -9,6 +9,7 @@
  * License:           GPL-2.0-or-later
  * License URI:       https://www.gnu.org/licenses/gpl-2.0.html
  * Text Domain:       event-registration
+ * Update URI:        https://github.com/kobysz/event-registration-wp-plugin
  *
  * @package EvReg
  */
@@ -43,13 +44,14 @@ add_action( 'plugins_loaded', array( \EvReg\Admin\MailQueueScreen::class, 'regis
 add_action( 'plugins_loaded', array( \EvReg\Admin\RegistrationsScreen::class, 'register' ) );
 add_action( 'plugins_loaded', array( \EvReg\Admin\SettingsScreen::class, 'register' ) );
 add_action( 'plugins_loaded', array( \EvReg\Privacy\PrivacyProvider::class, 'register' ) );
+add_action( 'init', array( \EvReg\Update\GitHubUpdater::class, 'register' ) );
 
 add_action(
 	'init',
 	static function (): void {
 		$url = plugin_dir_url( \EvReg\Plugin::plugin_file() );
-		wp_register_style( 'evreg-public', $url . 'assets/public/form.css', array(), \EvReg\Plugin::VERSION );
-		wp_register_script( 'evreg-public', $url . 'assets/public/form.js', array(), \EvReg\Plugin::VERSION, true );
+		wp_register_style( 'evreg-public', $url . 'assets/public/form.css', array(), \EvReg\Plugin::version() );
+		wp_register_script( 'evreg-public', $url . 'assets/public/form.js', array(), \EvReg\Plugin::version(), true );
 	}
 );
 
