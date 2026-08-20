@@ -23,11 +23,11 @@ final class RegistrationEditForm {
 	/**
 	 * Renderuje formularz edycji odpowiedzi zgłoszenia (POST → admin-post.php).
 	 *
-	 * @param FormSchema               $schema    Złożony schemat formularza eventu.
-	 * @param array<string,mixed>      $answers   Bieżące odpowiedzi zgłoszenia (prefill domyślny).
-	 * @param int                      $reg_id    ID zgłoszenia.
-	 * @param array<int,mixed>|null    $errors    Błędy walidacji do wyświetlenia (opcjonalne).
-	 * @param array<string,mixed>|null $submitted Wartości z odrzuconego POST (prefill przy błędzie).
+	 * @param FormSchema                   $schema    Złożony schemat formularza eventu.
+	 * @param array<string,mixed>          $answers   Bieżące odpowiedzi zgłoszenia (prefill domyślny).
+	 * @param int                          $reg_id    ID zgłoszenia.
+	 * @param array<int|string,mixed>|null $errors    Błędy walidacji do wyświetlenia (opcjonalne); lista {field,detail} albo mapa pole=>kod.
+	 * @param array<string,mixed>|null     $submitted Wartości z odrzuconego POST (prefill przy błędzie).
 	 */
 	public static function render( FormSchema $schema, array $answers, int $reg_id, ?array $errors = null, ?array $submitted = null ): string {
 		$source = null !== $submitted ? $submitted : $answers;
@@ -56,7 +56,7 @@ final class RegistrationEditForm {
 	/**
 	 * Renderuje blok błędów walidacji, jeśli są.
 	 *
-	 * @param array<int,mixed>|null $errors Błędy walidacji.
+	 * @param array<int|string,mixed>|null $errors Błędy walidacji; lista {field,detail} albo mapa pole=>kod.
 	 */
 	private static function renderErrors( ?array $errors ): string {
 		if ( empty( $errors ) ) {
