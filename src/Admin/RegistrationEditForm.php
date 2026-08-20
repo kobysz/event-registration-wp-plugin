@@ -122,7 +122,9 @@ final class RegistrationEditForm {
 	 * @param mixed $value Wartość do odtworzenia w kontrolce.
 	 */
 	private static function renderControl( Field $field, $value ): string {
-		$name = esc_attr( $field->key );
+		// Namespace pod evreg_field[...] — spójnie z FormRenderer i wspólną ekstrakcją
+		// SubmissionAssembler (klucze pól nie kolidują z query-vars WordPressa).
+		$name = 'evreg_field[' . esc_attr( $field->key ) . ']';
 		switch ( $field->type ) {
 			case FieldType::Textarea:
 				return '<textarea name="' . $name . '" rows="4" class="large-text">' . esc_textarea( self::scalar( $value ) ) . '</textarea>';
@@ -148,7 +150,9 @@ final class RegistrationEditForm {
 	 * @param mixed $value Wartość (lub wartości) do odtworzenia.
 	 */
 	private static function renderChoices( Field $field, $value ): string {
-		$name = esc_attr( $field->key );
+		// Namespace pod evreg_field[...] — spójnie z FormRenderer i wspólną ekstrakcją
+		// SubmissionAssembler (klucze pól nie kolidują z query-vars WordPressa).
+		$name = 'evreg_field[' . esc_attr( $field->key ) . ']';
 
 		if ( FieldType::Checkbox === $field->type ) {
 			return '<input type="checkbox" name="' . $name . '" value="1"' . checked( '1', self::scalar( $value ), false ) . ' />';
@@ -197,7 +201,9 @@ final class RegistrationEditForm {
 
 		$current = is_array( $value ) ? ( (string) ( $value['package'] ?? '' ) . '|' . (string) ( $value['room'] ?? '' ) ) : '';
 
-		$name = esc_attr( $field->key );
+		// Namespace pod evreg_field[...] — spójnie z FormRenderer i wspólną ekstrakcją
+		// SubmissionAssembler (klucze pól nie kolidują z query-vars WordPressa).
+		$name = 'evreg_field[' . esc_attr( $field->key ) . ']';
 		$opts = '<option value=""' . selected( '', $current, false ) . '>' . esc_html__( 'Bez noclegu', 'event-registration' ) . '</option>';
 
 		foreach ( $packages as $pkg ) {

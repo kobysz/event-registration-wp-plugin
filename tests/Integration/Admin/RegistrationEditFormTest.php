@@ -147,7 +147,7 @@ final class RegistrationEditFormTest extends WP_UnitTestCase {
 
 		$this->assertStringNotContainsString( 'Sekcja nagłówek', $html );
 		$this->assertStringNotContainsString( 'Opis akapitu', $html );
-		$this->assertStringContainsString( 'name="email"', $html );
+		$this->assertStringContainsString( 'name="evreg_field[email]"', $html );
 	}
 
 	public function test_renders_choice_controls_with_selected_options(): void {
@@ -158,9 +158,9 @@ final class RegistrationEditFormTest extends WP_UnitTestCase {
 
 		$html = RegistrationEditForm::render( $this->schemaWithChoicesAndAccommodation(), $answers, 7 );
 
-		$this->assertStringContainsString( 'name="koszulka"', $html );
+		$this->assertStringContainsString( 'name="evreg_field[koszulka]"', $html );
 		$this->assertMatchesRegularExpression( '/<option value="m"[^>]*selected[^>]*>M<\/option>/', $html );
-		$this->assertMatchesRegularExpression( '/name="diety\[\]" value="wege"[^>]*checked/', $html );
+		$this->assertMatchesRegularExpression( '/name="evreg_field\[diety\]\[\]" value="wege"[^>]*checked/', $html );
 	}
 
 	public function test_renders_accommodation_control_with_selected_slot_and_roommate(): void {

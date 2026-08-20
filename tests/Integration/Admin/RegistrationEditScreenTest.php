@@ -74,7 +74,7 @@ final class RegistrationEditScreenTest extends WP_UnitTestCase {
 
 	protected function tearDown(): void {
 		remove_all_filters( 'wp_redirect' );
-		unset( $_POST['registration'], $_REQUEST['_wpnonce'], $_GET['action'], $_GET['id'], $_POST['__type'], $_POST['imie'], $_POST['email'] );
+		unset( $_POST['registration'], $_REQUEST['_wpnonce'], $_GET['action'], $_GET['id'], $_POST['evreg_field'] );
 		parent::tearDown();
 	}
 
@@ -143,9 +143,11 @@ final class RegistrationEditScreenTest extends WP_UnitTestCase {
 
 		$_POST['registration'] = $id;
 		$_REQUEST['_wpnonce']  = wp_create_nonce( 'evreg_edit_' . $id );
-		$_POST['__type']       = 'uczestnik';
-		$_POST['imie']         = 'Jan Nowy';
-		$_POST['email']        = 'nowy@example.com';
+		$_POST['evreg_field']  = array(
+			'__type' => 'uczestnik',
+			'imie'   => 'Jan Nowy',
+			'email'  => 'nowy@example.com',
+		);
 
 		$redirect = $this->catchRedirect( array( RegistrationsScreen::class, 'handle_edit' ) );
 
@@ -165,9 +167,11 @@ final class RegistrationEditScreenTest extends WP_UnitTestCase {
 
 		$_POST['registration'] = $id;
 		$_REQUEST['_wpnonce']  = wp_create_nonce( 'evreg_edit_' . $id );
-		$_POST['__type']       = 'uczestnik';
-		$_POST['imie']         = 'Jan Nowy';
-		$_POST['email']        = ''; // required, missing -> validation error.
+		$_POST['evreg_field']  = array(
+			'__type' => 'uczestnik',
+			'imie'   => 'Jan Nowy',
+			'email'  => '', // required, missing -> validation error.
+		);
 
 		$redirect = null;
 		ob_start();

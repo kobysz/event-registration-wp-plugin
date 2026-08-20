@@ -53,9 +53,11 @@ final class SubmissionAssemblerTest extends WP_UnitTestCase {
 		$assembled = $this->assembler->assemble(
 			$schema,
 			array(
-				'email'  => 'a@b.pl',
-				'name'   => 'Jan',
-				'__type' => 'std',
+				'evreg_field' => array(
+					'email'  => 'a@b.pl',
+					'name'   => 'Jan',
+					'__type' => 'std',
+				),
 			)
 		);
 
@@ -73,16 +75,16 @@ final class SubmissionAssemblerTest extends WP_UnitTestCase {
 		$schema = ( new EventFormLoader( new EventConfigRepository() ) )->load( $this->event_id );
 		$this->assertNotNull( $schema );
 
-		$post = array(
+		$fields = array(
 			'email'  => '',
 			'name'   => 'Jan',
 			'__type' => 'std',
 		);
 
-		$assembled = $this->assembler->assemble( $schema, $post );
+		$assembled = $this->assembler->assemble( $schema, array( 'evreg_field' => $fields ) );
 
 		$this->assertFalse( $assembled->isValid() );
 		$this->assertNull( $assembled->request() );
-		$this->assertEqualsCanonicalizing( $post, $assembled->values() );
+		$this->assertEqualsCanonicalizing( $fields, $assembled->values() );
 	}
 }

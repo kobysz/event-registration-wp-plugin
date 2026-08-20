@@ -25,9 +25,9 @@ test( 'participant fills the form, submits, and confirms via token link', async 
 	await page.goto( pagePath );
 	await expect( page.locator( '.evreg-form' ) ).toBeVisible();
 
-	await page.check( 'input[name="__type"][value="uczestnik"]' );
-	await page.fill( 'input[name="imie"]', 'Jan Testowy' );
-	await page.fill( 'input[name="email"]', EMAIL );
+	await page.check( 'input[name="evreg_field[__type]"][value="uczestnik"]' );
+	await page.fill( 'input[name="evreg_field[imie]"]', 'Jan Testowy' );
+	await page.fill( 'input[name="evreg_field[email]"]', EMAIL );
 
 	// Wait out the antispam min-fill-time gate (>= 3s, see SubmitHandler::MIN_FILL_SECONDS).
 	await page.waitForTimeout( 3500 );

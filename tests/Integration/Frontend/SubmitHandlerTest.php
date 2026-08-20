@@ -61,16 +61,25 @@ final class SubmitHandlerTest extends WP_UnitTestCase {
 	 * @return array<string,mixed>
 	 */
 	private function post( array $overrides = array() ): array {
-		return array_merge(
-			array(
-				'evreg_hp' => '',
-				'evreg_ts' => (string) ( time() - 10 ),
-				'__type'   => 'uczestnik',
-				'imie'     => 'Jan',
-				'email'    => 'jan@example.com',
-			),
-			$overrides
+		$controls = array(
+			'evreg_hp' => '',
+			'evreg_ts' => (string) ( time() - 10 ),
 		);
+		$fields   = array(
+			'__type' => 'uczestnik',
+			'imie'   => 'Jan',
+			'email'  => 'jan@example.com',
+		);
+
+		foreach ( $overrides as $key => $value ) {
+			if ( array_key_exists( $key, $controls ) || in_array( $key, array( 'evreg_event', 'evreg_submit' ), true ) ) {
+				$controls[ $key ] = $value;
+			} else {
+				$fields[ $key ] = $value;
+			}
+		}
+
+		return array_merge( $controls, array( 'evreg_field' => $fields ) );
 	}
 
 	public function test_valid_submission_reserves(): void {
@@ -143,12 +152,14 @@ final class SubmitHandlerTest extends WP_UnitTestCase {
 		);
 
 		$submit = static fn () => array(
-			'evreg_hp'  => '',
-			'evreg_ts'  => (string) ( time() - 10 ),
-			'__type'    => 'uczestnik',
-			'imie'      => 'Jan',
-			'email_opt' => '',
-			'email'     => 'second@example.com',
+			'evreg_hp'    => '',
+			'evreg_ts'    => (string) ( time() - 10 ),
+			'evreg_field' => array(
+				'__type'    => 'uczestnik',
+				'imie'      => 'Jan',
+				'email_opt' => '',
+				'email'     => 'second@example.com',
+			),
 		);
 
 		$result = $this->handler->process( $event_id, $submit() );
