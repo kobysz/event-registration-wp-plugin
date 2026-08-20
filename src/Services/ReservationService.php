@@ -346,6 +346,98 @@ final class ReservationService {
 	}
 
 	/**
+	 * Edytuje odpowiedzi zgłoszenia z re-walidacją pojemności przy zmianie typu/noclegu.
+	 *
+	 * Statusy zajmujące miejsce (pending/confirmed): transakcja lock→occupancyExcluding→decide,
+	 * twardy blok na pełny typ/nocleg. Waitlist: bez bramki, status zostaje waitlist.
+	 * Nie emituje hooków cyklu życia → brak maila. Cancelled nieedytowalne.
+	 *
+	 * @param int                $id      ID zgłoszenia.
+	 * @param ReservationRequest $request Nowe dane zgłoszenia.
+	 *
+	 * @throws \Throwable ROLLBACK i ponowne rzucenie przy błędzie w transakcji.
+	 */
+	public function editAnswers( int $id, ReservationRequest $request ): AdminActionResult {
+		global $wpdb;
+
+		$row = $this->repository->findById( $id );
+		if ( null === $row ) {
+			return AdminActionResult::notFound();
+		}
+		$status = RegistrationStatus::from( (string) $row['status'] );
+		if ( RegistrationStatus::Cancelled === $status ) {
+			return AdminActionResult::invalidStatus();
+		}
+
+		$event_id      = (int) $row['event_id'];
+		$config        = $this->config->get( $event_id );
+		$types         = RegistrationTypeCollection::fromArray( is_array( $config['types'] ) ? $config['types'] : array() );
+		$accommodation = AccommodationConfig::fromArray( is_array( $config['accommodation'] ) ? $config['accommodation'] : array() );
+		$settings      = is_array( $config['settings'] ) ? $config['settings'] : array();
+		$type          = $types->get( $request->typeKey );
+
+		$wpdb->query( 'START TRANSACTION' );
+
+		try {
+			$occupies = in_array( $status, array( RegistrationStatus::Pending, RegistrationStatus::Confirmed ), true );
+
+			if ( $occupies ) {
+				// KRYTYCZNA KOLEJNOŚĆ: lockEvent przed occupancyExcluding (inwariant lock→count 3A).
+				$this->repository->lockEvent( $event_id );
+
+				$limits = new CapacityLimits(
+					isset( $settings['global_cap'] ) && null !== $settings['global_cap'] ? (int) $settings['global_cap'] : null,
+					$types->capacities(),
+					$accommodation->capacities(),
+					(bool) ( $settings['waitlist_enabled'] ?? true )
+				);
+
+				$decision = $this->calculator->decide(
+					$limits,
+					$this->repository->occupancyExcluding( $event_id, $id ),
+					$request->typeKey,
+					$request->selection
+				);
+
+				if ( Outcome::Rejected === $decision->outcome ) {
+					$wpdb->query( 'ROLLBACK' );
+					return AdminActionResult::capacityFull();
+				}
+				if ( null !== $request->selection && ! $decision->accommodationGranted ) {
+					$wpdb->query( 'ROLLBACK' );
+					return AdminActionResult::accommodationFull();
+				}
+			}
+
+			$price = null === $type ? 0.0 : $this->pricing->total( $type, $accommodation, $request->selection );
+
+			$this->repository->updateRegistration(
+				$id,
+				$request->typeKey,
+				$request->email,
+				$request->name,
+				(string) wp_json_encode( $request->data ),
+				$price
+			);
+
+			$this->repository->deleteAccommodationBooking( $id );
+			if ( null !== $request->selection ) {
+				$item      = $accommodation->item( $request->selection->packageKey, $request->selection->roomKey );
+				$acc_price = null === $item ? 0.0 : $item->price;
+				$this->repository->insertAccommodationBooking( $id, $request->selection, $acc_price );
+			}
+
+			$wpdb->query( 'COMMIT' );
+		} catch ( \Throwable $e ) {
+			$wpdb->query( 'ROLLBACK' );
+			throw $e;
+		}
+
+		// Świadomie BEZ do_action — edycja nie wysyła maila (Subscriber 4A nie kolejkuje).
+		return AdminActionResult::edited();
+	}
+
+	/**
 	 * Trwale usuwa anulowane zgłoszenie wraz z noclegiem i osieroconymi wierszami kolejki.
 	 *
 	 * @param int $id ID zgłoszenia.
