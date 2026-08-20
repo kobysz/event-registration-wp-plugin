@@ -97,6 +97,24 @@ final class PrivacyProviderTest extends WP_UnitTestCase {
 	public function test_export_returns_persons_registration_group(): void {
 		$id = $this->repository->insertRegistration( $this->row() );
 		$this->repository->updateNote( $id, 'Notatka organizatora' );
+		$this->repository->markConfirmed( $id );
+		$this->repository->insertAccommodationBooking(
+			$id,
+			new \EvReg\Domain\Accommodation\AccommodationSelection( 'n12', 'double', 'Ewa' ),
+			180.0
+		);
+		$this->mail_repository->insert(
+			array(
+				'registration_id' => $id,
+				'event_id'        => $this->event_id,
+				'template_key'    => 'optin',
+				'recipient'       => 'a@b.pl',
+				'subject'         => 'Potwierdź zgłoszenie',
+				'body'            => 'Treść',
+				'headers'         => '',
+				'scheduled_at'    => '2026-08-19 10:00:00',
+			)
+		);
 
 		$result = ( new PrivacyProvider() )->export( 'a@b.pl', 1 );
 
@@ -110,6 +128,14 @@ final class PrivacyProviderTest extends WP_UnitTestCase {
 		$this->assertContains( 'a@b.pl', $values );
 		$this->assertArrayHasKey( 'Status', $values );
 		$this->assertSame( 'Potwierdzone', $values['Status'] );
+		$this->assertArrayHasKey( 'Potwierdzono', $values );
+		$this->assertNotSame( '', $values['Potwierdzono'] );
+
+		// Historia maili (spec §6): temat i adresat wysłanego potwierdzenia widoczne w eksporcie.
+		$this->assertArrayHasKey( 'E-mail: temat', $values );
+		$this->assertSame( 'Potwierdź zgłoszenie', $values['E-mail: temat'] );
+		$this->assertArrayHasKey( 'E-mail: adresat', $values );
+		$this->assertSame( 'a@b.pl', $values['E-mail: adresat'] );
 	}
 
 	public function test_export_other_email_returns_empty_and_done(): void {
@@ -164,10 +190,56 @@ final class PrivacyProviderTest extends WP_UnitTestCase {
 		$this->assertStringEndsWith( '@example.invalid', (string) $row['email'] );
 		$this->assertSame( 'confirmed', (string) $row['status'] );
 
+		// Booking i wiersz kolejki mailowej faktycznie zanonimizowane (spec §9), nie tylko rekord zgłoszenia.
+		$booking = $this->repository->findAccommodationBooking( $id );
+		$this->assertNotNull( $booking );
+		$this->assertSame( '', (string) $booking['roommate_pref'] );
+
+		global $wpdb;
+		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.DirectDatabaseQuery
+		$mail = $wpdb->get_row( $wpdb->prepare( 'SELECT * FROM ' . Migrations::table( 'mail_queue' ) . ' WHERE registration_id = %d', $id ), ARRAY_A );
+		$this->assertNotNull( $mail );
+		$this->assertSame( '', (string) $mail['recipient'] );
+		$this->assertSame( '', (string) $mail['subject'] );
+		$this->assertSame( '', (string) $mail['body'] );
+		$this->assertSame( '', (string) $mail['headers'] );
+
 		// Idempotencja: drugi erase po pierwotnym mailu nie znajduje już nic.
 		$again = $provider->erase( 'a@b.pl', 1 );
 		$this->assertTrue( $again['done'] );
 		$this->assertFalse( $again['items_retained'] );
 		$this->assertSame( array(), $again['messages'] );
+	}
+
+	public function test_erase_leaves_other_email_untouched(): void {
+		$mine_id  = $this->repository->insertRegistration( $this->row() );
+		$other_id = $this->repository->insertRegistration(
+			$this->row(
+				array(
+					'email' => 'inny@b.pl',
+					'name'  => 'Ewa Nowak',
+					'token' => md5( 'other' ),
+					'data'  => wp_json_encode(
+						array(
+							'email' => 'inny@b.pl',
+							'imie'  => 'Ewa Nowak',
+							'dni'   => array( 'sob' ),
+						)
+					),
+				)
+			)
+		);
+
+		$result = ( new PrivacyProvider() )->erase( 'a@b.pl', 1 );
+
+		$this->assertTrue( $result['items_retained'] );
+
+		$mine = $this->repository->findById( $mine_id );
+		$this->assertStringEndsWith( '@example.invalid', (string) $mine['email'] );
+
+		$other = $this->repository->findById( $other_id );
+		$this->assertSame( 'inny@b.pl', (string) $other['email'] );
+		$this->assertSame( 'Ewa Nowak', (string) $other['name'] );
+		$this->assertStringContainsString( 'inny@b.pl', (string) $other['data'] );
 	}
 }

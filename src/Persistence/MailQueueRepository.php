@@ -336,6 +336,28 @@ final class MailQueueRepository {
 	}
 
 	/**
+	 * Zwraca wiersze kolejki powiązane ze zgłoszeniem, chronologicznie — WP Privacy exporter.
+	 *
+	 * @param int $id ID zgłoszenia.
+	 *
+	 * @return array<int,array<string,mixed>>
+	 */
+	public function findByRegistration( int $id ): array {
+		global $wpdb;
+
+		$rows = $wpdb->get_results(
+			$wpdb->prepare(
+				// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+				"SELECT * FROM {$this->table()} WHERE registration_id = %d ORDER BY id ASC",
+				$id
+			),
+			ARRAY_A
+		); // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+
+		return is_array( $rows ) ? $rows : array();
+	}
+
+	/**
 	 * Czyści treść osobową wierszy kolejki maili powiązanych ze zgłoszeniem — WP Privacy eraser.
 	 *
 	 * @param int $id ID zgłoszenia.

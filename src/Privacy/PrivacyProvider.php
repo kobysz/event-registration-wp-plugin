@@ -82,6 +82,7 @@ final class PrivacyProvider {
 	 */
 	public function export( string $email, int $page = 1 ): array {
 		$repo        = new RegistrationRepository();
+		$mails       = new MailQueueRepository();
 		$offset      = ( max( 1, $page ) - 1 ) * self::PER_PAGE;
 		$rows        = $repo->findByEmailPaged( $email, self::PER_PAGE, $offset );
 		$mapper      = new RegistrationExportMapper();
@@ -123,6 +124,10 @@ final class PrivacyProvider {
 					'value' => (string) $row['created_at'],
 				),
 				array(
+					'name'  => __( 'Potwierdzono', 'event-registration' ),
+					'value' => (string) ( $row['confirmed_at'] ?? '' ),
+				),
+				array(
 					'name'  => __( 'Notatka', 'event-registration' ),
 					'value' => (string) ( $row['note'] ?? '' ),
 				),
@@ -132,8 +137,8 @@ final class PrivacyProvider {
 			if ( null !== $schema ) {
 				$answers = json_decode( (string) $row['data'], true );
 				$answers = is_array( $answers ) ? $answers : array();
+				$cells   = $mapper->answerCells( $answers, $schema );
 				foreach ( $mapper->answerColumns( $schema ) as $i => $col ) {
-					$cells  = $mapper->answerCells( $answers, $schema );
 					$data[] = array(
 						'name'  => $col['label'],
 						'value' => $cells[ $i ] ?? '',
@@ -143,6 +148,30 @@ final class PrivacyProvider {
 				$data[]    = array(
 					'name'  => __( 'Nocleg', 'event-registration' ),
 					'value' => trim( $acc_cells['package'] . ' ' . $acc_cells['room'] . ' ' . $acc_cells['roommate'] ),
+				);
+			}
+
+			// Historia maili (spec §6: recipient/subject/dane wysyłki).
+			foreach ( $mails->findByRegistration( $id ) as $mail_row ) {
+				$data[] = array(
+					'name'  => __( 'E-mail: adresat', 'event-registration' ),
+					'value' => (string) $mail_row['recipient'],
+				);
+				$data[] = array(
+					'name'  => __( 'E-mail: temat', 'event-registration' ),
+					'value' => (string) $mail_row['subject'],
+				);
+				$data[] = array(
+					'name'  => __( 'E-mail: zaplanowano', 'event-registration' ),
+					'value' => (string) $mail_row['scheduled_at'],
+				);
+				$data[] = array(
+					'name'  => __( 'E-mail: wysłano', 'event-registration' ),
+					'value' => (string) ( $mail_row['sent_at'] ?? '' ),
+				);
+				$data[] = array(
+					'name'  => __( 'E-mail: status', 'event-registration' ),
+					'value' => (string) $mail_row['status'],
 				);
 			}
 
