@@ -292,6 +292,31 @@ final class RegistrationRepository {
 	}
 
 	/**
+	 * Zwraca WSZYSTKIE zgłoszenia spełniające filtry (bez paginacji), chronologicznie — do eksportu.
+	 *
+	 * @param array{status?: string, type_key?: string, event_id?: int} $filters Filtry.
+	 * @return array<int,array<string,mixed>>
+	 */
+	public function exportRegistrations( array $filters ): array {
+		global $wpdb;
+
+		list( $where, $args ) = $this->registrationWhere( $filters );
+
+		if ( array() === $args ) {
+			// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.DirectDatabaseQuery
+			$rows = $wpdb->get_results( "SELECT * FROM {$this->registrations()} ORDER BY id ASC", ARRAY_A );
+		} else {
+			$rows = $wpdb->get_results(
+				// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare,WordPress.DB.PreparedSQLPlaceholders.ReplacementsWrongNumber -- $args ma zmienną, ale dopasowaną liczbę elementów.
+				$wpdb->prepare( "SELECT * FROM {$this->registrations()}{$where} ORDER BY id ASC", $args ),
+				ARRAY_A
+			); // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+		}
+
+		return is_array( $rows ) ? $rows : array();
+	}
+
+	/**
 	 * Liczy zgłoszenia spełniające filtry.
 	 *
 	 * @param array{status?: string, type_key?: string, event_id?: int} $filters Filtry.
@@ -364,6 +389,37 @@ final class RegistrationRepository {
 		);
 
 		return is_array( $row ) ? $row : null;
+	}
+
+	/**
+	 * Bulk-pobiera bookingi noclegu dla wielu zgłoszeń (unika N+1 przy eksporcie).
+	 *
+	 * @param array<int,int> $ids ID zgłoszeń.
+	 * @return array<int,array<string,mixed>> Mapa registration_id => wiersz bookingu.
+	 */
+	public function accommodationBookingsFor( array $ids ): array {
+		global $wpdb;
+
+		$ids = array_values( array_unique( array_map( 'intval', $ids ) ) );
+		if ( array() === $ids ) {
+			return array();
+		}
+
+		$in   = implode( ',', array_fill( 0, count( $ids ), '%d' ) );
+		$rows = $wpdb->get_results(
+			// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare,WordPress.DB.PreparedSQLPlaceholders.ReplacementsWrongNumber -- $in ma zmienną, ale dopasowaną liczbę placeholderów.
+			$wpdb->prepare( "SELECT * FROM {$this->bookings()} WHERE registration_id IN ($in) ORDER BY id ASC", $ids ),
+			ARRAY_A
+		); // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+
+		$map = array();
+		foreach ( (array) $rows as $row ) {
+			$rid = (int) $row['registration_id'];
+			if ( ! isset( $map[ $rid ] ) ) {
+				$map[ $rid ] = $row; // pierwszy wygrywa gdy >1 booking.
+			}
+		}
+		return $map;
 	}
 
 	/**
