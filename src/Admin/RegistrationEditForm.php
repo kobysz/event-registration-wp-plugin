@@ -30,11 +30,10 @@ final class RegistrationEditForm {
 	 * @param array<string,mixed>|null $submitted Wartości z odrzuconego POST (prefill przy błędzie).
 	 */
 	public static function render( FormSchema $schema, array $answers, int $reg_id, ?array $errors = null, ?array $submitted = null ): string {
-		$source       = null !== $submitted ? $submitted : $answers;
-		$nonce_action = 'evreg_edit_' . $reg_id;
-		$nonce        = wp_nonce_field( $nonce_action, '_wpnonce', true, false );
+		$source = null !== $submitted ? $submitted : $answers;
+		$nonce  = wp_nonce_field( 'evreg_edit_' . $reg_id, '_wpnonce', true, false );
 
-		$out  = '<form method="post" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '" data-nonce-action="' . esc_attr( $nonce_action ) . '">';
+		$out  = '<form method="post" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '">';
 		$out .= '<input type="hidden" name="action" value="evreg_edit_registration" />';
 		$out .= '<input type="hidden" name="registration" value="' . esc_attr( (string) $reg_id ) . '" />';
 		$out .= $nonce;
@@ -42,7 +41,7 @@ final class RegistrationEditForm {
 
 		$out .= '<table class="form-table"><tbody>';
 		foreach ( $schema->allFields() as $field ) {
-			if ( in_array( $field->type, array( FieldType::Heading, FieldType::Paragraph ), true ) ) {
+			if ( ! $field->type->isInput() ) {
 				continue;
 			}
 			$out .= self::renderRow( $field, $source[ $field->key ] ?? '' );

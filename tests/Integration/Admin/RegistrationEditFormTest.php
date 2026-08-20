@@ -92,7 +92,11 @@ final class RegistrationEditFormTest extends WP_UnitTestCase {
 		$this->assertStringContainsString( 'name="action" value="evreg_edit_registration"', $html );
 		$this->assertStringContainsString( 'name="registration" value="42"', $html );
 		$this->assertStringContainsString( 'value="a@b.pl"', $html );
-		$this->assertStringContainsString( 'evreg_edit_42', $html );
+
+		$this->assertStringContainsString( 'name="_wpnonce"', $html );
+		$this->assertMatchesRegularExpression( '/name="_wpnonce" value="([^"]+)"/', $html );
+		preg_match( '/name="_wpnonce" value="([^"]+)"/', $html, $matches );
+		$this->assertNotFalse( wp_verify_nonce( $matches[1], 'evreg_edit_42' ), 'nonce must verify against the registration-scoped action' );
 	}
 
 	public function test_errors_are_escaped_and_submitted_values_take_precedence_over_answers(): void {
