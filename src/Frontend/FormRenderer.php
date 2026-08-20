@@ -30,12 +30,20 @@ final class FormRenderer {
 	 * @param SubmitResult|null $result   Wynik poprzedniej próby submisji (do re-renderu błędów).
 	 */
 	public function render( FormSchema $schema, int $event_id, ?SubmitResult $result = null ): string {
-		$out  = '<form class="evreg-form" method="post">';
-		$out .= wp_nonce_field( 'evreg_submit_' . $event_id, 'evreg-nonce', true, false );
-		$out .= '<input type="hidden" name="evreg_event" value="' . esc_attr( (string) $event_id ) . '">';
-		$out .= '<input type="hidden" name="evreg_submit" value="1">';
-		$out .= '<input type="hidden" name="evreg_ts" value="' . esc_attr( (string) time() ) . '">';
-		$out .= '<div class="evreg-hp" aria-hidden="true" style="position:absolute;left:-9999px;">'
+		// Jawny action = kanoniczny permalink bieżącej strony. Bez niego formularz
+		// POST-uje na dokładny URL dokumentu; przy strukturze %postname%/ URL bez
+		// końcowego slasha nie jest canonical-redirectowany na POST → WordPress
+		// zwraca 404, a handler submisji nie przetwarza żądania. Kierowanie na
+		// kanoniczny permalink usuwa ten rozjazd (fallback: bieżący URL, gdy brak).
+		$action = esc_url( (string) get_permalink() );
+		$out    = '' !== $action
+			? '<form class="evreg-form" method="post" action="' . $action . '">'
+			: '<form class="evreg-form" method="post">';
+		$out   .= wp_nonce_field( 'evreg_submit_' . $event_id, 'evreg-nonce', true, false );
+		$out   .= '<input type="hidden" name="evreg_event" value="' . esc_attr( (string) $event_id ) . '">';
+		$out   .= '<input type="hidden" name="evreg_submit" value="1">';
+		$out   .= '<input type="hidden" name="evreg_ts" value="' . esc_attr( (string) time() ) . '">';
+		$out   .= '<div class="evreg-hp" aria-hidden="true" style="position:absolute;left:-9999px;">'
 			. '<label>' . esc_html__( 'Zostaw puste', 'event-registration' ) . ' <input type="text" name="evreg_hp" value="" tabindex="-1" autocomplete="off"></label></div>';
 
 		foreach ( $schema->sections() as $section ) {
