@@ -64,6 +64,21 @@ final class Capabilities {
 	}
 
 	/**
+	 * Zdejmuje pełny zestaw capabilities z roli administrator i kasuje znacznik wersji. Dla uninstall.
+	 */
+	public static function remove(): void {
+		$role = get_role( 'administrator' );
+
+		if ( null !== $role ) {
+			foreach ( self::CAPS as $cap ) {
+				$role->remove_cap( $cap );
+			}
+		}
+
+		delete_option( self::VERSION_OPTION );
+	}
+
+	/**
 	 * Podpina samonaprawę capabilities do zwykłego żądania panelu admina.
 	 */
 	public static function register(): void {

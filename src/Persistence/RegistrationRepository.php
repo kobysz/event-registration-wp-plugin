@@ -571,6 +571,69 @@ final class RegistrationRepository {
 	}
 
 	/**
+	 * Zwraca zgłoszenia danego e-maila (wszystkie eventy), stronicowane — dla WP Privacy API.
+	 *
+	 * @param string $email  Adres e-mail zgłaszającego się.
+	 * @param int    $limit  Maksymalna liczba wierszy.
+	 * @param int    $offset Przesunięcie.
+	 *
+	 * @return array<int,array<string,mixed>>
+	 */
+	public function findByEmailPaged( string $email, int $limit, int $offset ): array {
+		global $wpdb;
+		$rows = $wpdb->get_results(
+			$wpdb->prepare(
+				// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+				"SELECT * FROM {$this->registrations()} WHERE email = %s ORDER BY id ASC LIMIT %d OFFSET %d",
+				$email,
+				$limit,
+				$offset
+			),
+			ARRAY_A
+		); // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+		return is_array( $rows ) ? $rows : array();
+	}
+
+	/**
+	 * Anonimizuje pola PII zgłoszenia (bez zmiany statusu/typu/ceny/dat) — WP Privacy eraser.
+	 *
+	 * @param int $id ID zgłoszenia.
+	 */
+	public function anonymizeById( int $id ): void {
+		global $wpdb;
+		$wpdb->update(
+			$this->registrations(),
+			array(
+				'email'      => 'deleted-' . $id . '@example.invalid',
+				'name'       => '',
+				'data'       => '{}',
+				'note'       => '',
+				'token'      => '',
+				'updated_at' => current_time( 'mysql', true ),
+			),
+			array( 'id' => $id ),
+			array( '%s', '%s', '%s', '%s', '%s', '%s' ),
+			array( '%d' )
+		); // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+	}
+
+	/**
+	 * Czyści preferencję współlokatora w rezerwacji noclegu zgłoszenia.
+	 *
+	 * @param int $id ID zgłoszenia.
+	 */
+	public function anonymizeBookingByRegistration( int $id ): void {
+		global $wpdb;
+		$wpdb->update(
+			$this->bookings(),
+			array( 'roommate_pref' => '' ),
+			array( 'registration_id' => $id ),
+			array( '%s' ),
+			array( '%d' )
+		); // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+	}
+
+	/**
 	 * Anuluje zgłoszenia oczekujące, których termin wygasł przed podanym momentem.
 	 *
 	 * @param string $now Aktualny moment (Y-m-d H:i:s) do porównania z expires_at.
