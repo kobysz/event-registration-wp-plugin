@@ -23,11 +23,11 @@ final class RegistrationEditForm {
 	/**
 	 * Renderuje formularz edycji odpowiedzi zgłoszenia (POST → admin-post.php).
 	 *
-	 * @param FormSchema                   $schema    Złożony schemat formularza eventu.
-	 * @param array<string,mixed>          $answers   Bieżące odpowiedzi zgłoszenia (prefill domyślny).
-	 * @param int                          $reg_id    ID zgłoszenia.
-	 * @param array<int|string,mixed>|null $errors    Błędy walidacji do wyświetlenia (opcjonalne); lista {field,detail} albo mapa pole=>kod.
-	 * @param array<string,mixed>|null     $submitted Wartości z odrzuconego POST (prefill przy błędzie).
+	 * @param FormSchema                $schema    Złożony schemat formularza eventu.
+	 * @param array<string,mixed>       $answers   Bieżące odpowiedzi zgłoszenia (prefill domyślny).
+	 * @param int                       $reg_id    ID zgłoszenia.
+	 * @param array<string,string>|null $errors    Błędy walidacji: klucz pola → kod błędu (kształt {@see \EvReg\Domain\Validation\ValidationResult::errors()}).
+	 * @param array<string,mixed>|null  $submitted Wartości z odrzuconego POST (prefill przy błędzie).
 	 */
 	public static function render( FormSchema $schema, array $answers, int $reg_id, ?array $errors = null, ?array $submitted = null ): string {
 		$source = null !== $submitted ? $submitted : $answers;
@@ -37,7 +37,7 @@ final class RegistrationEditForm {
 		$out .= '<input type="hidden" name="action" value="evreg_edit_registration" />';
 		$out .= '<input type="hidden" name="registration" value="' . esc_attr( (string) $reg_id ) . '" />';
 		$out .= $nonce;
-		$out .= self::renderErrors( $errors );
+		$out .= self::renderErrors( $schema, $errors );
 
 		$out .= '<table class="form-table"><tbody>';
 		foreach ( $schema->allFields() as $field ) {
@@ -54,20 +54,53 @@ final class RegistrationEditForm {
 	}
 
 	/**
-	 * Renderuje blok błędów walidacji, jeśli są.
+	 * Renderuje blok błędów walidacji, jeśli są — etykieta pola + przetłumaczony komunikat.
 	 *
-	 * @param array<int|string,mixed>|null $errors Błędy walidacji; lista {field,detail} albo mapa pole=>kod.
+	 * @param FormSchema                $schema Złożony schemat formularza (źródło etykiet pól).
+	 * @param array<string,string>|null $errors Błędy walidacji: klucz pola → kod błędu.
 	 */
-	private static function renderErrors( ?array $errors ): string {
+	private static function renderErrors( FormSchema $schema, ?array $errors ): string {
 		if ( empty( $errors ) ) {
 			return '';
 		}
-		$items = '';
-		foreach ( $errors as $error ) {
-			$detail = is_array( $error ) ? (string) ( $error['detail'] ?? '' ) : (string) $error;
-			$items .= '<li>' . esc_html( $detail ) . '</li>';
+
+		$labels = array();
+		foreach ( $schema->allFields() as $field ) {
+			$labels[ $field->key ] = $field->label;
 		}
+
+		$items = '';
+		foreach ( $errors as $field_key => $code ) {
+			$label  = $labels[ $field_key ] ?? $field_key;
+			$items .= '<li>' . esc_html( $label ) . ': ' . esc_html( self::errorMessage( (string) $code ) ) . '</li>';
+		}
+
 		return '<div class="notice notice-error"><ul>' . $items . '</ul></div>';
+	}
+
+	/**
+	 * Tłumaczy kod błędu walidacji na komunikat czytelny dla użytkownika.
+	 *
+	 * Mapa skopiowana 1:1 z {@see \EvReg\Frontend\FormRenderer::errorMessage()} — te same
+	 * kody, te same komunikaty, ten sam text domain. Formularz publiczny i ekran edycji
+	 * w adminie muszą pokazywać identyczną treść dla tych samych kodów walidacji.
+	 *
+	 * @param string $code Kod błędu.
+	 */
+	private static function errorMessage( string $code ): string {
+		$map = array(
+			'required'              => __( 'To pole jest wymagane.', 'event-registration' ),
+			'invalid_email'         => __( 'Nieprawidłowy adres e-mail.', 'event-registration' ),
+			'invalid_tel'           => __( 'Nieprawidłowy numer telefonu.', 'event-registration' ),
+			'invalid_number'        => __( 'Nieprawidłowa liczba.', 'event-registration' ),
+			'invalid_date'          => __( 'Nieprawidłowa data.', 'event-registration' ),
+			'not_in_options'        => __( 'Wybór spoza dostępnych opcji.', 'event-registration' ),
+			'too_long'              => __( 'Wpis jest za długi.', 'event-registration' ),
+			'invalid_accommodation' => __( 'Nieprawidłowy wybór noclegu.', 'event-registration' ),
+			'roommate_not_allowed'  => __( 'Współlokator niedozwolony dla tego pokoju.', 'event-registration' ),
+		);
+
+		return $map[ $code ] ?? __( 'Nieprawidłowa wartość.', 'event-registration' );
 	}
 
 	/**

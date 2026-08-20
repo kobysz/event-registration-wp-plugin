@@ -99,19 +99,30 @@ final class RegistrationEditFormTest extends WP_UnitTestCase {
 		$this->assertNotFalse( wp_verify_nonce( $matches[1], 'evreg_edit_42' ), 'nonce must verify against the registration-scoped action' );
 	}
 
-	public function test_errors_are_escaped_and_submitted_values_take_precedence_over_answers(): void {
+	public function test_errors_show_translated_message_with_field_label_and_submitted_values_take_precedence(): void {
+		// Realny kształt errors() z SubmissionAssembler/Validator: klucz pola => kod błędu.
 		$answers   = array( 'email' => 'old@example.com', 'name' => 'Old Name' );
-		$submitted = array( 'email' => 'new@example.com', 'name' => 'New Name' );
-		$errors    = array(
-			array( 'field' => 'email', 'detail' => '<b>zły</b> adres' ),
-		);
+		$submitted = array( 'email' => 'zła wartość', 'name' => 'New Name' );
+		$errors    = array( 'email' => 'invalid_email' );
 
 		$html = RegistrationEditForm::render( $this->schema(), $answers, 42, $errors, $submitted );
 
-		$this->assertStringContainsString( '&lt;b&gt;zły&lt;/b&gt; adres', $html );
-		$this->assertStringNotContainsString( '<b>zły</b>', $html );
-		$this->assertStringContainsString( 'value="new@example.com"', $html );
+		// Etykieta pola, którego dotyczy błąd, jest widoczna przy komunikacie.
+		$this->assertStringContainsString( 'E-mail', $html );
+		// Komunikat jest PRZETŁUMACZONY (i18n), nie surowym kodem walidacji.
+		$this->assertStringContainsString( 'Nieprawidłowy adres e-mail.', $html );
+		$this->assertStringNotContainsString( '>invalid_email<', $html );
+		$this->assertStringNotContainsString( 'invalid_email</li>', $html );
+
+		$this->assertStringContainsString( 'value="zła wartość"', $html );
 		$this->assertStringNotContainsString( 'value="old@example.com"', $html );
+	}
+
+	public function test_unknown_error_code_falls_back_to_generic_translated_message(): void {
+		$html = RegistrationEditForm::render( $this->schema(), array(), 42, array( 'email' => 'some_future_code' ) );
+
+		$this->assertStringContainsString( 'Nieprawidłowa wartość.', $html );
+		$this->assertStringNotContainsString( 'some_future_code', $html );
 	}
 
 	public function test_skips_heading_and_paragraph_fields(): void {
