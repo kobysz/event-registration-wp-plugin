@@ -9,6 +9,7 @@
  * License:           GPL-2.0-or-later
  * License URI:       https://www.gnu.org/licenses/gpl-2.0.html
  * Text Domain:       event-registration
+ * Update URI:        https://github.com/kobysz/event-registration-wp-plugin
  *
  * @package EvReg
  */
@@ -43,6 +44,7 @@ add_action( 'plugins_loaded', array( \EvReg\Admin\MailQueueScreen::class, 'regis
 add_action( 'plugins_loaded', array( \EvReg\Admin\RegistrationsScreen::class, 'register' ) );
 add_action( 'plugins_loaded', array( \EvReg\Admin\SettingsScreen::class, 'register' ) );
 add_action( 'plugins_loaded', array( \EvReg\Privacy\PrivacyProvider::class, 'register' ) );
+add_action( 'plugins_loaded', array( \EvReg\Update\GitHubUpdater::class, 'register' ) );
 
 add_action(
 	'init',
