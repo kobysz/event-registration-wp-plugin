@@ -11,6 +11,7 @@ namespace EvReg\Admin;
 
 use EvReg\Domain\Registration\RegistrationTypeCollection;
 use EvReg\Frontend\EventFormLoader;
+use EvReg\Frontend\SubmissionAssembler;
 use EvReg\Persistence\EventConfigRepository;
 use EvReg\Persistence\RegistrationRepository;
 use EvReg\Services\ReservationService;
@@ -28,6 +29,7 @@ final class RegistrationsScreen {
 	public const ACTION_PROMOTE = 'evreg_reg_promote';
 	public const ACTION_DELETE  = 'evreg_reg_delete';
 	public const ACTION_NOTE    = 'evreg_reg_note';
+	public const ACTION_EDIT    = 'evreg_edit_registration';
 
 	/**
 	 * Podpina submenu i handlery akcji.
@@ -39,6 +41,7 @@ final class RegistrationsScreen {
 		add_action( 'admin_post_' . self::ACTION_PROMOTE, array( self::class, 'handle_promote' ) );
 		add_action( 'admin_post_' . self::ACTION_DELETE, array( self::class, 'handle_delete' ) );
 		add_action( 'admin_post_' . self::ACTION_NOTE, array( self::class, 'handle_note' ) );
+		add_action( 'admin_post_' . self::ACTION_EDIT, array( self::class, 'handle_edit' ) );
 	}
 
 	/**
@@ -69,6 +72,12 @@ final class RegistrationsScreen {
 		if ( 'view' === $action ) {
 			// phpcs:ignore WordPress.Security.NonceVerification.Recommended
 			self::render_detail( (int) ( $_GET['id'] ?? 0 ) );
+			return;
+		}
+
+		if ( 'edit' === $action ) {
+			// phpcs:ignore WordPress.Security.NonceVerification.Recommended
+			self::render_edit( (int) ( $_GET['id'] ?? 0 ) );
 			return;
 		}
 
@@ -107,14 +116,17 @@ final class RegistrationsScreen {
 		// phpcs:ignore WordPress.Security.NonceVerification.Recommended
 		$code     = sanitize_text_field( wp_unslash( (string) $_GET['evreg_msg'] ) );
 		$messages = array(
-			'confirmed'      => array( 'success', __( 'Zgłoszenie potwierdzone.', 'event-registration' ) ),
-			'cancelled'      => array( 'success', __( 'Zgłoszenie anulowane, miejsce zwolnione.', 'event-registration' ) ),
-			'promoted'       => array( 'success', __( 'Awansowano z listy rezerwowej — wysłano prośbę o potwierdzenie.', 'event-registration' ) ),
-			'deleted'        => array( 'success', __( 'Zgłoszenie trwale usunięte.', 'event-registration' ) ),
-			'note'           => array( 'success', __( 'Notatka zapisana.', 'event-registration' ) ),
-			'rejected'       => array( 'error', __( 'Brak wolnych miejsc — nie można awansować.', 'event-registration' ) ),
-			'invalid_status' => array( 'error', __( 'Akcja niedozwolona dla tego statusu.', 'event-registration' ) ),
-			'not_found'      => array( 'error', __( 'Nie znaleziono zgłoszenia.', 'event-registration' ) ),
+			'confirmed'          => array( 'success', __( 'Zgłoszenie potwierdzone.', 'event-registration' ) ),
+			'cancelled'          => array( 'success', __( 'Zgłoszenie anulowane, miejsce zwolnione.', 'event-registration' ) ),
+			'promoted'           => array( 'success', __( 'Awansowano z listy rezerwowej — wysłano prośbę o potwierdzenie.', 'event-registration' ) ),
+			'deleted'            => array( 'success', __( 'Zgłoszenie trwale usunięte.', 'event-registration' ) ),
+			'note'               => array( 'success', __( 'Notatka zapisana.', 'event-registration' ) ),
+			'edited'             => array( 'success', __( 'Odpowiedzi zgłoszenia zaktualizowane.', 'event-registration' ) ),
+			'rejected'           => array( 'error', __( 'Brak wolnych miejsc — nie można awansować.', 'event-registration' ) ),
+			'invalid_status'     => array( 'error', __( 'Akcja niedozwolona dla tego statusu.', 'event-registration' ) ),
+			'not_found'          => array( 'error', __( 'Nie znaleziono zgłoszenia.', 'event-registration' ) ),
+			'capacity_full'      => array( 'error', __( 'Brak wolnych miejsc dla wybranego typu zgłoszenia.', 'event-registration' ) ),
+			'accommodation_full' => array( 'error', __( 'Brak wolnych miejsc dla wybranego noclegu.', 'event-registration' ) ),
 		);
 
 		if ( ! isset( $messages[ $code ] ) ) {
@@ -173,6 +185,44 @@ final class RegistrationsScreen {
 		self::render_note_form( $id, (string) ( $row['note'] ?? '' ) );
 		self::render_actions( $id, (string) $row['status'] );
 
+		echo '</div>';
+	}
+
+	/**
+	 * Renderuje formularz edycji odpowiedzi zgłoszenia (albo notice dla braku/anulowanego/niepoprawnego eventu).
+	 *
+	 * @param int $id ID zgłoszenia.
+	 */
+	private static function render_edit( int $id ): void {
+		$repository = new RegistrationRepository();
+		$row        = $repository->findById( $id );
+
+		echo '<div class="wrap">';
+		echo '<h1>' . esc_html__( 'Edytuj zgłoszenie', 'event-registration' ) . '</h1>';
+
+		if ( null === $row ) {
+			echo '<div class="notice notice-error"><p>' . esc_html__( 'Nie znaleziono zgłoszenia.', 'event-registration' ) . '</p></div></div>';
+			return;
+		}
+
+		if ( 'cancelled' === (string) $row['status'] ) {
+			echo '<div class="notice notice-error"><p>' . esc_html__( 'Nie można edytować anulowanego zgłoszenia.', 'event-registration' ) . '</p></div></div>';
+			return;
+		}
+
+		$schema = ( new EventFormLoader( new EventConfigRepository() ) )->load( (int) $row['event_id'] );
+
+		if ( null === $schema ) {
+			echo '<div class="notice notice-error"><p>' . esc_html__( 'Nie udało się załadować formularza tego wydarzenia.', 'event-registration' ) . '</p></div></div>';
+			return;
+		}
+
+		wp_enqueue_script( 'evreg-public' );
+
+		$answers = json_decode( (string) $row['data'], true );
+		$answers = is_array( $answers ) ? $answers : array();
+
+		echo RegistrationEditForm::render( $schema, $answers, $id ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- już escapowane w rendererze.
 		echo '</div>';
 	}
 
@@ -278,6 +328,7 @@ final class RegistrationsScreen {
 			$buttons[] = self::action_button( self::ACTION_PROMOTE, $id, __( 'Promuj', 'event-registration' ), 'primary' );
 		}
 		if ( in_array( $status, array( 'pending', 'confirmed', 'waitlist' ), true ) ) {
+			$buttons[] = self::edit_link( $id );
 			$buttons[] = self::action_button( self::ACTION_CANCEL, $id, __( 'Anuluj', 'event-registration' ), 'secondary' );
 		}
 		if ( 'cancelled' === $status ) {
@@ -308,6 +359,25 @@ final class RegistrationsScreen {
 			esc_url( wp_nonce_url( admin_url( 'admin-post.php?action=' . $action . '&id=' . $id ), $action . '_' . $id ) ),
 			esc_html( $label )
 		);
+	}
+
+	/**
+	 * Buduje link „Edytuj" do ekranu edycji odpowiedzi (bez akcji admin-post — sama nawigacja).
+	 *
+	 * @param int $id ID zgłoszenia.
+	 */
+	private static function edit_link( int $id ): string {
+		$url = add_query_arg(
+			array(
+				'post_type' => EventPostType::POST_TYPE,
+				'page'      => self::SLUG,
+				'action'    => 'edit',
+				'id'        => $id,
+			),
+			admin_url( 'edit.php' )
+		);
+
+		return sprintf( '<a class="button" href="%s">%s</a>', esc_url( $url ), esc_html__( 'Edytuj', 'event-registration' ) );
 	}
 
 	/**
@@ -405,5 +475,79 @@ final class RegistrationsScreen {
 				'id'     => $id,
 			)
 		);
+	}
+
+	/**
+	 * Handler edycji odpowiedzi zgłoszenia. Nonce własny (formularz z {@see RegistrationEditForm}),
+	 * nie `guard()` — inny schemat nonce (`evreg_edit_<id>`) i pole `registration` zamiast `id`.
+	 * Przy błędach walidacji re-renderuje formularz inline (bez PRG), by zachować wpisane wartości.
+	 */
+	public static function handle_edit(): void {
+		$id = isset( $_POST['registration'] ) ? (int) $_POST['registration'] : 0; // phpcs:ignore WordPress.Security.NonceVerification.Missing -- nonce zweryfikowany niżej.
+
+		check_admin_referer( 'evreg_edit_' . $id );
+
+		if ( ! current_user_can( Capabilities::CAP ) ) {
+			wp_die( esc_html__( 'Brak uprawnień.', 'event-registration' ) );
+		}
+
+		$repository = new RegistrationRepository();
+		$row        = $repository->findById( $id );
+
+		if ( null === $row ) {
+			self::redirect( 'not_found' );
+			return;
+		}
+
+		$schema = ( new EventFormLoader( new EventConfigRepository() ) )->load( (int) $row['event_id'] );
+
+		if ( null === $schema ) {
+			self::redirect( 'not_found' );
+			return;
+		}
+
+		$posted    = wp_unslash( $_POST ); // phpcs:ignore WordPress.Security.NonceVerification.Missing -- nonce zweryfikowany wyżej.
+		$assembled = ( new SubmissionAssembler() )->assemble( $schema, is_array( $posted ) ? $posted : array() );
+
+		if ( ! $assembled->isValid() ) {
+			echo '<div class="wrap">';
+			echo '<h1>' . esc_html__( 'Edytuj zgłoszenie', 'event-registration' ) . '</h1>';
+			echo RegistrationEditForm::render( $schema, array(), $id, $assembled->errors(), $assembled->values() ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- już escapowane w rendererze.
+			echo '</div>';
+			return;
+		}
+
+		$request = $assembled->request();
+
+		if ( null === $request ) {
+			self::redirect( 'not_found' );
+			return;
+		}
+
+		$result = self::service()->editAnswers( $id, $request );
+
+		switch ( $result->code ) {
+			case 'edited':
+				self::redirect(
+					'edited',
+					array(
+						'action' => 'view',
+						'id'     => $id,
+					)
+				);
+				break;
+			case 'capacity_full':
+			case 'accommodation_full':
+				self::redirect(
+					$result->code,
+					array(
+						'action' => 'edit',
+						'id'     => $id,
+					)
+				);
+				break;
+			default: // invalid_status / not_found.
+				self::redirect( $result->code );
+		}
 	}
 }

@@ -19,7 +19,7 @@ final class AdminActionResult {
 	/**
 	 * Tworzy wynik.
 	 *
-	 * @param string      $code   Kod: confirmed|cancelled|promoted|deleted|rejected|invalid_status|not_found.
+	 * @param string      $code   Kod: confirmed|cancelled|promoted|deleted|rejected|invalid_status|not_found|edited|capacity_full|accommodation_full.
 	 * @param string|null $reason Kod powodu (np. przy rejected), jeśli dotyczy.
 	 */
 	private function __construct(
@@ -65,5 +65,20 @@ final class AdminActionResult {
 	/** Nie znaleziono zgłoszenia. */
 	public static function notFound(): self {
 		return new self( 'not_found' );
+	}
+
+	/** Odpowiedzi zgłoszenia zaktualizowane. */
+	public static function edited(): self {
+		return new self( 'edited' );
+	}
+
+	/** Edycja odrzucona: wybrany typ/globalny limit pełny. */
+	public static function capacityFull(): self {
+		return new self( 'capacity_full' );
+	}
+
+	/** Edycja odrzucona: wybrany slot noclegu pełny. */
+	public static function accommodationFull(): self {
+		return new self( 'accommodation_full' );
 	}
 }
