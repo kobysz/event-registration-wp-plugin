@@ -42,6 +42,7 @@ add_action( 'plugins_loaded', array( \EvReg\Cron\PurgeMailQueue::class, 'schedul
 add_action( 'plugins_loaded', array( \EvReg\Admin\MailQueueScreen::class, 'register' ) );
 add_action( 'plugins_loaded', array( \EvReg\Admin\RegistrationsScreen::class, 'register' ) );
 add_action( 'plugins_loaded', array( \EvReg\Admin\SettingsScreen::class, 'register' ) );
+add_action( 'plugins_loaded', array( \EvReg\Privacy\PrivacyProvider::class, 'register' ) );
 
 add_action(
 	'init',
