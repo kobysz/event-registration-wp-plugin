@@ -9,6 +9,7 @@ declare( strict_types=1 );
 
 namespace EvReg\Admin;
 
+use EvReg\Domain\Accommodation\AccommodationConfig;
 use EvReg\Domain\Registration\RegistrationTypeCollection;
 use EvReg\Frontend\EventFormLoader;
 use EvReg\Frontend\SubmissionAssembler;
@@ -30,6 +31,7 @@ final class RegistrationsScreen {
 	public const ACTION_DELETE  = 'evreg_reg_delete';
 	public const ACTION_NOTE    = 'evreg_reg_note';
 	public const ACTION_EDIT    = 'evreg_edit_registration';
+	public const ACTION_EXPORT  = 'evreg_export';
 
 	/**
 	 * Podpina submenu i handlery akcji.
@@ -42,6 +44,7 @@ final class RegistrationsScreen {
 		add_action( 'admin_post_' . self::ACTION_DELETE, array( self::class, 'handle_delete' ) );
 		add_action( 'admin_post_' . self::ACTION_NOTE, array( self::class, 'handle_note' ) );
 		add_action( 'admin_post_' . self::ACTION_EDIT, array( self::class, 'handle_edit' ) );
+		add_action( 'admin_post_' . self::ACTION_EXPORT, array( self::class, 'handle_export' ) );
 	}
 
 	/**
@@ -95,6 +98,7 @@ final class RegistrationsScreen {
 		echo '<h1>' . esc_html__( 'Zgłoszenia', 'event-registration' ) . '</h1>';
 
 		self::render_notice();
+		self::render_export_button();
 
 		echo '<form method="get">';
 		printf( '<input type="hidden" name="post_type" value="%s" />', esc_attr( EventPostType::POST_TYPE ) );
@@ -102,6 +106,29 @@ final class RegistrationsScreen {
 		$table->display();
 		echo '</form>';
 		echo '</div>';
+	}
+
+	/**
+	 * Renderuje link „Eksportuj CSV" niosący bieżące filtry listy (status/typ/event).
+	 * Serwer i tak re-waliduje filtry w handlerze — link jest tylko wygodą.
+	 */
+	private static function render_export_button(): void {
+		$export_args = array( 'action' => self::ACTION_EXPORT );
+		foreach ( array( 'status', 'type_key', 'event_id' ) as $key ) {
+			// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- tylko odczyt bieżących filtrów do linku, re-walidowane w handlerze.
+			if ( isset( $_GET[ $key ] ) && '' !== (string) $_GET[ $key ] ) {
+				// phpcs:ignore WordPress.Security.NonceVerification.Recommended
+				$export_args[ $key ] = sanitize_text_field( wp_unslash( (string) $_GET[ $key ] ) );
+			}
+		}
+
+		$export_url = wp_nonce_url( add_query_arg( $export_args, admin_url( 'admin-post.php' ) ), self::ACTION_EXPORT );
+
+		printf(
+			'<p><a class="button" href="%s">%s</a></p>',
+			esc_url( $export_url ),
+			esc_html__( 'Eksportuj CSV', 'event-registration' )
+		);
 	}
 
 	/**
@@ -127,6 +154,7 @@ final class RegistrationsScreen {
 			'not_found'          => array( 'error', __( 'Nie znaleziono zgłoszenia.', 'event-registration' ) ),
 			'capacity_full'      => array( 'error', __( 'Brak wolnych miejsc dla wybranego typu zgłoszenia.', 'event-registration' ) ),
 			'accommodation_full' => array( 'error', __( 'Brak wolnych miejsc dla wybranego noclegu.', 'event-registration' ) ),
+			'export_no_event'    => array( 'error', __( 'Wybierz event, aby wyeksportować zgłoszenia.', 'event-registration' ) ),
 		);
 
 		if ( ! isset( $messages[ $code ] ) ) {
@@ -549,5 +577,52 @@ final class RegistrationsScreen {
 			default: // invalid_status / not_found.
 				self::redirect( $result->code );
 		}
+	}
+
+	/** Handler eksportu CSV zgłoszeń (streaming, bez PRG na sukcesie). */
+	public static function handle_export(): void {
+		check_admin_referer( self::ACTION_EXPORT );
+		if ( ! current_user_can( Capabilities::CAP ) ) {
+			wp_die( esc_html__( 'Brak uprawnień.', 'event-registration' ) );
+		}
+
+		$filters = array();
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- nonce sprawdzony wyżej.
+		if ( isset( $_GET['status'] ) && '' !== (string) $_GET['status'] ) {
+			$filters['status'] = sanitize_text_field( wp_unslash( (string) $_GET['status'] ) );
+		}
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended
+		if ( isset( $_GET['type_key'] ) && '' !== (string) $_GET['type_key'] ) {
+			$filters['type_key'] = sanitize_text_field( wp_unslash( (string) $_GET['type_key'] ) );
+		}
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended
+		$event_id = isset( $_GET['event_id'] ) ? (int) $_GET['event_id'] : 0;
+		if ( $event_id <= 0 ) {
+			self::redirect( 'export_no_event' );
+			return;
+		}
+		$filters['event_id'] = $event_id;
+
+		$schema = ( new EventFormLoader( new EventConfigRepository() ) )->load( $event_id );
+		if ( null === $schema ) {
+			self::redirect( 'export_no_event' );
+			return;
+		}
+		$config        = ( new EventConfigRepository() )->get( $event_id );
+		$types         = RegistrationTypeCollection::fromArray( is_array( $config['types'] ) ? $config['types'] : array() );
+		$accommodation = AccommodationConfig::fromArray( is_array( $config['accommodation'] ) ? $config['accommodation'] : array() );
+
+		$repository = new RegistrationRepository();
+		$rows       = $repository->exportRegistrations( $filters );
+		$ids        = array_map( 'intval', array_column( $rows, 'id' ) );
+		$bookings   = $repository->accommodationBookingsFor( $ids );
+
+		$csv      = ( new RegistrationsExporter() )->buildCsv( $schema, $accommodation, $types, $rows, $bookings );
+		$filename = sanitize_file_name( 'zgloszenia-event-' . $event_id . '-' . current_time( 'Y-m-d' ) . '.csv' );
+
+		header( 'Content-Type: text/csv; charset=utf-8' );
+		header( 'Content-Disposition: attachment; filename="' . $filename . '"' );
+		echo $csv; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- CSV binarny, nie HTML; komórki neutralizowane w buildCsv.
+		exit;
 	}
 }
