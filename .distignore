@@ -15,3 +15,8 @@ package-lock.json
 composer.json
 composer.lock
 README.md
+CLAUDE.md
+.editorconfig
+jest.config.js
+*.config.js
+assets/admin
