@@ -242,4 +242,30 @@ final class PrivacyProviderTest extends WP_UnitTestCase {
 		$this->assertSame( 'Ewa Nowak', (string) $other['name'] );
 		$this->assertStringContainsString( 'inny@b.pl', (string) $other['data'] );
 	}
+
+	public function test_erase_anonymizes_all_rows_when_more_than_fifty(): void {
+		$ids = array();
+		for ( $i = 0; $i < 60; $i++ ) {
+			$ids[] = $this->repository->insertRegistration( $this->row( array( 'token' => md5( 'many-' . $i ) ) ) );
+		}
+
+		// Symuluje pętlę WP: wywołuje erase() z rosnącym $page aż done=true.
+		$provider = new PrivacyProvider();
+		$page     = 1;
+		$passes   = 0;
+		do {
+			$result = $provider->erase( 'a@b.pl', $page );
+			++$page;
+			++$passes;
+			// Bezpiecznik przed nieskończoną pętlą, gdyby regresja wróciła.
+			$this->assertLessThan( 5, $passes, 'erase() nie domyka się po rozsądnej liczbie przebiegów.' );
+		} while ( ! $result['done'] );
+
+		$this->assertGreaterThan( 1, $passes, 'Test ma sens tylko gdy WP realnie woła erase() więcej niż raz.' );
+
+		foreach ( $ids as $id ) {
+			$row = $this->repository->findById( $id );
+			$this->assertStringEndsWith( '@example.invalid', (string) $row['email'], "Wiersz {$id} nie został zanonimizowany — pominięty przez błędny offset." );
+		}
+	}
 }

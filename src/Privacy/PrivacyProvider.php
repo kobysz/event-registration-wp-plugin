@@ -192,15 +192,19 @@ final class PrivacyProvider {
 	/**
 	 * Anonimizator WP Privacy API: anonimizuje zgłoszenia powiązane z adresem e-mail.
 	 *
+	 * Zawsze pobiera pierwszą stronę POZOSTAŁYCH dopasowań (offset=0), nie offset z $page:
+	 * anonimizacja zmienia e-mail, więc zanonimizowane wiersze wypadają z dopasowania między
+	 * kolejnymi wywołaniami WP. Przesuwanie offsetu o self::PER_PAGE pomijałoby resztę wierszy
+	 * dla adresów z >PER_PAGE zgłoszeń (WP wywołuje erase() w pętli aż done=true).
+	 *
 	 * @param string $email Adres e-mail, dla którego anonimizowane są dane.
-	 * @param int    $page  Numer strony (1-indeksowany).
+	 * @param int    $page  Numer strony (1-indeksowany); przyjmowany bo WP go przekazuje, nieużywany do offsetu.
 	 * @return array{items_removed:bool,items_retained:bool,messages:array<int,string>,done:bool}
 	 */
 	public function erase( string $email, int $page = 1 ): array {
-		$repo   = new RegistrationRepository();
-		$mails  = new MailQueueRepository();
-		$offset = ( max( 1, $page ) - 1 ) * self::PER_PAGE;
-		$rows   = $repo->findByEmailPaged( $email, self::PER_PAGE, $offset );
+		$repo  = new RegistrationRepository();
+		$mails = new MailQueueRepository();
+		$rows  = $repo->findByEmailPaged( $email, self::PER_PAGE, 0 );
 
 		foreach ( $rows as $row ) {
 			$id = (int) $row['id'];
