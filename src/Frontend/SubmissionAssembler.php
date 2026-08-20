@@ -66,10 +66,13 @@ final class SubmissionAssembler {
 	 * @return array<string,mixed>
 	 */
 	private function extractAnswers( FormSchema $schema, array $post ): array {
+		// Pola formularza są namespace'owane pod evreg_field[...] (FormRenderer /
+		// RegistrationEditForm), by nie kolidować z publicznymi query-vars WordPressa.
+		$fields  = is_array( $post['evreg_field'] ?? null ) ? $post['evreg_field'] : array();
 		$answers = array();
 		foreach ( $schema->allFields() as $field ) {
 			if ( FieldType::Accommodation === $field->type ) {
-				$raw                    = is_array( $post[ $field->key ] ?? null ) ? $post[ $field->key ] : array();
+				$raw                    = is_array( $fields[ $field->key ] ?? null ) ? $fields[ $field->key ] : array();
 				$slot                   = (string) ( $raw['slot'] ?? '' );
 				$parts                  = '' === $slot ? array( '', '' ) : explode( '|', $slot, 2 );
 				$answers[ $field->key ] = array(
@@ -79,8 +82,8 @@ final class SubmissionAssembler {
 				);
 				continue;
 			}
-			if ( array_key_exists( $field->key, $post ) ) {
-				$answers[ $field->key ] = $post[ $field->key ];
+			if ( array_key_exists( $field->key, $fields ) ) {
+				$answers[ $field->key ] = $fields[ $field->key ];
 			}
 		}
 

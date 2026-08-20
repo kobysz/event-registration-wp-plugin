@@ -133,7 +133,10 @@ final class FormRenderer {
 	 * @param mixed $value Wpisana wartość do odtworzenia (lub null).
 	 */
 	private function renderControl( Field $field, mixed $value ): string {
-		$name = esc_attr( $field->key );
+		// Namespace pól pod evreg_field[...], by nazwy pól NIE kolidowały z publicznymi
+		// query-vars WordPressa (name/page/p/s/cat/author/...). WP czyta te vary także
+		// z $_POST przy POST-to-self → surowe name="name" korumpuje główne zapytanie (404).
+		$name = 'evreg_field[' . esc_attr( $field->key ) . ']';
 		$id   = 'evreg-' . esc_attr( $field->key );
 		$req  = $field->required ? ' required' : '';
 
@@ -227,7 +230,10 @@ final class FormRenderer {
 
 		$current = is_array( $value ) ? ( (string) ( $value['package'] ?? '' ) . '|' . (string) ( $value['room'] ?? '' ) ) : '';
 
-		$name = esc_attr( $field->key );
+		// Namespace pól pod evreg_field[...], by nazwy pól NIE kolidowały z publicznymi
+		// query-vars WordPressa (name/page/p/s/cat/author/...). WP czyta te vary także
+		// z $_POST przy POST-to-self → surowe name="name" korumpuje główne zapytanie (404).
+		$name = 'evreg_field[' . esc_attr( $field->key ) . ']';
 		$out  = '<div class="evreg-accommodation">';
 		$out .= '<label class="evreg-choice"><input type="radio" name="' . $name . '[slot]" value=""' . checked( '', $current, false ) . '> ' . esc_html__( 'Bez noclegu', 'event-registration' ) . '</label>';
 

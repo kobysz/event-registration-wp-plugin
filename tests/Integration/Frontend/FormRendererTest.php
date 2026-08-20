@@ -47,7 +47,7 @@ final class FormRendererTest extends WP_UnitTestCase {
 
 		$this->assertStringContainsString( '<form', $html );
 		$this->assertStringContainsString( 'Dane uczestnika', $html );
-		$this->assertStringContainsString( 'name="email"', $html );
+		$this->assertStringContainsString( 'name="evreg_field[email]"', $html );
 		$this->assertStringContainsString( 'type="radio"', $html );
 		$this->assertStringContainsString( 'value="uczestnik"', $html );
 		$this->assertStringContainsString( 'name="evreg_event"', $html );
@@ -101,7 +101,7 @@ final class FormRendererTest extends WP_UnitTestCase {
 
 		$html = $this->renderer->render( $this->schema(), 1, $result );
 
-		$this->assertStringContainsString( 'name="email" value=""', $html );
+		$this->assertStringContainsString( 'name="evreg_field[email]" value=""', $html );
 		$this->assertStringNotContainsString( 'Array', $html );
 	}
 }

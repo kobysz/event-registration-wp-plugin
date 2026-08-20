@@ -41,7 +41,7 @@ final class ShortcodeTest extends WP_UnitTestCase {
 		$html = Shortcode::render( array( 'event' => (string) $this->event_id ) );
 
 		$this->assertStringContainsString( '<form', $html );
-		$this->assertStringContainsString( 'name="email"', $html );
+		$this->assertStringContainsString( 'name="evreg_field[email]"', $html );
 	}
 
 	public function test_shortcode_shows_success_message_after_reserved(): void {
