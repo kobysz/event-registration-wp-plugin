@@ -110,6 +110,39 @@ final class RegistrationRepository {
 	}
 
 	/**
+	 * Zajętość eventu policzona tak, jakby wiersz $exclude_id nie istniał (self-exclusion przy edycji).
+	 *
+	 * @param int $event_id   ID eventu.
+	 * @param int $exclude_id ID zgłoszenia pomijanego w liczeniu (edytowany wiersz).
+	 */
+	public function occupancyExcluding( int $event_id, int $exclude_id ): OccupancySnapshot {
+		global $wpdb;
+
+		$statuses = RegistrationStatus::occupyingValues();
+		$in       = implode( ',', array_fill( 0, count( $statuses ), '%s' ) );
+		$args     = array_merge( array( $event_id ), $statuses, array( $exclude_id ) );
+
+		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQLPlaceholders.ReplacementsWrongNumber -- $in oraz $args mają zmienną, ale dopasowaną liczbę elementów.
+		$global = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$this->registrations()} WHERE event_id = %d AND status IN ($in) AND id != %d", $args ) );
+
+		$per_type = array();
+		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQLPlaceholders.ReplacementsWrongNumber -- $in oraz $args mają zmienną, ale dopasowaną liczbę elementów.
+		$rows = $wpdb->get_results( $wpdb->prepare( "SELECT type_key, COUNT(*) AS c FROM {$this->registrations()} WHERE event_id = %d AND status IN ($in) AND id != %d GROUP BY type_key", $args ), ARRAY_A );
+		foreach ( (array) $rows as $row ) {
+			$per_type[ (string) $row['type_key'] ] = (int) $row['c'];
+		}
+
+		$per_slot = array();
+		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQLPlaceholders.ReplacementsWrongNumber -- $in oraz $args mają zmienną, ale dopasowaną liczbę elementów.
+		$slot_rows = $wpdb->get_results( $wpdb->prepare( "SELECT CONCAT(b.package_key, '|', b.room_type_key) AS slot, COUNT(*) AS c FROM {$this->bookings()} b INNER JOIN {$this->registrations()} r ON b.registration_id = r.id WHERE r.event_id = %d AND r.status IN ($in) AND r.id != %d GROUP BY slot", $args ), ARRAY_A );
+		foreach ( (array) $slot_rows as $row ) {
+			$per_slot[ (string) $row['slot'] ] = (int) $row['c'];
+		}
+
+		return new OccupancySnapshot( $global, $per_type, $per_slot );
+	}
+
+	/**
 	 * Wstawia nowe zgłoszenie i zwraca jego ID.
 	 *
 	 * @param array<string,mixed> $row Dane zgłoszenia: event_id, type_key, status, email,
@@ -448,6 +481,35 @@ final class RegistrationRepository {
 			),
 			array( 'id' => $id ),
 			array( '%s', '%s' ),
+			array( '%d' )
+		); // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+	}
+
+	/**
+	 * Nadpisuje edytowalne pola zgłoszenia (bez zmiany statusu/tokenu/dat cyklu życia).
+	 *
+	 * @param int    $id        ID zgłoszenia.
+	 * @param string $type_key  Klucz typu zgłoszenia.
+	 * @param string $email     Adres e-mail.
+	 * @param string $name      Imię/nazwa.
+	 * @param string $data_json Odpowiedzi formularza (JSON).
+	 * @param float  $price     Cena łączna.
+	 */
+	public function updateRegistration( int $id, string $type_key, string $email, string $name, string $data_json, float $price ): void {
+		global $wpdb;
+
+		$wpdb->update(
+			$this->registrations(),
+			array(
+				'type_key'    => $type_key,
+				'email'       => $email,
+				'name'        => $name,
+				'data'        => $data_json,
+				'price_total' => $price,
+				'updated_at'  => current_time( 'mysql', true ),
+			),
+			array( 'id' => $id ),
+			array( '%s', '%s', '%s', '%s', '%f', '%s' ),
 			array( '%d' )
 		); // phpcs:ignore WordPress.DB.DirectDatabaseQuery
 	}
