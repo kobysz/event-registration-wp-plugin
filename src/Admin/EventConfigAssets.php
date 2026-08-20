@@ -50,7 +50,7 @@ final class EventConfigAssets {
 		$asset    = $dir . 'build/admin/index.asset.php';
 		$manifest = file_exists( $asset ) ? require $asset : array(
 			'dependencies' => array(),
-			'version'      => Plugin::VERSION,
+			'version'      => Plugin::version(),
 		);
 
 		wp_enqueue_script(

@@ -48,8 +48,8 @@ add_action(
 	'init',
 	static function (): void {
 		$url = plugin_dir_url( \EvReg\Plugin::plugin_file() );
-		wp_register_style( 'evreg-public', $url . 'assets/public/form.css', array(), \EvReg\Plugin::VERSION );
-		wp_register_script( 'evreg-public', $url . 'assets/public/form.js', array(), \EvReg\Plugin::VERSION, true );
+		wp_register_style( 'evreg-public', $url . 'assets/public/form.css', array(), \EvReg\Plugin::version() );
+		wp_register_script( 'evreg-public', $url . 'assets/public/form.js', array(), \EvReg\Plugin::version(), true );
 	}
 );
 
