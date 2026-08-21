@@ -87,6 +87,35 @@ final class FormRendererTest extends WP_UnitTestCase {
 		$this->assertStringContainsString( 'data-evreg-roommate="1"', $html );
 	}
 
+	public function test_single_checkbox_renders_label_inline_after_the_box(): void {
+		$schema = FormSchema::fromArray(
+			array(
+				'version'  => 1,
+				'sections' => array(
+					array(
+						'key'    => 'zgody',
+						'title'  => 'Zgody',
+						'fields' => array(
+							array( 'key' => 'zgoda', 'type' => 'checkbox', 'label' => 'Wyrażam zgodę', 'required' => true ),
+						),
+					),
+				),
+			)
+		);
+
+		$html = $this->renderer->render( $schema, 1 );
+
+		// Checkbox input poprzedza tekst etykiety w jednym, wewnętrznym <label>.
+		$this->assertMatchesRegularExpression(
+			'/<label class="evreg-checkbox-label"[^>]*>\s*<input type="checkbox"[^>]*>\s*<span[^>]*>Wyrażam zgodę/',
+			$html
+		);
+		// Brak stackowanej etykiety blokowej dla checkboxa.
+		$this->assertStringNotContainsString( '<label class="evreg-label" for="evreg-zgoda"', $html );
+		// Gwiazdka wymagania nadal obecna.
+		$this->assertStringContainsString( 'evreg-required', $html );
+	}
+
 	public function test_renders_form_with_fields_sections_and_hidden_controls(): void {
 		$html = $this->renderer->render( $this->schema(), 123 );
 
