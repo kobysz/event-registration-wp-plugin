@@ -1,0 +1,227 @@
+/* Panel konfiguracji wydarzenia — układ i czytelność zakładek. */
+
+.evreg-admin {
+	max-width: 900px;
+}
+
+.evreg-admin__actions {
+	margin-top: 20px;
+	padding-top: 16px;
+	border-top: 1px solid #dcdcde;
+}
+
+/* --- Zakładka Formularz --- */
+
+.evreg-form-tab {
+	display: flex;
+	flex-direction: column;
+	gap: 16px;
+	margin-top: 12px;
+}
+
+/* Sekcja jako karta grupująca pola. */
+.evreg-section {
+	border: 1px solid #dcdcde;
+	border-radius: 6px;
+	background: #fff;
+	box-shadow: 0 1px 2px rgba( 0, 0, 0, 0.04 );
+}
+
+.evreg-section.is-drop-target {
+	border-color: #3858e9;
+	box-shadow: 0 0 0 1px #3858e9;
+}
+
+.evreg-section__header {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	padding: 10px 14px;
+	background: #f6f7f7;
+	border-bottom: 1px solid #dcdcde;
+	border-radius: 6px 6px 0 0;
+}
+
+.evreg-section.is-collapsed .evreg-section__header {
+	border-bottom: none;
+	border-radius: 6px;
+}
+
+.evreg-section__toggle {
+	border: none;
+	background: none;
+	cursor: pointer;
+	font-size: 14px;
+	line-height: 1;
+	padding: 4px;
+	color: #50575e;
+}
+
+.evreg-section__title {
+	flex: 1;
+	font-size: 14px;
+	font-weight: 600;
+	border: 1px solid transparent;
+	background: transparent;
+	padding: 4px 8px;
+	border-radius: 4px;
+	box-shadow: none;
+}
+
+.evreg-section__title:hover {
+	border-color: #dcdcde;
+	background: #fff;
+}
+
+.evreg-section__title:focus {
+	border-color: #3858e9;
+	background: #fff;
+	box-shadow: 0 0 0 1px #3858e9;
+	outline: none;
+}
+
+.evreg-section__count {
+	min-width: 22px;
+	text-align: center;
+	font-size: 11px;
+	font-weight: 600;
+	color: #50575e;
+	background: #e0e0e0;
+	border-radius: 10px;
+	padding: 1px 8px;
+}
+
+.evreg-section__fields {
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+	padding: 14px;
+}
+
+.evreg-section__empty {
+	margin: 0;
+	padding: 16px;
+	text-align: center;
+	color: #757575;
+	font-style: italic;
+	border: 1px dashed #c3c4c7;
+	border-radius: 4px;
+}
+
+/* --- Karta pola --- */
+
+.evreg-field-row {
+	display: flex;
+	align-items: flex-start;
+	gap: 10px;
+	padding: 12px;
+	border: 1px solid #e0e0e0;
+	border-radius: 5px;
+	background: #fdfdfd;
+}
+
+.evreg-field-row.is-pinned {
+	background: #f0f6ff;
+	border-color: #c5d9f9;
+}
+
+.evreg-field-row.is-dragging {
+	box-shadow: 0 4px 12px rgba( 0, 0, 0, 0.15 );
+}
+
+.evreg-field-row__grip {
+	padding-top: 4px;
+}
+
+.evreg-field-row__handle {
+	border: none;
+	background: none;
+	cursor: grab;
+	font-size: 16px;
+	line-height: 1;
+	color: #a7aaad;
+	padding: 4px;
+	touch-action: none;
+}
+
+.evreg-field-row__handle:hover {
+	color: #50575e;
+}
+
+.evreg-field-row__handle:active {
+	cursor: grabbing;
+}
+
+.evreg-field-row__handle.is-locked {
+	cursor: default;
+	color: #c5d9f9;
+}
+
+.evreg-field-row__body {
+	flex: 1;
+	min-width: 0;
+}
+
+.evreg-field-row__head {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	margin-bottom: 6px;
+}
+
+.evreg-field-row__badge {
+	display: inline-block;
+	font-size: 10px;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.02em;
+	color: #3858e9;
+	background: #eef1fb;
+	border-radius: 3px;
+	padding: 2px 7px;
+}
+
+.evreg-field-row__key {
+	font-family: Menlo, Consolas, monospace;
+	font-size: 11px;
+	color: #757575;
+}
+
+.evreg-field-row__note {
+	margin: 6px 0 0;
+	font-size: 12px;
+	color: #757575;
+}
+
+.evreg-field-row__actions {
+	flex-shrink: 0;
+}
+
+/* --- Pasek dodawania --- */
+
+.evreg-form-tab__toolbar {
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+	margin-top: 4px;
+	padding: 16px;
+	border: 1px dashed #c3c4c7;
+	border-radius: 6px;
+	background: #f6f7f7;
+}
+
+.evreg-form-tab__add-field,
+.evreg-form-tab__add-section {
+	display: flex;
+	align-items: flex-end;
+	gap: 12px;
+	flex-wrap: wrap;
+}
+
+.evreg-form-tab__add-field .components-base-control {
+	margin-bottom: 0;
+}
+
+.evreg-form-tab__add-field .components-text-control__input {
+	min-width: 180px;
+}
