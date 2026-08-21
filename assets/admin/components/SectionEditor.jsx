@@ -10,6 +10,9 @@ import SortableFieldRow from './SortableFieldRow';
 
 export default function SectionEditor( {
 	section,
+	canMoveUp,
+	canMoveDown,
+	onMoveSection,
 	onFieldChange,
 	onFieldRemove,
 	onRenameSection,
@@ -54,6 +57,22 @@ export default function SectionEditor( {
 				<span className="evreg-section__count">
 					{ fields.length }
 				</span>
+				<Button
+					className="evreg-section__move"
+					aria-label={ __( 'Przesuń sekcję w górę', 'event-registration' ) }
+					disabled={ ! canMoveUp }
+					onClick={ () => onMoveSection( section.key, 'up' ) }
+				>
+					↑
+				</Button>
+				<Button
+					className="evreg-section__move"
+					aria-label={ __( 'Przesuń sekcję w dół', 'event-registration' ) }
+					disabled={ ! canMoveDown }
+					onClick={ () => onMoveSection( section.key, 'down' ) }
+				>
+					↓
+				</Button>
 				{ isEmpty && (
 					<Button
 						isDestructive
