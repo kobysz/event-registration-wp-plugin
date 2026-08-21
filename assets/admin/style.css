@@ -91,6 +91,14 @@
 	padding: 1px 8px;
 }
 
+.evreg-section__move.components-button {
+	min-width: 28px;
+	height: 28px;
+	padding: 0;
+	justify-content: center;
+	color: #50575e;
+}
+
 .evreg-section__fields {
 	display: flex;
 	flex-direction: column;

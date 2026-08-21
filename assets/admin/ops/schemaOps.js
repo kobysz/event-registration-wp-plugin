@@ -27,6 +27,26 @@ export function removeSection( schema, sectionKey ) {
 	return next;
 }
 
+export function moveSection( schema, sectionKey, direction ) {
+	const next = clone( schema );
+	const sections = next.sections || [];
+	const index = sections.findIndex( ( s ) => s.key === sectionKey );
+
+	if ( index === -1 ) {
+		return next;
+	}
+
+	const target = 'up' === direction ? index - 1 : index + 1;
+
+	if ( target < 0 || target >= sections.length ) {
+		return next;
+	}
+
+	[ sections[ index ], sections[ target ] ] = [ sections[ target ], sections[ index ] ];
+
+	return next;
+}
+
 export function renameSection( schema, sectionKey, title ) {
 	const next = clone( schema );
 	( next.sections || [] ).forEach( ( section ) => {

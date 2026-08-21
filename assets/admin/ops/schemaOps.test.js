@@ -3,6 +3,7 @@ import {
 	addSection,
 	removeSection,
 	renameSection,
+	moveSection,
 	addField,
 	removeField,
 	moveField,
@@ -145,6 +146,37 @@ describe( 'schemaOps', () => {
 		schema = addSection( schema, 'extra', 'Extra' );
 		schema = removeSection( schema, 'extra' );
 		expect( schema.sections.map( ( s ) => s.key ) ).toEqual( [ 'dane' ] );
+	} );
+
+	it( 'moveSection w dół zamienia sekcję z następną', () => {
+		let schema = addSection( emptySchema(), 'a', 'A' );
+		schema = addSection( schema, 'b', 'B' );
+		schema = addSection( schema, 'c', 'C' );
+		schema = moveSection( schema, 'a', 'down' );
+		expect( schema.sections.map( ( s ) => s.key ) ).toEqual( [ 'b', 'a', 'c' ] );
+	} );
+
+	it( 'moveSection w górę zamienia sekcję z poprzednią', () => {
+		let schema = addSection( emptySchema(), 'a', 'A' );
+		schema = addSection( schema, 'b', 'B' );
+		schema = moveSection( schema, 'b', 'up' );
+		expect( schema.sections.map( ( s ) => s.key ) ).toEqual( [ 'b', 'a' ] );
+	} );
+
+	it( 'moveSection na krańcu nic nie zmienia', () => {
+		let schema = addSection( emptySchema(), 'a', 'A' );
+		schema = addSection( schema, 'b', 'B' );
+		schema = moveSection( schema, 'a', 'up' );
+		schema = moveSection( schema, 'b', 'down' );
+		expect( schema.sections.map( ( s ) => s.key ) ).toEqual( [ 'a', 'b' ] );
+	} );
+
+	it( 'moveSection nie mutuje wejścia', () => {
+		let schema = addSection( emptySchema(), 'a', 'A' );
+		schema = addSection( schema, 'b', 'B' );
+		const before = JSON.stringify( schema );
+		moveSection( schema, 'a', 'down' );
+		expect( JSON.stringify( schema ) ).toBe( before );
 	} );
 
 	it( 'removeSection nie usuwa niepustej sekcji', () => {

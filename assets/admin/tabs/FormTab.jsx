@@ -18,6 +18,7 @@ import {
 	addSection,
 	removeSection,
 	renameSection,
+	moveSection,
 	addField,
 	removeField,
 	moveFieldTo,
@@ -78,10 +79,13 @@ export default function FormTab( { config, update } ) {
 	return (
 		<div className="evreg-form-tab">
 			<DndContext sensors={ sensors } collisionDetection={ closestCenter } onDragEnd={ onDragEnd }>
-				{ schema.sections.map( ( section ) => (
+				{ schema.sections.map( ( section, index ) => (
 					<SectionEditor
 						key={ section.key }
 						section={ section }
+						canMoveUp={ index > 0 }
+						canMoveDown={ index < schema.sections.length - 1 }
+						onMoveSection={ ( key, dir ) => setSchema( moveSection( schema, key, dir ) ) }
 						onFieldChange={ ( key, patch ) => setSchema( updateField( schema, key, patch ) ) }
 						onFieldRemove={ ( key ) => setSchema( removeField( schema, key ) ) }
 						onRenameSection={ ( key, title ) => setSchema( renameSection( schema, key, title ) ) }
