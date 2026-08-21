@@ -1,7 +1,8 @@
 import { forwardRef } from '@wordpress/element';
 import { Button, TextControl, ToggleControl } from '@wordpress/components';
 import { __ } from '@wordpress/i18n';
-import { isSpecial, isAccommodation, FIELD_TYPES } from '../ops/fieldTypes';
+import { isSpecial, isAccommodation, isChoice, FIELD_TYPES } from '../ops/fieldTypes';
+import { addOption, updateOption, removeOption } from '../ops/schemaOps';
 
 function typeLabel( type ) {
 	const found = FIELD_TYPES.find( ( t ) => t.value === type );
@@ -33,6 +34,8 @@ const FieldRow = forwardRef( function FieldRow(
 		! isAccommodation( field.type ) &&
 		field.type !== 'heading' &&
 		field.type !== 'paragraph';
+	const showOptions = isChoice( field.type ) && ! special;
+	const options = field.options || [];
 
 	const classes = [ 'evreg-field-row' ];
 	if ( pinned ) {
@@ -84,6 +87,46 @@ const FieldRow = forwardRef( function FieldRow(
 						checked={ !! field.required }
 						onChange={ ( required ) => onChange( { required } ) }
 					/>
+				) }
+
+				{ showOptions && (
+					<div className="evreg-field-options">
+						<span className="evreg-field-options__title">
+							{ __( 'Opcje', 'event-registration' ) }
+						</span>
+						{ options.map( ( opt, i ) => (
+							<div className="evreg-field-options__row" key={ i }>
+								<TextControl
+									label={ __( 'Wartość', 'event-registration' ) }
+									value={ opt.value || '' }
+									onChange={ ( value ) =>
+										onChange( { options: updateOption( options, i, { value } ) } )
+									}
+								/>
+								<TextControl
+									label={ __( 'Etykieta', 'event-registration' ) }
+									value={ opt.label || '' }
+									onChange={ ( label ) =>
+										onChange( { options: updateOption( options, i, { label } ) } )
+									}
+								/>
+								<Button
+									isDestructive
+									variant="tertiary"
+									aria-label={ __( 'Usuń opcję', 'event-registration' ) }
+									onClick={ () => onChange( { options: removeOption( options, i ) } ) }
+								>
+									{ __( 'Usuń', 'event-registration' ) }
+								</Button>
+							</div>
+						) ) }
+						<Button
+							variant="secondary"
+							onClick={ () => onChange( { options: addOption( options ) } ) }
+						>
+							{ __( 'Dodaj opcję', 'event-registration' ) }
+						</Button>
+					</div>
 				) }
 
 				{ special && (

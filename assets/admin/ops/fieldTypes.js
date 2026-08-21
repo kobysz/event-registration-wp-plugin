@@ -25,3 +25,7 @@ export function isSpecial( key ) {
 export function isAccommodation( type ) {
 	return 'accommodation' === type;
 }
+
+export function isChoice( type ) {
+	return [ 'select', 'radio', 'checkbox-group' ].includes( type );
+}

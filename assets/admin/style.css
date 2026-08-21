@@ -200,6 +200,39 @@
 	flex-shrink: 0;
 }
 
+/* Edytor opcji pól wyboru (radio / lista / wybór wielokrotny). */
+.evreg-field-options {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	padding: 10px 12px;
+	border: 1px solid #e0e0e0;
+	border-radius: 4px;
+	background: #f6f7f7;
+}
+
+.evreg-field-options__title {
+	font-size: 11px;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.02em;
+	color: #50575e;
+}
+
+.evreg-field-options__row {
+	display: flex;
+	align-items: flex-end;
+	gap: 8px;
+}
+
+.evreg-field-options__row .components-base-control {
+	flex: 1;
+}
+
+.evreg-field-options .components-button.is-secondary {
+	align-self: flex-start;
+}
+
 /* --- Pasek dodawania --- */
 
 .evreg-form-tab__toolbar {

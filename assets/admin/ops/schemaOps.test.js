@@ -9,6 +9,9 @@ import {
 	moveFieldTo,
 	updateField,
 	ensureTypeField,
+	addOption,
+	updateOption,
+	removeOption,
 } from './schemaOps';
 
 describe( 'schemaOps', () => {
@@ -203,5 +206,35 @@ describe( 'schemaOps', () => {
 		const before = JSON.stringify( schema );
 		moveFieldTo( schema, 'a', 'dane', 1 );
 		expect( JSON.stringify( schema ) ).toBe( before );
+	} );
+
+	it( 'addOption dopisuje pustą opcję', () => {
+		expect( addOption( [] ) ).toEqual( [ { value: '', label: '' } ] );
+		expect( addOption( [ { value: 'a', label: 'A' } ] ) ).toEqual( [
+			{ value: 'a', label: 'A' },
+			{ value: '', label: '' },
+		] );
+	} );
+
+	it( 'updateOption scala łatkę w opcję o danym indeksie', () => {
+		const opts = [ { value: 'a', label: 'A' }, { value: 'b', label: 'B' } ];
+		expect( updateOption( opts, 1, { value: 'x' } ) ).toEqual( [
+			{ value: 'a', label: 'A' },
+			{ value: 'x', label: 'B' },
+		] );
+	} );
+
+	it( 'removeOption usuwa opcję o danym indeksie', () => {
+		const opts = [ { value: 'a', label: 'A' }, { value: 'b', label: 'B' } ];
+		expect( removeOption( opts, 0 ) ).toEqual( [ { value: 'b', label: 'B' } ] );
+	} );
+
+	it( 'ops opcji nie mutują wejścia', () => {
+		const opts = [ { value: 'a', label: 'A' } ];
+		const before = JSON.stringify( opts );
+		addOption( opts );
+		updateOption( opts, 0, { label: 'Z' } );
+		removeOption( opts, 0 );
+		expect( JSON.stringify( opts ) ).toBe( before );
 	} );
 } );
