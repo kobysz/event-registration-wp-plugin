@@ -8,3 +8,9 @@ Thumbs.db
 .phpunit.result.cache
 /test-results/
 /playwright-report/
+
+# Local package staging
+.dist-tmp/
+
+# Local plugin package (built by scripts/build-zip.sh)
+event-registration.zip

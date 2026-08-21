@@ -16,11 +16,36 @@ export function addSection( schema, key, title ) {
 
 export function removeSection( schema, sectionKey ) {
 	const next = clone( schema );
-	next.sections = ( next.sections || [] ).filter( ( s ) => s.key !== sectionKey );
+	next.sections = ( next.sections || [] ).filter( ( s ) => {
+		if ( s.key !== sectionKey ) {
+			return true;
+		}
+		// Only empty sections may be removed; a section with fields (including
+		// the one pinning __type) is protected against accidental data loss.
+		return ( s.fields || [] ).length > 0;
+	} );
+	return next;
+}
+
+export function renameSection( schema, sectionKey, title ) {
+	const next = clone( schema );
+	( next.sections || [] ).forEach( ( section ) => {
+		if ( section.key === sectionKey ) {
+			section.title = title;
+		}
+	} );
 	return next;
 }
 
 export function addField( schema, sectionKey, field ) {
+	const exists = ( schema.sections || [] )
+		.flatMap( ( s ) => s.fields || [] )
+		.some( ( f ) => f.key === field.key );
+
+	if ( exists ) {
+		return schema;
+	}
+
 	const next = clone( schema );
 	( next.sections || [] ).forEach( ( section ) => {
 		if ( section.key === sectionKey ) {
@@ -61,6 +86,48 @@ export function moveField( schema, fieldKey, direction ) {
 
 		[ fields[ index ], fields[ target ] ] = [ fields[ target ], fields[ index ] ];
 	} );
+	return next;
+}
+
+/**
+ * Przenosi pole do wskazanej sekcji na wskazaną pozycję (reorder DnD).
+ *
+ * Wszystkie dropy (w obrębie sekcji i między sekcjami) idą przez ten prymityw.
+ * `toIndex` to docelowa pozycja w tablicy docelowej PO usunięciu źródła.
+ * Pole __type jest przypięte na górze swojej sekcji: nie da się go ruszyć ani
+ * wstawić czegokolwiek przed nie.
+ */
+export function moveFieldTo( schema, fieldKey, toSectionKey, toIndex ) {
+	if ( fieldKey === TYPE_FIELD_KEY ) {
+		return schema;
+	}
+
+	const next = clone( schema );
+	const sections = next.sections || [];
+	const target = sections.find( ( s ) => s.key === toSectionKey );
+
+	if ( ! target ) {
+		return schema;
+	}
+
+	let moved = null;
+	sections.forEach( ( section ) => {
+		const fields = section.fields || [];
+		const index = fields.findIndex( ( f ) => f.key === fieldKey );
+		if ( index !== -1 ) {
+			[ moved ] = fields.splice( index, 1 );
+		}
+	} );
+
+	if ( ! moved ) {
+		return schema;
+	}
+
+	target.fields = target.fields || [];
+	const pinned = target.fields.some( ( f ) => f.key === TYPE_FIELD_KEY ) ? 1 : 0;
+	const clamped = Math.max( pinned, Math.min( toIndex, target.fields.length ) );
+	target.fields.splice( clamped, 0, moved );
+
 	return next;
 }
 

@@ -63,6 +63,14 @@ final class EventConfigAssets {
 
 		wp_enqueue_style( 'wp-components' );
 
+		wp_enqueue_style(
+			self::HANDLE,
+			$url . 'build/admin/style-index.css',
+			array( 'wp-components' ),
+			$manifest['version']
+		);
+		wp_style_add_data( self::HANDLE, 'rtl', 'replace' );
+
 		$event_id = isset( $_GET['post'] ) ? (int) $_GET['post'] : 0; // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- odczyt ID ekranu, nie akcja.
 
 		$pages = array_map(

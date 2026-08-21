@@ -1,9 +1,12 @@
 import {
 	emptySchema,
 	addSection,
+	removeSection,
+	renameSection,
 	addField,
 	removeField,
 	moveField,
+	moveFieldTo,
 	updateField,
 	ensureTypeField,
 } from './schemaOps';
@@ -108,5 +111,97 @@ describe( 'schemaOps', () => {
 		schema = addField( schema, 'dane', { key: 'b', type: 'text', label: 'B' } );
 		schema = moveField( schema, 'b', 'down' );
 		expect( schema.sections[ 0 ].fields.map( ( f ) => f.key ) ).toEqual( [ 'a', 'b' ] );
+	} );
+
+	it( 'addField ignoruje duplikat klucza w dowolnej sekcji', () => {
+		let schema = addSection( emptySchema(), 'dane', 'Dane' );
+		schema = addSection( schema, 'extra', 'Extra' );
+		schema = addField( schema, 'dane', { key: 'email', type: 'email', label: 'E-mail' } );
+		schema = addField( schema, 'extra', { key: 'email', type: 'text', label: 'Duplikat' } );
+		const allEmail = schema.sections
+			.flatMap( ( s ) => s.fields )
+			.filter( ( f ) => f.key === 'email' );
+		expect( allEmail ).toHaveLength( 1 );
+		expect( schema.sections[ 1 ].fields ).toHaveLength( 0 );
+	} );
+
+	it( 'renameSection zmienia tytuł wskazanej sekcji', () => {
+		let schema = addSection( emptySchema(), 'dane', 'Dane' );
+		schema = renameSection( schema, 'dane', 'Uczestnik' );
+		expect( schema.sections[ 0 ].title ).toBe( 'Uczestnik' );
+	} );
+
+	it( 'renameSection na nieznanej sekcji nic nie zmienia', () => {
+		const schema = addSection( emptySchema(), 'dane', 'Dane' );
+		const before = JSON.stringify( schema );
+		expect( JSON.stringify( renameSection( schema, 'brak', 'X' ) ) ).toBe( before );
+	} );
+
+	it( 'removeSection usuwa pustą sekcję', () => {
+		let schema = addSection( emptySchema(), 'dane', 'Dane' );
+		schema = addSection( schema, 'extra', 'Extra' );
+		schema = removeSection( schema, 'extra' );
+		expect( schema.sections.map( ( s ) => s.key ) ).toEqual( [ 'dane' ] );
+	} );
+
+	it( 'removeSection nie usuwa niepustej sekcji', () => {
+		let schema = addSection( emptySchema(), 'dane', 'Dane' );
+		schema = addField( schema, 'dane', { key: 'a', type: 'text', label: 'A' } );
+		schema = removeSection( schema, 'dane' );
+		expect( schema.sections.map( ( s ) => s.key ) ).toEqual( [ 'dane' ] );
+	} );
+
+	it( 'moveFieldTo przesuwa pole na wskazaną pozycję w tej samej sekcji', () => {
+		let schema = ensureTypeField( addSection( emptySchema(), 'dane', 'Dane' ) );
+		schema = addField( schema, 'dane', { key: 'a', type: 'text', label: 'A' } );
+		schema = addField( schema, 'dane', { key: 'b', type: 'text', label: 'B' } );
+		schema = addField( schema, 'dane', { key: 'c', type: 'text', label: 'C' } );
+		schema = moveFieldTo( schema, 'c', 'dane', 1 );
+		expect( schema.sections[ 0 ].fields.map( ( f ) => f.key ) ).toEqual( [
+			'__type',
+			'c',
+			'a',
+			'b',
+		] );
+	} );
+
+	it( 'moveFieldTo przenosi pole między sekcjami', () => {
+		let schema = ensureTypeField( addSection( emptySchema(), 'dane', 'Dane' ) );
+		schema = addSection( schema, 'extra', 'Extra' );
+		schema = addField( schema, 'dane', { key: 'a', type: 'text', label: 'A' } );
+		schema = addField( schema, 'extra', { key: 'b', type: 'text', label: 'B' } );
+		schema = moveFieldTo( schema, 'a', 'extra', 1 );
+		expect( schema.sections[ 0 ].fields.map( ( f ) => f.key ) ).toEqual( [ '__type' ] );
+		expect( schema.sections[ 1 ].fields.map( ( f ) => f.key ) ).toEqual( [ 'b', 'a' ] );
+	} );
+
+	it( 'moveFieldTo nie rusza pola __type', () => {
+		let schema = ensureTypeField( addSection( emptySchema(), 'dane', 'Dane' ) );
+		schema = addSection( schema, 'extra', 'Extra' );
+		schema = moveFieldTo( schema, '__type', 'extra', 0 );
+		expect( schema.sections[ 0 ].fields[ 0 ].key ).toBe( '__type' );
+		expect( schema.sections[ 1 ].fields ).toHaveLength( 0 );
+	} );
+
+	it( 'moveFieldTo nie pozwala wstawić pola przed __type', () => {
+		let schema = ensureTypeField( addSection( emptySchema(), 'dane', 'Dane' ) );
+		schema = addField( schema, 'dane', { key: 'a', type: 'text', label: 'A' } );
+		schema = moveFieldTo( schema, 'a', 'dane', 0 );
+		expect( schema.sections[ 0 ].fields.map( ( f ) => f.key ) ).toEqual( [ '__type', 'a' ] );
+	} );
+
+	it( 'moveFieldTo na nieznanej sekcji docelowej nic nie zmienia', () => {
+		let schema = ensureTypeField( addSection( emptySchema(), 'dane', 'Dane' ) );
+		schema = addField( schema, 'dane', { key: 'a', type: 'text', label: 'A' } );
+		const before = JSON.stringify( schema );
+		expect( JSON.stringify( moveFieldTo( schema, 'a', 'brak', 0 ) ) ).toBe( before );
+	} );
+
+	it( 'moveFieldTo nie mutuje argumentu wejściowego', () => {
+		let schema = ensureTypeField( addSection( emptySchema(), 'dane', 'Dane' ) );
+		schema = addField( schema, 'dane', { key: 'a', type: 'text', label: 'A' } );
+		const before = JSON.stringify( schema );
+		moveFieldTo( schema, 'a', 'dane', 1 );
+		expect( JSON.stringify( schema ) ).toBe( before );
 	} );
 } );
