@@ -233,6 +233,15 @@ final class FormRenderer {
 		// Namespace pól pod evreg_field[...], by nazwy pól NIE kolidowały z publicznymi
 		// query-vars WordPressa (name/page/p/s/cat/author/...). WP czyta te vary także
 		// z $_POST przy POST-to-self → surowe name="name" korumpuje główne zapytanie (404).
+		// Pokoje z włączonym polem współlokatora — tylko dla nich renderujemy
+		// (i pokazujemy) pole „Preferowana osoba w pokoju". Flaga jest per pokój.
+		$roommateRooms = array();
+		foreach ( $rooms as $room ) {
+			if ( ! empty( $room['roommate_field'] ) ) {
+				$roommateRooms[ (string) ( $room['key'] ?? '' ) ] = true;
+			}
+		}
+
 		$name = 'evreg_field[' . esc_attr( $field->key ) . ']';
 		$out  = '<div class="evreg-accommodation">';
 		$out .= '<label class="evreg-choice"><input type="radio" name="' . $name . '[slot]" value=""' . checked( '', $current, false ) . '> ' . esc_html__( 'Bez noclegu', 'event-registration' ) . '</label>';
@@ -243,14 +252,24 @@ final class FormRenderer {
 				if ( ! isset( $available[ $slot ] ) ) {
 					continue;
 				}
-				$label = (string) ( $pkg['label'] ?? '' ) . ' — ' . (string) ( $room['label'] ?? '' );
-				$out  .= '<label class="evreg-choice"><input type="radio" name="' . $name . '[slot]" value="' . esc_attr( $slot ) . '"' . checked( $slot, $current, false ) . '> ' . esc_html( $label ) . '</label>';
+				$label    = (string) ( $pkg['label'] ?? '' ) . ' — ' . (string) ( $room['label'] ?? '' );
+				$roommate = isset( $roommateRooms[ (string) ( $room['key'] ?? '' ) ] ) ? ' data-evreg-roommate="1"' : '';
+				$out     .= '<label class="evreg-choice"><input type="radio" name="' . $name . '[slot]" value="' . esc_attr( $slot ) . '"' . checked( $slot, $current, false ) . $roommate . '> ' . esc_html( $label ) . '</label>';
 			}
 		}
 
-		$roommate = is_array( $value ) ? (string) ( $value['roommate'] ?? '' ) : '';
-		$out     .= '<input type="text" name="' . $name . '[roommate]" placeholder="' . esc_attr__( 'Preferowana osoba w pokoju', 'event-registration' ) . '" value="' . esc_attr( $roommate ) . '">';
-		$out     .= '</div>';
+		// Pole współlokatora renderujemy tylko gdy JAKIKOLWIEK pokój je włącza.
+		// Widoczność startową wyznacza wybrany pokój (poprawne bez JS przy
+		// re-renderze błędu); form.js przełącza ją reaktywnie przy zmianie pokoju.
+		if ( array() !== $roommateRooms ) {
+			$separator   = strpos( $current, '|' );
+			$currentRoom = ( '' !== $current && false !== $separator ) ? substr( $current, $separator + 1 ) : '';
+			$hidden      = isset( $roommateRooms[ $currentRoom ] ) ? '' : ' hidden';
+			$roommateVal = is_array( $value ) ? (string) ( $value['roommate'] ?? '' ) : '';
+			$out        .= '<input type="text" data-evreg-roommate-input name="' . $name . '[roommate]" placeholder="' . esc_attr__( 'Preferowana osoba w pokoju', 'event-registration' ) . '" value="' . esc_attr( $roommateVal ) . '"' . $hidden . '>';
+		}
+
+		$out .= '</div>';
 
 		return $out;
 	}
