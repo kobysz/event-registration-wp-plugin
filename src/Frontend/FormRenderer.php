@@ -109,13 +109,26 @@ final class FormRenderer {
 			$class .= ' evreg-field-error';
 		}
 
-		$out  = '<div class="' . $class . '">';
-		$out .= '<label class="evreg-label" for="evreg-' . esc_attr( $field->key ) . '">' . esc_html( $field->label );
-		if ( $field->required ) {
-			$out .= ' <span class="evreg-required">*</span>';
+		$out = '<div class="' . $class . '">';
+
+		if ( FieldType::Checkbox === $field->type ) {
+			// Pojedynczy checkbox zgody: etykieta OBOK pola (input przed tekstem),
+			// nie jako blok nad nim — inaczej „zaznacz to" wisi nad kwadracikiem.
+			$out .= '<label class="evreg-checkbox-label" for="evreg-' . esc_attr( $field->key ) . '">';
+			$out .= $this->renderControl( $field, $value );
+			$out .= ' <span class="evreg-checkbox-text">' . esc_html( $field->label ) . '</span>';
+			if ( $field->required ) {
+				$out .= ' <span class="evreg-required">*</span>';
+			}
+			$out .= '</label>';
+		} else {
+			$out .= '<label class="evreg-label" for="evreg-' . esc_attr( $field->key ) . '">' . esc_html( $field->label );
+			if ( $field->required ) {
+				$out .= ' <span class="evreg-required">*</span>';
+			}
+			$out .= '</label>';
+			$out .= $this->renderControl( $field, $value );
 		}
-		$out .= '</label>';
-		$out .= $this->renderControl( $field, $value );
 
 		if ( null !== $error ) {
 			$out .= '<span class="evreg-error-msg">' . esc_html( $this->errorMessage( (string) $error ) ) . '</span>';

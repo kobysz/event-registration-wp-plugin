@@ -3,6 +3,8 @@
 .evreg-section > legend { font-weight: 600; padding: 0 .5rem; }
 .evreg-field { margin: 0 0 .75rem; }
 .evreg-label { display: block; margin-bottom: .25rem; }
+.evreg-checkbox-label { display: inline-flex; align-items: center; gap: .4rem; }
+.evreg-checkbox-label input[type="checkbox"] { width: auto; margin: 0; }
 .evreg-required { color: var(--evreg-required, #c00); }
 .evreg-field input[type="text"],
 .evreg-field input[type="email"],
