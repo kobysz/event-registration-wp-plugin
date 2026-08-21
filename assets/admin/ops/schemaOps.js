@@ -141,6 +141,18 @@ export function updateField( schema, fieldKey, patch ) {
 	return next;
 }
 
+export function addOption( options ) {
+	return [ ...( options || [] ), { value: '', label: '' } ];
+}
+
+export function updateOption( options, index, patch ) {
+	return ( options || [] ).map( ( opt, i ) => ( i === index ? { ...opt, ...patch } : opt ) );
+}
+
+export function removeOption( options, index ) {
+	return ( options || [] ).filter( ( _, i ) => i !== index );
+}
+
 export function ensureTypeField( schema ) {
 	const hasType = ( schema.sections || [] )
 		.flatMap( ( s ) => s.fields || [] )
