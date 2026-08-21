@@ -203,6 +203,15 @@ final class RegistrationEditForm {
 
 		// Namespace pod evreg_field[...] — spójnie z FormRenderer i wspólną ekstrakcją
 		// SubmissionAssembler (klucze pól nie kolidują z query-vars WordPressa).
+		// Pokoje z włączonym polem współlokatora (flaga per pokój) — tylko dla nich
+		// renderujemy i pokazujemy pole „Współlokator".
+		$roommateRooms = array();
+		foreach ( $rooms as $room ) {
+			if ( ! empty( $room['roommate_field'] ) ) {
+				$roommateRooms[ (string) ( $room['key'] ?? '' ) ] = true;
+			}
+		}
+
 		$name = 'evreg_field[' . esc_attr( $field->key ) . ']';
 		$opts = '<option value=""' . selected( '', $current, false ) . '>' . esc_html__( 'Bez noclegu', 'event-registration' ) . '</option>';
 
@@ -212,15 +221,25 @@ final class RegistrationEditForm {
 				if ( ! isset( $available[ $slot ] ) ) {
 					continue;
 				}
-				$label = (string) ( $pkg['label'] ?? '' ) . ' — ' . (string) ( $room['label'] ?? '' );
-				$opts .= '<option value="' . esc_attr( $slot ) . '"' . selected( $slot, $current, false ) . '>' . esc_html( $label ) . '</option>';
+				$label    = (string) ( $pkg['label'] ?? '' ) . ' — ' . (string) ( $room['label'] ?? '' );
+				$roommate = isset( $roommateRooms[ (string) ( $room['key'] ?? '' ) ] ) ? ' data-evreg-roommate="1"' : '';
+				$opts    .= '<option value="' . esc_attr( $slot ) . '"' . selected( $slot, $current, false ) . $roommate . '>' . esc_html( $label ) . '</option>';
 			}
 		}
 
-		$roommate = is_array( $value ) ? (string) ( $value['roommate'] ?? '' ) : '';
+		// Wrapper .evreg-accommodation pozwala reużyć form.js (evreg-public) do
+		// przełączania widoczności pola współlokatora przy zmianie pokoju.
+		$out = '<div class="evreg-accommodation"><select name="' . $name . '[slot]">' . $opts . '</select> ';
 
-		$out  = '<select name="' . $name . '[slot]">' . $opts . '</select> ';
-		$out .= '<input type="text" name="' . $name . '[roommate]" placeholder="' . esc_attr__( 'Współlokator', 'event-registration' ) . '" value="' . esc_attr( $roommate ) . '" class="regular-text" />';
+		if ( array() !== $roommateRooms ) {
+			$separator   = strpos( $current, '|' );
+			$currentRoom = ( '' !== $current && false !== $separator ) ? substr( $current, $separator + 1 ) : '';
+			$hidden      = isset( $roommateRooms[ $currentRoom ] ) ? '' : ' hidden';
+			$roommateVal = is_array( $value ) ? (string) ( $value['roommate'] ?? '' ) : '';
+			$out        .= '<input type="text" data-evreg-roommate-input name="' . $name . '[roommate]" placeholder="' . esc_attr__( 'Współlokator', 'event-registration' ) . '" value="' . esc_attr( $roommateVal ) . '" class="regular-text"' . $hidden . ' />';
+		}
+
+		$out .= '</div>';
 
 		return $out;
 	}

@@ -42,6 +42,51 @@ final class FormRendererTest extends WP_UnitTestCase {
 		);
 	}
 
+	private function accommodationSchema( bool $roommateField ): FormSchema {
+		return FormSchema::fromArray(
+			array(
+				'version'  => 1,
+				'sections' => array(
+					array(
+						'key'    => 'dane',
+						'title'  => 'Dane',
+						'fields' => array(
+							array(
+								'key'    => 'nocleg',
+								'type'   => 'accommodation',
+								'label'  => 'Nocleg',
+								'config' => array(
+									'packages'   => array( array( 'key' => 'std', 'label' => 'Standard' ) ),
+									'rooms'      => array(
+										array( 'key' => 'double', 'label' => 'Dwuosobowy', 'roommate_field' => $roommateField ),
+									),
+									'inventory'  => array(
+										array( 'package' => 'std', 'room' => 'double', 'capacity' => 10, 'price' => 0 ),
+									),
+									'allow_none' => true,
+								),
+							),
+						),
+					),
+				),
+			)
+		);
+	}
+
+	public function test_roommate_input_absent_when_no_room_allows_it(): void {
+		$html = $this->renderer->render( $this->accommodationSchema( false ), 1 );
+
+		$this->assertStringContainsString( 'name="evreg_field[nocleg][slot]"', $html );
+		$this->assertStringNotContainsString( '[nocleg][roommate]', $html );
+	}
+
+	public function test_roommate_input_present_and_tagged_when_a_room_allows_it(): void {
+		$html = $this->renderer->render( $this->accommodationSchema( true ), 1 );
+
+		$this->assertStringContainsString( 'name="evreg_field[nocleg][roommate]"', $html );
+		$this->assertStringContainsString( 'data-evreg-roommate="1"', $html );
+	}
+
 	public function test_renders_form_with_fields_sections_and_hidden_controls(): void {
 		$html = $this->renderer->render( $this->schema(), 123 );
 

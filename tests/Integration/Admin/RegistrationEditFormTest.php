@@ -66,7 +66,7 @@ final class RegistrationEditFormTest extends WP_UnitTestCase {
 								'label'  => 'Nocleg',
 								'config' => array(
 									'packages'  => array( array( 'key' => 'n1', 'label' => 'Noc 1' ) ),
-									'rooms'     => array( array( 'key' => 'std', 'label' => 'Standard' ) ),
+									'rooms'     => array( array( 'key' => 'std', 'label' => 'Standard', 'roommate_field' => true ) ),
 									'inventory' => array(
 										array( 'package' => 'n1', 'room' => 'std', 'capacity' => 5, 'price' => 50.0 ),
 									),
@@ -177,6 +177,40 @@ final class RegistrationEditFormTest extends WP_UnitTestCase {
 		$this->assertStringContainsString( 'value="n1|std"', $html );
 		$this->assertMatchesRegularExpression( '/value="n1\|std"[^>]*selected/', $html );
 		$this->assertStringContainsString( 'value="Ala"', $html );
+		$this->assertStringContainsString( 'data-evreg-roommate="1"', $html );
+	}
+
+	public function test_roommate_input_absent_when_room_disallows_it(): void {
+		$schema = FormSchema::fromArray(
+			array(
+				'version'  => 1,
+				'sections' => array(
+					array(
+						'key'    => 'dane',
+						'title'  => 'Dane',
+						'fields' => array(
+							array(
+								'key'    => 'nocleg',
+								'type'   => 'accommodation',
+								'label'  => 'Nocleg',
+								'config' => array(
+									'packages'  => array( array( 'key' => 'n1', 'label' => 'Noc 1' ) ),
+									'rooms'     => array( array( 'key' => 'std', 'label' => 'Standard', 'roommate_field' => false ) ),
+									'inventory' => array(
+										array( 'package' => 'n1', 'room' => 'std', 'capacity' => 5, 'price' => 50.0 ),
+									),
+								),
+							),
+						),
+					),
+				),
+			)
+		);
+
+		$html = RegistrationEditForm::render( $schema, array(), 7 );
+
+		$this->assertStringContainsString( 'name="evreg_field[nocleg][slot]"', $html );
+		$this->assertStringNotContainsString( '[nocleg][roommate]', $html );
 	}
 
 	public function test_no_errors_renders_no_notice(): void {
