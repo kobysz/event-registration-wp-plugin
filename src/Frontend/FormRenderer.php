@@ -269,9 +269,16 @@ final class FormRenderer {
 			}
 		}
 
-		$name = 'evreg_field[' . esc_attr( $field->key ) . ']';
-		$out  = '<div class="evreg-accommodation">';
-		$out .= '<label class="evreg-choice"><input type="radio" name="' . $name . '[slot]" value=""' . checked( '', $current, false ) . '> ' . esc_html__( 'Bez noclegu', 'event-registration' ) . '</label>';
+		$name  = 'evreg_field[' . esc_attr( $field->key ) . ']';
+		$base  = 'evreg-' . esc_attr( $field->key );
+		$index = 0;
+		$out   = '<div class="evreg-accommodation">';
+
+		$none_id = $base . '-slot-' . $index++;
+		$out    .= '<div class="evreg-choice form-check">'
+			. '<input class="form-check-input" type="radio" id="' . $none_id . '" name="' . $name . '[slot]" value=""' . checked( '', $current, false ) . '>'
+			. ' <label class="form-check-label" for="' . $none_id . '">' . esc_html__( 'Bez noclegu', 'event-registration' ) . '</label>'
+			. '</div>';
 
 		foreach ( $packages as $pkg ) {
 			foreach ( $rooms as $room ) {
@@ -281,7 +288,11 @@ final class FormRenderer {
 				}
 				$label    = (string) ( $pkg['label'] ?? '' ) . ' — ' . (string) ( $room['label'] ?? '' );
 				$roommate = isset( $roommateRooms[ (string) ( $room['key'] ?? '' ) ] ) ? ' data-evreg-roommate="1"' : '';
-				$out     .= '<label class="evreg-choice"><input type="radio" name="' . $name . '[slot]" value="' . esc_attr( $slot ) . '"' . checked( $slot, $current, false ) . $roommate . '> ' . esc_html( $label ) . '</label>';
+				$slot_id  = $base . '-slot-' . $index++;
+				$out     .= '<div class="evreg-choice form-check">'
+					. '<input class="form-check-input" type="radio" id="' . $slot_id . '" name="' . $name . '[slot]" value="' . esc_attr( $slot ) . '"' . checked( $slot, $current, false ) . $roommate . '>'
+					. ' <label class="form-check-label" for="' . $slot_id . '">' . esc_html( $label ) . '</label>'
+					. '</div>';
 			}
 		}
 
@@ -293,7 +304,7 @@ final class FormRenderer {
 			$currentRoom = ( '' !== $current && false !== $separator ) ? substr( $current, $separator + 1 ) : '';
 			$hidden      = isset( $roommateRooms[ $currentRoom ] ) ? '' : ' hidden';
 			$roommateVal = is_array( $value ) ? (string) ( $value['roommate'] ?? '' ) : '';
-			$out        .= '<input type="text" data-evreg-roommate-input name="' . $name . '[roommate]" placeholder="' . esc_attr__( 'Preferowana osoba w pokoju', 'event-registration' ) . '" value="' . esc_attr( $roommateVal ) . '"' . $hidden . '>';
+			$out        .= '<input class="form-control mt-2" type="text" data-evreg-roommate-input name="' . $name . '[roommate]" placeholder="' . esc_attr__( 'Preferowana osoba w pokoju', 'event-registration' ) . '" value="' . esc_attr( $roommateVal ) . '"' . $hidden . '>';
 		}
 
 		$out .= '</div>';

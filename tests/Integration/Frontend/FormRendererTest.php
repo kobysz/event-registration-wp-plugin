@@ -80,6 +80,16 @@ final class FormRendererTest extends WP_UnitTestCase {
 		$this->assertStringNotContainsString( '[nocleg][roommate]', $html );
 	}
 
+	public function test_accommodation_slots_use_bootstrap_form_check(): void {
+		$html = $this->renderer->render( $this->accommodationSchema( false ), 1 );
+
+		$this->assertMatchesRegularExpression(
+			'/<div class="evreg-choice form-check"><input class="form-check-input" type="radio"[^>]*name="evreg_field\[nocleg\]\[slot\]"/',
+			$html
+		);
+		$this->assertStringContainsString( 'form-check-label', $html );
+	}
+
 	public function test_roommate_input_present_and_tagged_when_a_room_allows_it(): void {
 		$html = $this->renderer->render( $this->accommodationSchema( true ), 1 );
 

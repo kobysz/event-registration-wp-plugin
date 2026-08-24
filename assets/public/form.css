@@ -1,6 +1,20 @@
 .evreg-form { max-width: 640px; }
 .evreg-section { border: 1px solid var(--evreg-border, #ddd); padding: 1rem; margin: 0 0 1rem; }
-.evreg-section > legend { font-weight: 600; padding: 0 .5rem; }
+/* Legenda jako zwykły nagłówek sekcji. Neutralizujemy reboot Bootstrapa
+   (legend { float:left; width:100% }) i ewentualne obramowania z motywu,
+   inaczej tytuł sekcji dziwnie się rozjeżdża. */
+.evreg-section > legend {
+	display: block;
+	float: none;
+	width: 100%;
+	max-width: 100%;
+	margin-bottom: .5rem;
+	padding: 0;
+	border: 0;
+	font-size: 1.25rem;
+	font-weight: 600;
+	line-height: 1.2;
+}
 .evreg-field { margin: 0 0 .75rem; }
 .evreg-label { display: block; margin-bottom: .25rem; }
 .evreg-checkbox-label { display: inline-flex; align-items: center; gap: .4rem; }
