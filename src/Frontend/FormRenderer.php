@@ -50,7 +50,7 @@ final class FormRenderer {
 			$out .= $this->renderSection( $section, $result );
 		}
 
-		$out .= '<button type="submit" class="evreg-submit">' . esc_html__( 'Wyślij zgłoszenie', 'event-registration' ) . '</button>';
+		$out .= '<button type="submit" class="evreg-submit btn btn-primary">' . esc_html__( 'Wyślij zgłoszenie', 'event-registration' ) . '</button>';
 		$out .= '</form>';
 
 		return $out;
@@ -71,8 +71,8 @@ final class FormRenderer {
 				. ' data-evreg-when-value="' . esc_attr( false !== $condition_value ? $condition_value : '' ) . '"';
 		}
 
-		$out  = '<fieldset class="evreg-section"' . $attrs . '>';
-		$out .= '<legend>' . esc_html( $section->title ) . '</legend>';
+		$out  = '<fieldset class="evreg-section mb-4"' . $attrs . '>';
+		$out .= '<legend class="fs-5">' . esc_html( $section->title ) . '</legend>';
 
 		if ( '' !== $section->description ) {
 			$out .= '<p class="evreg-section-desc">' . esc_html( $section->description ) . '</p>';
@@ -104,34 +104,34 @@ final class FormRenderer {
 		$value = null === $result ? null : $result->submittedValue( $field->key );
 		$error = null === $result ? null : ( $result->errors()[ $field->key ] ?? null );
 
-		$class = 'evreg-field evreg-field-' . esc_attr( $field->type->value );
-		if ( null !== $error ) {
+		$invalid = null !== $error;
+		$class   = 'evreg-field evreg-field-' . esc_attr( $field->type->value ) . ' mb-3';
+		if ( $invalid ) {
 			$class .= ' evreg-field-error';
 		}
 
-		$out = '<div class="' . $class . '">';
-
 		if ( FieldType::Checkbox === $field->type ) {
-			// Pojedynczy checkbox zgody: etykieta OBOK pola (input przed tekstem),
-			// nie jako blok nad nim — inaczej „zaznacz to" wisi nad kwadracikiem.
-			$out .= '<label class="evreg-checkbox-label" for="evreg-' . esc_attr( $field->key ) . '">';
-			$out .= $this->renderControl( $field, $value );
-			$out .= ' <span class="evreg-checkbox-text">' . esc_html( $field->label ) . '</span>';
+			// Pojedynczy checkbox zgody: BS5 form-check — input (form-check-input)
+			// przed etykietą (form-check-label), obok siebie, nie blok nad polem.
+			$out  = '<div class="' . $class . ' form-check">';
+			$out .= $this->renderControl( $field, $value, $invalid );
+			$out .= ' <label class="form-check-label" for="evreg-' . esc_attr( $field->key ) . '">' . esc_html( $field->label );
 			if ( $field->required ) {
 				$out .= ' <span class="evreg-required">*</span>';
 			}
 			$out .= '</label>';
 		} else {
-			$out .= '<label class="evreg-label" for="evreg-' . esc_attr( $field->key ) . '">' . esc_html( $field->label );
+			$out  = '<div class="' . $class . '">';
+			$out .= '<label class="evreg-label form-label" for="evreg-' . esc_attr( $field->key ) . '">' . esc_html( $field->label );
 			if ( $field->required ) {
 				$out .= ' <span class="evreg-required">*</span>';
 			}
 			$out .= '</label>';
-			$out .= $this->renderControl( $field, $value );
+			$out .= $this->renderControl( $field, $value, $invalid );
 		}
 
-		if ( null !== $error ) {
-			$out .= '<span class="evreg-error-msg">' . esc_html( $this->errorMessage( (string) $error ) ) . '</span>';
+		if ( $invalid ) {
+			$out .= '<div class="evreg-error-msg invalid-feedback d-block">' . esc_html( $this->errorMessage( (string) $error ) ) . '</div>';
 		}
 
 		$out .= '</div>';
@@ -142,57 +142,63 @@ final class FormRenderer {
 	/**
 	 * Renderuje kontrolkę wejściową pola odpowiednią do jego typu.
 	 *
-	 * @param Field $field Pole formularza.
-	 * @param mixed $value Wpisana wartość do odtworzenia (lub null).
+	 * @param Field $field   Pole formularza.
+	 * @param mixed $value   Wpisana wartość do odtworzenia (lub null).
+	 * @param bool  $invalid Czy pole ma błąd walidacji (dodaje is-invalid).
 	 */
-	private function renderControl( Field $field, mixed $value ): string {
+	private function renderControl( Field $field, mixed $value, bool $invalid = false ): string {
 		// Namespace pól pod evreg_field[...], by nazwy pól NIE kolidowały z publicznymi
 		// query-vars WordPressa (name/page/p/s/cat/author/...). WP czyta te vary także
 		// z $_POST przy POST-to-self → surowe name="name" korumpuje główne zapytanie (404).
 		$name = 'evreg_field[' . esc_attr( $field->key ) . ']';
 		$id   = 'evreg-' . esc_attr( $field->key );
 		$req  = $field->required ? ' required' : '';
+		// Klasy Bootstrap 5. is-invalid tylko przy błędzie; wpina się w BS5 walidację.
+		$inv     = $invalid ? ' is-invalid' : '';
+		$control = 'form-control' . $inv;
+		$select  = 'form-select' . $inv;
+		$check   = 'form-check-input' . $inv;
 
 		switch ( $field->type ) {
 			case FieldType::Textarea:
-				return '<textarea id="' . $id . '" name="' . $name . '"' . $req . '>' . esc_textarea( $this->scalarValue( $value ) ) . '</textarea>';
+				return '<textarea class="' . $control . '" id="' . $id . '" name="' . $name . '"' . $req . '>' . esc_textarea( $this->scalarValue( $value ) ) . '</textarea>';
 
 			case FieldType::Select:
 				$opts = '';
 				foreach ( $field->options as $option ) {
 					$opts .= '<option value="' . esc_attr( $option->value ) . '"' . selected( $this->scalarValue( $value ), $option->value, false ) . '>' . esc_html( $option->label ) . '</option>';
 				}
-				return '<select id="' . $id . '" name="' . $name . '"' . $req . '><option value="">—</option>' . $opts . '</select>';
+				return '<select class="' . $select . '" id="' . $id . '" name="' . $name . '"' . $req . '><option value="">—</option>' . $opts . '</select>';
 
 			case FieldType::Radio:
-				return $this->renderChoices( $field->options, $name, 'radio', $value );
+				return $this->renderChoices( $field->options, $name, 'radio', $value, $invalid );
 
 			case FieldType::CheckboxGroup:
-				return $this->renderChoices( $field->options, $name . '[]', 'checkbox', $value );
+				return $this->renderChoices( $field->options, $name . '[]', 'checkbox', $value, $invalid );
 
 			case FieldType::Checkbox:
-				return '<input type="checkbox" id="' . $id . '" name="' . $name . '" value="1"' . checked( '1', $this->scalarValue( $value ), false ) . $req . '>';
+				return '<input class="' . $check . '" type="checkbox" id="' . $id . '" name="' . $name . '" value="1"' . checked( '1', $this->scalarValue( $value ), false ) . $req . '>';
 
 			case FieldType::Accommodation:
 				return $this->renderAccommodation( $field, $value );
 
 			case FieldType::Number:
-				return '<input type="number" id="' . $id . '" name="' . $name . '" value="' . esc_attr( $this->scalarValue( $value ) ) . '"' . $req . '>';
+				return '<input class="' . $control . '" type="number" id="' . $id . '" name="' . $name . '" value="' . esc_attr( $this->scalarValue( $value ) ) . '"' . $req . '>';
 
 			case FieldType::Date:
-				return '<input type="date" id="' . $id . '" name="' . $name . '" value="' . esc_attr( $this->scalarValue( $value ) ) . '"' . $req . '>';
+				return '<input class="' . $control . '" type="date" id="' . $id . '" name="' . $name . '" value="' . esc_attr( $this->scalarValue( $value ) ) . '"' . $req . '>';
 
 			case FieldType::Email:
-				return '<input type="email" id="' . $id . '" name="' . $name . '" value="' . esc_attr( $this->scalarValue( $value ) ) . '"' . $req . '>';
+				return '<input class="' . $control . '" type="email" id="' . $id . '" name="' . $name . '" value="' . esc_attr( $this->scalarValue( $value ) ) . '"' . $req . '>';
 
 			case FieldType::Tel:
-				return '<input type="tel" id="' . $id . '" name="' . $name . '" value="' . esc_attr( $this->scalarValue( $value ) ) . '"' . $req . '>';
+				return '<input class="' . $control . '" type="tel" id="' . $id . '" name="' . $name . '" value="' . esc_attr( $this->scalarValue( $value ) ) . '"' . $req . '>';
 
 			case FieldType::Hidden:
 				return '<input type="hidden" name="' . $name . '" value="' . esc_attr( $this->scalarValue( $value ) ) . '">';
 
 			default: // Text i pozostałe.
-				return '<input type="text" id="' . $id . '" name="' . $name . '" value="' . esc_attr( $this->scalarValue( $value ) ) . '"' . $req . '>';
+				return '<input class="' . $control . '" type="text" id="' . $id . '" name="' . $name . '" value="' . esc_attr( $this->scalarValue( $value ) ) . '"' . $req . '>';
 		}
 	}
 
@@ -212,13 +218,21 @@ final class FormRenderer {
 	 * @param string   $name    Nazwa atrybutu name kontrolki.
 	 * @param string   $type    Typ HTML kontrolki ("radio" lub "checkbox").
 	 * @param mixed    $value   Wpisana wartość (lub wartości) do odtworzenia.
+	 * @param bool     $invalid Czy pole ma błąd walidacji (dodaje is-invalid).
 	 */
-	private function renderChoices( array $options, string $name, string $type, mixed $value ): string {
-		$selected = is_array( $value ) ? array_map( 'strval', $value ) : array( (string) $value );
-		$out      = '<div class="evreg-choices">';
+	private function renderChoices( array $options, string $name, string $type, mixed $value, bool $invalid = false ): string {
+		$selected    = is_array( $value ) ? array_map( 'strval', $value ) : array( (string) $value );
+		$input_class = 'form-check-input' . ( $invalid ? ' is-invalid' : '' );
+		$base        = 'evreg-opt-' . preg_replace( '/[^a-z0-9]+/i', '-', $name );
+		$out         = '<div class="evreg-choices">';
+		$index       = 0;
 		foreach ( $options as $option ) {
+			$oid     = $base . '-' . $index++;
 			$checked = in_array( $option->value, $selected, true ) ? ' checked' : '';
-			$out    .= '<label class="evreg-choice"><input type="' . esc_attr( $type ) . '" name="' . esc_attr( $name ) . '" value="' . esc_attr( $option->value ) . '"' . $checked . '> ' . esc_html( $option->label ) . '</label>';
+			$out    .= '<div class="evreg-choice form-check">'
+				. '<input class="' . $input_class . '" type="' . esc_attr( $type ) . '" id="' . esc_attr( $oid ) . '" name="' . esc_attr( $name ) . '" value="' . esc_attr( $option->value ) . '"' . $checked . '>'
+				. ' <label class="form-check-label" for="' . esc_attr( $oid ) . '">' . esc_html( $option->label ) . '</label>'
+				. '</div>';
 		}
 		$out .= '</div>';
 

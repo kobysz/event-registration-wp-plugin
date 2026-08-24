@@ -4,6 +4,7 @@ declare( strict_types=1 );
 
 namespace EvReg\Tests\Integration\Frontend;
 
+use EvReg\Admin\SettingsScreen;
 use EvReg\Frontend\Shortcode;
 use EvReg\Persistence\EventConfigRepository;
 use WP_UnitTestCase;
@@ -59,5 +60,24 @@ final class ShortcodeTest extends WP_UnitTestCase {
 		$html = Shortcode::render( array( 'event' => '0' ) );
 
 		$this->assertStringNotContainsString( '<form', $html );
+	}
+
+	public function test_bootstrap_not_enqueued_by_default(): void {
+		delete_option( SettingsScreen::LOAD_BOOTSTRAP_OPTION );
+
+		Shortcode::render( array( 'event' => (string) $this->event_id ) );
+
+		$this->assertTrue( wp_style_is( 'evreg-public', 'enqueued' ) );
+		$this->assertFalse( wp_style_is( 'evreg-bootstrap', 'enqueued' ) );
+	}
+
+	public function test_bootstrap_enqueued_when_option_enabled(): void {
+		update_option( SettingsScreen::LOAD_BOOTSTRAP_OPTION, 1 );
+
+		Shortcode::render( array( 'event' => (string) $this->event_id ) );
+
+		$this->assertTrue( wp_style_is( 'evreg-bootstrap', 'enqueued' ) );
+
+		delete_option( SettingsScreen::LOAD_BOOTSTRAP_OPTION );
 	}
 }

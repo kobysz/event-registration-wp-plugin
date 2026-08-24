@@ -57,6 +57,9 @@ final class Shortcode {
 			return '<p class="evreg-unavailable">' . esc_html__( 'Rejestracja jest niedostępna.', 'event-registration' ) . '</p>';
 		}
 
+		if ( get_option( \EvReg\Admin\SettingsScreen::LOAD_BOOTSTRAP_OPTION, false ) ) {
+			wp_enqueue_style( 'evreg-bootstrap' );
+		}
 		wp_enqueue_style( 'evreg-public' );
 		wp_enqueue_script( 'evreg-public' );
 
