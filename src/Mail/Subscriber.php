@@ -116,7 +116,8 @@ final class Subscriber {
 	 * @param bool   $immediate       Czy wymusić natychmiastowy przebieg dispatchera.
 	 */
 	private static function queue( int $registration_id, int $event_id, string $template_key, bool $immediate ): void {
-		$row = ( new RegistrationRepository() )->findById( $registration_id );
+		$registrations = self::registrations();
+		$row           = $registrations->findById( $registration_id );
 
 		if ( null === $row ) {
 			return;
@@ -129,7 +130,8 @@ final class Subscriber {
 			(string) $row['email'],
 			self::placeholders()->build( $row ),
 			array(),
-			$immediate
+			$immediate,
+			$registrations->langOf( $registration_id )
 		);
 	}
 
@@ -200,12 +202,19 @@ final class Subscriber {
 	}
 
 	/**
+	 * Składa repozytorium zgłoszeń.
+	 */
+	private static function registrations(): RegistrationRepository {
+		return new RegistrationRepository();
+	}
+
+	/**
 	 * Składa kolejkę mailową.
 	 */
 	private static function mailQueue(): MailQueue {
 		return new MailQueue(
 			new MailQueueRepository(),
-			new TemplateResolver( new MailTemplateRepository() ),
+			new TemplateResolver( new MailTemplateRepository(), new EventConfigRepository() ),
 			new TemplateRenderer()
 		);
 	}

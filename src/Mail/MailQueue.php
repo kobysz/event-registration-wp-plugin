@@ -56,6 +56,7 @@ final class MailQueue {
 	 * @param Placeholders      $values          Wartości placeholderów.
 	 * @param array<int,string> $headers        Nagłówki maila (np. Reply-To).
 	 * @param bool              $immediate       Czy zaplanować natychmiastowy przebieg dispatchera.
+	 * @param string            $lang            Slug języka zgłoszenia ('' = wersja bazowa).
 	 *
 	 * @return bool True, gdy wiersz powstał.
 	 */
@@ -66,7 +67,8 @@ final class MailQueue {
 		string $recipient,
 		Placeholders $values,
 		array $headers = array(),
-		bool $immediate = false
+		bool $immediate = false,
+		string $lang = ''
 	): bool {
 		$address = sanitize_email( $recipient );
 
@@ -74,7 +76,7 @@ final class MailQueue {
 			return false;
 		}
 
-		$template = $this->templates->resolve( $event_id, $template_key );
+		$template = $this->templates->resolve( $event_id, $template_key, $lang );
 
 		if ( '' === $template['subject'] && '' === $template['body'] ) {
 			return false;

@@ -222,6 +222,7 @@ function TabRouter( { name, config, update, templateDefaults } ) {
 			<MailTemplatesTab
 				templates={ config.mailTemplates }
 				defaults={ templateDefaults }
+				i18n={ config.i18n }
 				update={ update }
 			/>
 		);

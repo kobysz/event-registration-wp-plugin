@@ -6,6 +6,7 @@ namespace EvReg\Tests\Integration\Mail;
 
 use EvReg\Mail\DefaultTemplates;
 use EvReg\Mail\TemplateResolver;
+use EvReg\Persistence\EventConfigRepository;
 use EvReg\Persistence\MailTemplateRepository;
 use WP_UnitTestCase;
 
@@ -17,7 +18,7 @@ final class TemplateResolverTest extends WP_UnitTestCase {
 
 	protected function setUp(): void {
 		parent::setUp();
-		$this->resolver = new TemplateResolver( new MailTemplateRepository() );
+		$this->resolver = new TemplateResolver( new MailTemplateRepository(), new EventConfigRepository() );
 		$this->event_id = self::factory()->post->create( array( 'post_type' => 'evreg_event' ) );
 	}
 
@@ -32,7 +33,16 @@ final class TemplateResolverTest extends WP_UnitTestCase {
 		update_post_meta(
 			$this->event_id,
 			MailTemplateRepository::META_KEY,
-			wp_slash( (string) wp_json_encode( array( 'optin' => array( 'subject' => 'Własny temat', 'body' => '' ) ) ) )
+			wp_slash(
+				(string) wp_json_encode(
+					array(
+						'optin' => array(
+							'subject' => 'Własny temat',
+							'body'    => '',
+						),
+					)
+				)
+			)
 		);
 
 		$template = $this->resolver->resolve( $this->event_id, DefaultTemplates::KEY_OPTIN );
@@ -54,7 +64,13 @@ final class TemplateResolverTest extends WP_UnitTestCase {
 	}
 
 	public function test_unknown_key_resolves_to_empty_template(): void {
-		$this->assertSame( array( 'subject' => '', 'body' => '' ), $this->resolver->resolve( $this->event_id, 'nie_ma_takiego' ) );
+		$this->assertSame(
+			array(
+				'subject' => '',
+				'body'    => '',
+			),
+			$this->resolver->resolve( $this->event_id, 'nie_ma_takiego' )
+		);
 	}
 
 	public function test_base_key_strips_variant_suffix(): void {
