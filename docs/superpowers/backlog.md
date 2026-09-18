@@ -92,6 +92,8 @@ B2 (nowa baza klas) → B1 (dołożyć atrybuty warunków na już-BS5 render).
 
 ## B3 — Wersje językowe (WordPress + Polylang)
 
+**Status B3a:** ZROBIONE (2026-09-18) — Domain Path + `load_plugin_textdomain` (`src/I18n.php`), `languages/` z en_US (151 stringów), scripty `i18n:pot`/`i18n:mo`, testy integracyjne wymuszają pl_PL. Pozostaje B3b (overlay treści per event) i B3c (mail/link/locale).
+
 **Cel:** wielojęzyczność wtyczki na stronach z **Polylang** — formularz,
 komunikaty, maile i etykiety w języku strony/odwiedzającego.
 

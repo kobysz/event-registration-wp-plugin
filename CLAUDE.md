@@ -52,6 +52,12 @@ npm run test:e2e         # Playwright, celuje w localhost:8891
 
 # Composer (host, obraz dockera — bez lokalnego PHP)
 docker run --rm -v "$PWD:/app" -w //app composer:2 install
+
+# i18n (host → wrapper → WP-CLI w kontenerze)
+npm run i18n:pot        # regeneruj languages/event-registration.pot ze stringów PHP
+npm run i18n:mo         # kompiluj languages/*.po → .mo
+# Źródło stringów = polski (msgid = polski literał). Tłumaczenia: languages/event-registration-<locale>.po
+# Testy integracyjne działają na locale pl_PL (bootstrap-integration.php), by asercje polskich stringów źródłowych przechodziły mimo katalogu en_US.
 ```
 
 Logowanie do wp-env: `admin` / `password`.
