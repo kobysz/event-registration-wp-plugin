@@ -5,6 +5,7 @@ function langBucket( overlay, lang ) {
 		fields: base.fields || {},
 		types: base.types || {},
 		options: base.options || {},
+		mail: base.mail || {},
 	};
 }
 

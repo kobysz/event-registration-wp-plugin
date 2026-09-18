@@ -85,4 +85,32 @@ describe( 'i18nOps mail bucket', () => {
 		setMailTranslation( overlay, 'en', 'optin', 'body', 'Y' );
 		expect( JSON.stringify( overlay ) ).toBe( before );
 	} );
+
+	it( 'setTranslation po setMailTranslation zachowuje bucket mail (regresja utraty danych)', () => {
+		let overlay = {};
+		overlay = setMailTranslation( overlay, 'en', 'optin', 'subject', 'Hello' );
+		overlay = setTranslation( overlay, 'en', 'field', 'imie', 'Name' );
+		expect( overlay.en.mail.optin.subject ).toBe( 'Hello' );
+		expect( overlay.en.fields.imie ).toBe( 'Name' );
+	} );
+
+	it( 'setOptionTranslation po setMailTranslation zachowuje bucket mail (regresja utraty danych)', () => {
+		let overlay = {};
+		overlay = setMailTranslation( overlay, 'en', 'optin', 'subject', 'Hello' );
+		overlay = setOptionTranslation( overlay, 'en', 'rozmiar', 's', 'Small' );
+		expect( overlay.en.mail.optin.subject ).toBe( 'Hello' );
+		expect( overlay.en.options.rozmiar.s ).toBe( 'Small' );
+	} );
+
+	it( 'setMailTranslation po setTranslation/setOptionTranslation zachowuje sections/fields/options', () => {
+		let overlay = {};
+		overlay = setTranslation( overlay, 'en', 'section', 'dane', 'Data' );
+		overlay = setTranslation( overlay, 'en', 'field', 'imie', 'Name' );
+		overlay = setOptionTranslation( overlay, 'en', 'rozmiar', 's', 'Small' );
+		overlay = setMailTranslation( overlay, 'en', 'optin', 'subject', 'Hello' );
+		expect( overlay.en.sections.dane ).toBe( 'Data' );
+		expect( overlay.en.fields.imie ).toBe( 'Name' );
+		expect( overlay.en.options.rozmiar.s ).toBe( 'Small' );
+		expect( overlay.en.mail.optin.subject ).toBe( 'Hello' );
+	} );
 } );
