@@ -9,6 +9,10 @@ import {
 	moveField,
 	moveFieldTo,
 	updateField,
+	setFieldCondition,
+	clearFieldCondition,
+	setSectionCondition,
+	clearSectionCondition,
 	ensureTypeField,
 	addOption,
 	updateOption,
@@ -268,5 +272,38 @@ describe( 'schemaOps', () => {
 		updateOption( opts, 0, { label: 'Z' } );
 		removeOption( opts, 0 );
 		expect( JSON.stringify( opts ) ).toBe( before );
+	} );
+
+	it( 'setFieldCondition ustawia warunek na polu', () => {
+		let schema = addField( addSection( emptySchema(), 'dane', 'Dane' ), 'dane', { key: 'pwz', type: 'text', label: 'PWZ' } );
+		schema = setFieldCondition( schema, 'pwz', { field: '__type', operator: 'equals', value: 'prelegent' } );
+		expect( schema.sections[ 0 ].fields[ 0 ].condition ).toEqual( { field: '__type', operator: 'equals', value: 'prelegent' } );
+	} );
+
+	it( 'clearFieldCondition usuwa warunek (null)', () => {
+		let schema = addField( addSection( emptySchema(), 'dane', 'Dane' ), 'dane', { key: 'pwz', type: 'text', label: 'PWZ' } );
+		schema = setFieldCondition( schema, 'pwz', { field: '__type', operator: 'not_empty' } );
+		schema = clearFieldCondition( schema, 'pwz' );
+		expect( schema.sections[ 0 ].fields[ 0 ].condition ).toBeNull();
+	} );
+
+	it( 'setSectionCondition ustawia warunek na sekcji', () => {
+		let schema = addSection( emptySchema(), 'extra', 'Extra' );
+		schema = setSectionCondition( schema, 'extra', { field: '__type', operator: 'in', value: [ 'a', 'b' ] } );
+		expect( schema.sections[ 0 ].condition ).toEqual( { field: '__type', operator: 'in', value: [ 'a', 'b' ] } );
+	} );
+
+	it( 'clearSectionCondition usuwa warunek sekcji (null)', () => {
+		let schema = setSectionCondition( addSection( emptySchema(), 'extra', 'Extra' ), 'extra', { field: '__type', operator: 'not_empty' } );
+		schema = clearSectionCondition( schema, 'extra' );
+		expect( schema.sections[ 0 ].condition ).toBeNull();
+	} );
+
+	it( 'ops warunku nie mutują wejścia', () => {
+		const schema = addField( addSection( emptySchema(), 'dane', 'Dane' ), 'dane', { key: 'pwz', type: 'text', label: 'PWZ' } );
+		const before = JSON.stringify( schema );
+		setFieldCondition( schema, 'pwz', { field: '__type', operator: 'equals', value: 'x' } );
+		setSectionCondition( schema, 'dane', { field: '__type', operator: 'not_empty' } );
+		expect( JSON.stringify( schema ) ).toBe( before );
 	} );
 } );
