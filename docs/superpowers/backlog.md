@@ -6,7 +6,9 @@ plan → wykonanie). Rejestr utworzony 2026-08-21.
 
 ---
 
-## B1 — Zależności pól (warunkowa widoczność) — pełny stack
+## B1 — Zależności pól (warunkowa widoczność) — pełny stack — ZROBIONE (2026-09-18)
+
+**Status:** scalone — pełny stack (ops, render `data-evreg-when-*` na polach i sekcjach, generyczny form.js, edytor w builderze, e2e).
 
 **Cel:** pokazywanie/ukrywanie dowolnego pola LUB sekcji w zależności od
 wartości innego pola (nie tylko `__type`).
