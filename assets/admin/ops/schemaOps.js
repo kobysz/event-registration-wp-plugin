@@ -161,6 +161,36 @@ export function updateField( schema, fieldKey, patch ) {
 	return next;
 }
 
+export function setFieldCondition( schema, fieldKey, condition ) {
+	const next = clone( schema );
+	( next.sections || [] ).forEach( ( section ) => {
+		( section.fields || [] ).forEach( ( field ) => {
+			if ( field.key === fieldKey ) {
+				field.condition = condition;
+			}
+		} );
+	} );
+	return next;
+}
+
+export function clearFieldCondition( schema, fieldKey ) {
+	return setFieldCondition( schema, fieldKey, null );
+}
+
+export function setSectionCondition( schema, sectionKey, condition ) {
+	const next = clone( schema );
+	( next.sections || [] ).forEach( ( section ) => {
+		if ( section.key === sectionKey ) {
+			section.condition = condition;
+		}
+	} );
+	return next;
+}
+
+export function clearSectionCondition( schema, sectionKey ) {
+	return setSectionCondition( schema, sectionKey, null );
+}
+
 export function addOption( options ) {
 	return [ ...( options || [] ), { value: '', label: '' } ];
 }

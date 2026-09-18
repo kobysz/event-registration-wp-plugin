@@ -23,6 +23,8 @@ import {
 	removeField,
 	moveFieldTo,
 	updateField,
+	setFieldCondition,
+	setSectionCondition,
 } from '../ops/schemaOps';
 import { resolveDrop } from '../ops/dnd';
 
@@ -45,6 +47,7 @@ export default function FormTab( { config, update } ) {
 	const activeTarget = schema.sections.some( ( s ) => s.key === targetSection )
 		? targetSection
 		: firstSection;
+	const allFields = schema.sections.flatMap( ( s ) => s.fields || [] );
 
 	const sensors = useSensors(
 		useSensor( PointerSensor, { activationConstraint: { distance: 5 } } ),
@@ -90,6 +93,14 @@ export default function FormTab( { config, update } ) {
 						onFieldRemove={ ( key ) => setSchema( removeField( schema, key ) ) }
 						onRenameSection={ ( key, title ) => setSchema( renameSection( schema, key, title ) ) }
 						onRemoveSection={ ( key ) => setSchema( removeSection( schema, key ) ) }
+						allFields={ allFields }
+						types={ config.types || [] }
+						onFieldConditionChange={ ( key, condition ) =>
+							setSchema( setFieldCondition( schema, key, condition ) )
+						}
+						onSectionConditionChange={ ( key, condition ) =>
+							setSchema( setSectionCondition( schema, key, condition ) )
+						}
 					/>
 				) ) }
 			</DndContext>

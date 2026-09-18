@@ -6,7 +6,14 @@ import FieldRow from './FieldRow';
  * Owija FieldRow w logikę @dnd-kit (uchwyt aktywujący + transform).
  * Używane tylko dla pól przeciągalnych — __type renderuje się bez tego wrappera.
  */
-export default function SortableFieldRow( { field, onChange, onRemove } ) {
+export default function SortableFieldRow( {
+	field,
+	onChange,
+	onRemove,
+	triggers,
+	types,
+	onConditionChange,
+} ) {
 	const {
 		attributes,
 		listeners,
@@ -33,6 +40,9 @@ export default function SortableFieldRow( { field, onChange, onRemove } ) {
 			handleRef={ setActivatorNodeRef }
 			handleProps={ { ...attributes, ...listeners } }
 			style={ style }
+			triggers={ triggers }
+			types={ types }
+			onConditionChange={ onConditionChange }
 		/>
 	);
 }

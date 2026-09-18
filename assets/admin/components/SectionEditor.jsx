@@ -4,9 +4,11 @@ import { __ } from '@wordpress/i18n';
 import { useDroppable } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { TYPE_FIELD_KEY } from '../ops/fieldTypes';
+import { eligibleTriggers } from '../ops/conditionOps';
 import { sectionDroppableId } from '../ops/dnd';
 import FieldRow from './FieldRow';
 import SortableFieldRow from './SortableFieldRow';
+import ConditionEditor from './ConditionEditor';
 
 export default function SectionEditor( {
 	section,
@@ -17,6 +19,10 @@ export default function SectionEditor( {
 	onFieldRemove,
 	onRenameSection,
 	onRemoveSection,
+	allFields = [],
+	types = [],
+	onFieldConditionChange = () => {},
+	onSectionConditionChange = () => {},
 } ) {
 	const [ collapsed, setCollapsed ] = useState( false );
 
@@ -105,6 +111,9 @@ export default function SectionEditor( {
 								field={ field }
 								onChange={ ( patch ) => onFieldChange( field.key, patch ) }
 								onRemove={ () => onFieldRemove( field.key ) }
+								triggers={ eligibleTriggers( allFields, field.key ) }
+								types={ types }
+								onConditionChange={ onFieldConditionChange }
 							/>
 						) ) }
 					</SortableContext>
@@ -114,6 +123,13 @@ export default function SectionEditor( {
 							{ __( 'Brak pól — przeciągnij pole tutaj albo dodaj nowe niżej.', 'event-registration' ) }
 						</p>
 					) }
+
+					<ConditionEditor
+						condition={ section.condition || null }
+						triggers={ eligibleTriggers( allFields, null ) }
+						types={ types }
+						onChange={ ( condition ) => onSectionConditionChange( section.key, condition ) }
+					/>
 				</div>
 			) }
 		</div>
