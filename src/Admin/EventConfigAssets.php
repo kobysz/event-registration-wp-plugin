@@ -96,8 +96,10 @@ final class EventConfigAssets {
 			self::HANDLE,
 			'evregAdmin',
 			array(
-				'eventId' => $event_id,
-				'pages'   => $pages,
+				'eventId'         => $event_id,
+				'pages'           => $pages,
+				'languages'       => self::translationLanguages(),
+				'defaultLanguage' => function_exists( 'pll_default_language' ) ? (string) pll_default_language( 'slug' ) : '',
 			)
 		);
 	}
@@ -113,5 +115,30 @@ final class EventConfigAssets {
 		}
 
 		echo '<div id="evreg-admin-root"></div>';
+	}
+
+	/**
+	 * Języki Polylang bez domyślnego, do UI tłumaczeń. Puste bez Polylang.
+	 *
+	 * @return array<int,array{value:string,label:string}>
+	 */
+	private static function translationLanguages(): array {
+		if ( ! function_exists( 'pll_languages_list' ) || ! function_exists( 'pll_default_language' ) ) {
+			return array();
+		}
+		$default = (string) pll_default_language( 'slug' );
+		$slugs   = (array) pll_languages_list( array( 'fields' => 'slug' ) );
+		$names   = (array) pll_languages_list( array( 'fields' => 'name' ) );
+		$out     = array();
+		foreach ( $slugs as $i => $slug ) {
+			if ( (string) $slug === $default ) {
+				continue;
+			}
+			$out[] = array(
+				'value' => (string) $slug,
+				'label' => (string) ( $names[ $i ] ?? $slug ),
+			);
+		}
+		return $out;
 	}
 }

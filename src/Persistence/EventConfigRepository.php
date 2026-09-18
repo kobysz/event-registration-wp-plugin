@@ -71,6 +71,32 @@ final class EventConfigRepository {
 	}
 
 	/**
+	 * Zwraca overlay tłumaczeń treści (_evreg_i18n) lub pustą tablicę.
+	 *
+	 * @param int $event_id ID eventu.
+	 *
+	 * @return array<string,mixed>
+	 */
+	public function getI18n( int $event_id ): array {
+		$raw = get_post_meta( $event_id, '_evreg_i18n', true );
+		if ( ! is_string( $raw ) || '' === $raw ) {
+			return array();
+		}
+		$decoded = json_decode( $raw, true );
+		return is_array( $decoded ) ? $decoded : array();
+	}
+
+	/**
+	 * Zapisuje overlay tłumaczeń treści.
+	 *
+	 * @param int                 $event_id ID eventu.
+	 * @param array<string,mixed> $overlay  Mapa lang → nadpisania.
+	 */
+	public function saveI18n( int $event_id, array $overlay ): void {
+		update_post_meta( $event_id, '_evreg_i18n', wp_slash( (string) wp_json_encode( $overlay ) ) );
+	}
+
+	/**
 	 * Czyta pojedyncze meta i dekoduje z JSON.
 	 *
 	 * @param int    $event_id ID posta eventu.

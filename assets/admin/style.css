@@ -374,3 +374,39 @@
 	flex-direction: column;
 	gap: 2px;
 }
+
+/* --- Zakładka Tłumaczenia --- */
+
+.evreg-i18n-tab {
+	margin-top: 12px;
+	overflow-x: auto;
+}
+
+.evreg-i18n-tab__table {
+	width: 100%;
+	border-collapse: collapse;
+}
+
+.evreg-i18n-tab__table th,
+.evreg-i18n-tab__table td {
+	padding: 8px 10px;
+	border-bottom: 1px solid #dcdcde;
+	vertical-align: middle;
+	text-align: left;
+}
+
+.evreg-i18n-tab__table th {
+	font-size: 12px;
+	font-weight: 600;
+	color: #50575e;
+	background: #f6f7f7;
+}
+
+.evreg-i18n-tab__base {
+	color: #757575;
+	white-space: nowrap;
+}
+
+.evreg-i18n-tab__table td .components-text-control__input {
+	min-width: 160px;
+}

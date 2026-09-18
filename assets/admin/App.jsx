@@ -1,13 +1,14 @@
 import { useState, useEffect } from '@wordpress/element';
 import { Button, TabPanel, Spinner, Notice } from '@wordpress/components';
 import { __ } from '@wordpress/i18n';
-import { loadConfig, saveConfig, loadTemplates, saveTemplates } from './api';
+import { loadConfig, saveConfig, loadTemplates, saveTemplates, loadI18n, saveI18n } from './api';
 import ValidationReport from './components/ValidationReport';
 import FormTab from './tabs/FormTab';
 import TypesTab from './tabs/TypesTab';
 import AccommodationTab from './tabs/AccommodationTab';
 import SettingsTab from './tabs/SettingsTab';
 import MailTemplatesTab from './tabs/MailTemplatesTab';
+import TranslationsTab from './tabs/TranslationsTab';
 import { ensureTypeField, emptySchema } from './ops/schemaOps';
 import { mergeLoaded, normalizeForSave } from './ops/mailTemplateOps';
 
@@ -21,6 +22,7 @@ export default function App( { eventId } ) {
 	const [ error, setError ] = useState( '' );
 	const [ templateDefaults, setTemplateDefaults ] = useState( {} );
 	const [ templatesLoaded, setTemplatesLoaded ] = useState( false );
+	const [ i18nLoaded, setI18nLoaded ] = useState( false );
 
 	useEffect( () => {
 		if ( ! eventId ) {
@@ -52,6 +54,15 @@ export default function App( { eventId } ) {
 			.catch( () =>
 				setError( __( 'Nie udało się wczytać szablonów maili.', 'event-registration' ) )
 			);
+
+		loadI18n( eventId )
+			.then( ( data ) => {
+				setConfig( ( prev ) => ( { ...prev, i18n: data || {} } ) );
+				setI18nLoaded( true );
+			} )
+			.catch( () =>
+				setError( __( 'Nie udało się wczytać tłumaczeń.', 'event-registration' ) )
+			);
 	}, [ eventId ] );
 
 	const update = ( key ) => ( value ) =>
@@ -61,39 +72,48 @@ export default function App( { eventId } ) {
 		setSaving( true );
 		setError( '' );
 
-		// Never issue a templates save before the initial load has completed: an
-		// unloaded (or failed-load) `config.mailTemplates` would normalize to an
-		// empty set and the REST endpoint does a full replace, wiping any
-		// previously saved overrides. Only save templates once we know we have
+		// Never issue a templates/i18n save before its initial load has completed:
+		// an unloaded (or failed-load) `config.mailTemplates`/`config.i18n` would
+		// normalize to an empty set and the REST endpoints do a full replace,
+		// wiping any previously saved overrides. Only save once we know we have
 		// a real snapshot to normalize.
 		const tasks = [ saveConfig( eventId, config ) ];
-		if ( templatesLoaded ) {
-			tasks.push( saveTemplates( eventId, normalizeForSave( config.mailTemplates || {} ) ) );
-		}
+		const templatesIndex = templatesLoaded ? tasks.push(
+			saveTemplates( eventId, normalizeForSave( config.mailTemplates || {} ) )
+		) - 1 : -1;
+		const i18nIndex = i18nLoaded ? tasks.push( saveI18n( eventId, config.i18n || {} ) ) - 1 : -1;
 
 		Promise.allSettled( tasks )
-			.then( ( [ cfg, tpl ] ) => {
+			.then( ( results ) => {
+				const cfg = results[ 0 ];
+				const tpl = templatesIndex >= 0 ? results[ templatesIndex ] : null;
+				const i18n = i18nIndex >= 0 ? results[ i18nIndex ] : null;
+
 				if ( 'fulfilled' === cfg.status ) {
 					setValidation( cfg.value.validation || null );
 				}
 
-				if ( ! templatesLoaded ) {
-					if ( 'rejected' === cfg.status ) {
-						setError( __( 'Zapis nie powiódł się.', 'event-registration' ) );
-					}
-					return;
-				}
-
-				if ( 'fulfilled' === tpl.status ) {
+				if ( tpl && 'fulfilled' === tpl.status ) {
 					setConfig( ( prev ) => ( { ...prev, mailTemplates: mergeLoaded( tpl.value.templates || {} ) } ) );
 					setTemplateDefaults( tpl.value.defaults || {} );
 				}
-				if ( 'rejected' === cfg.status && 'rejected' === tpl.status ) {
-					setError( __( 'Zapis nie powiódł się.', 'event-registration' ) );
-				} else if ( 'rejected' === cfg.status ) {
-					setError( __( 'Konfiguracja nie zapisana; szablony zapisane.', 'event-registration' ) );
-				} else if ( 'rejected' === tpl.status ) {
-					setError( __( 'Szablony nie zapisane; konfiguracja zapisana.', 'event-registration' ) );
+
+				if ( i18n && 'fulfilled' === i18n.status ) {
+					setConfig( ( prev ) => ( { ...prev, i18n: i18n.value || {} } ) );
+				}
+
+				const rejectedLabels = [];
+				if ( 'rejected' === cfg.status ) {
+					rejectedLabels.push( __( 'konfiguracja', 'event-registration' ) );
+				}
+				if ( tpl && 'rejected' === tpl.status ) {
+					rejectedLabels.push( __( 'szablony maili', 'event-registration' ) );
+				}
+				if ( i18n && 'rejected' === i18n.status ) {
+					rejectedLabels.push( __( 'tłumaczenia', 'event-registration' ) );
+				}
+				if ( rejectedLabels.length ) {
+					setError( `${ __( 'Nie zapisano:', 'event-registration' ) } ${ rejectedLabels.join( ', ' ) }.` );
 				}
 			} )
 			.finally( () => setSaving( false ) );
@@ -117,6 +137,7 @@ export default function App( { eventId } ) {
 		{ name: 'accommodation', title: __( 'Noclegi', 'event-registration' ) },
 		{ name: 'settings', title: __( 'Ustawienia', 'event-registration' ) },
 		{ name: 'mail', title: __( 'Szablony maili', 'event-registration' ) },
+		{ name: 'i18n', title: __( 'Tłumaczenia', 'event-registration' ) },
 	];
 
 	return (
@@ -204,6 +225,9 @@ function TabRouter( { name, config, update, templateDefaults } ) {
 				update={ update }
 			/>
 		);
+	}
+	if ( 'i18n' === name ) {
+		return <TranslationsTab config={ config } update={ update } />;
 	}
 	return null;
 }
