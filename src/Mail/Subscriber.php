@@ -205,7 +205,7 @@ final class Subscriber {
 	private static function mailQueue(): MailQueue {
 		return new MailQueue(
 			new MailQueueRepository(),
-			new TemplateResolver( new MailTemplateRepository() ),
+			new TemplateResolver( new MailTemplateRepository(), new EventConfigRepository() ),
 			new TemplateRenderer()
 		);
 	}

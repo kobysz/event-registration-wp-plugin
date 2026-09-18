@@ -9,6 +9,7 @@ use EvReg\Domain\Mail\TemplateRenderer;
 use EvReg\Mail\DefaultTemplates;
 use EvReg\Mail\MailQueue;
 use EvReg\Mail\TemplateResolver;
+use EvReg\Persistence\EventConfigRepository;
 use EvReg\Persistence\MailQueueRepository;
 use EvReg\Persistence\MailTemplateRepository;
 use EvReg\Persistence\Migrations;
@@ -31,10 +32,15 @@ final class MailQueueTest extends WP_UnitTestCase {
 		$this->repository = new MailQueueRepository();
 		$this->mail_queue = new MailQueue(
 			$this->repository,
-			new TemplateResolver( new MailTemplateRepository() ),
+			new TemplateResolver( new MailTemplateRepository(), new EventConfigRepository() ),
 			new TemplateRenderer()
 		);
-		$this->event_id   = self::factory()->post->create( array( 'post_type' => 'evreg_event', 'post_title' => 'Zjazd 2026' ) );
+		$this->event_id   = self::factory()->post->create(
+			array(
+				'post_type'  => 'evreg_event',
+				'post_title' => 'Zjazd 2026',
+			)
+		);
 
 		wp_clear_scheduled_hook( MailQueue::DISPATCH_HOOK );
 	}
