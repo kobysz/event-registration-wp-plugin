@@ -3,6 +3,7 @@ import { Button, TextControl, ToggleControl } from '@wordpress/components';
 import { __ } from '@wordpress/i18n';
 import { isSpecial, isAccommodation, isChoice, FIELD_TYPES } from '../ops/fieldTypes';
 import { addOption, updateOption, removeOption } from '../ops/schemaOps';
+import ConditionEditor from './ConditionEditor';
 
 function typeLabel( type ) {
 	const found = FIELD_TYPES.find( ( t ) => t.value === type );
@@ -25,6 +26,9 @@ const FieldRow = forwardRef( function FieldRow(
 		handleProps = null,
 		handleRef = null,
 		style = null,
+		triggers = [],
+		types = [],
+		onConditionChange = () => {},
 		...rest
 	},
 	ref
@@ -138,6 +142,15 @@ const FieldRow = forwardRef( function FieldRow(
 					<p className="evreg-field-row__note">
 						{ __( 'Inwentarz konfigurujesz w zakładce Noclegi.', 'event-registration' ) }
 					</p>
+				) }
+
+				{ ! special && (
+					<ConditionEditor
+						condition={ field.condition || null }
+						triggers={ triggers }
+						types={ types }
+						onChange={ ( condition ) => onConditionChange( field.key, condition ) }
+					/>
 				) }
 			</div>
 
