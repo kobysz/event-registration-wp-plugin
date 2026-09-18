@@ -9,6 +9,7 @@ declare( strict_types=1 );
 
 namespace EvReg\Frontend;
 
+use EvReg\Domain\Conditions\Condition;
 use EvReg\Domain\Schema\Field;
 use EvReg\Domain\Schema\FieldType;
 use EvReg\Domain\Schema\FormSchema;
@@ -63,15 +64,7 @@ final class FormRenderer {
 	 * @param SubmitResult|null $result  Wynik poprzedniej próby submisji.
 	 */
 	private function renderSection( Section $section, ?SubmitResult $result ): string {
-		$attrs = '';
-		if ( null !== $section->condition ) {
-			$condition_value = wp_json_encode( $section->condition->value );
-			$attrs           = ' data-evreg-when-field="' . esc_attr( $section->condition->field ) . '"'
-				. ' data-evreg-when-operator="' . esc_attr( $section->condition->operator->value ) . '"'
-				. ' data-evreg-when-value="' . esc_attr( false !== $condition_value ? $condition_value : '' ) . '"';
-		}
-
-		$out  = '<fieldset class="evreg-section mb-4"' . $attrs . '>';
+		$out  = '<fieldset class="evreg-section mb-4"' . $this->conditionAttrs( $section->condition ) . '>';
 		$out .= '<legend class="fs-5">' . esc_html( $section->title ) . '</legend>';
 
 		if ( '' !== $section->description ) {
@@ -85,6 +78,29 @@ final class FormRenderer {
 		$out .= '</fieldset>';
 
 		return $out;
+	}
+
+	/**
+	 * Serializuje warunek widoczności do atrybutów data-evreg-when-*.
+	 * Wspólne dla sekcji i pól. Operatory bez wartości (empty/not_empty)
+	 * pomijają data-evreg-when-value.
+	 *
+	 * @param Condition|null $condition Warunek albo null.
+	 */
+	private function conditionAttrs( ?Condition $condition ): string {
+		if ( null === $condition ) {
+			return '';
+		}
+
+		$attrs = ' data-evreg-when-field="' . esc_attr( $condition->field ) . '"'
+			. ' data-evreg-when-operator="' . esc_attr( $condition->operator->value ) . '"';
+
+		if ( $condition->operator->needsValue() ) {
+			$value  = wp_json_encode( $condition->value );
+			$attrs .= ' data-evreg-when-value="' . esc_attr( false !== $value ? $value : '' ) . '"';
+		}
+
+		return $attrs;
 	}
 
 	/**
@@ -113,7 +129,7 @@ final class FormRenderer {
 		if ( FieldType::Checkbox === $field->type ) {
 			// Pojedynczy checkbox zgody: BS5 form-check — input (form-check-input)
 			// przed etykietą (form-check-label), obok siebie, nie blok nad polem.
-			$out  = '<div class="' . $class . ' form-check">';
+			$out  = '<div class="' . $class . ' form-check"' . $this->conditionAttrs( $field->condition ) . '>';
 			$out .= $this->renderControl( $field, $value, $invalid );
 			$out .= ' <label class="form-check-label" for="evreg-' . esc_attr( $field->key ) . '">' . esc_html( $field->label );
 			if ( $field->required ) {
@@ -121,7 +137,7 @@ final class FormRenderer {
 			}
 			$out .= '</label>';
 		} else {
-			$out  = '<div class="' . $class . '">';
+			$out  = '<div class="' . $class . '"' . $this->conditionAttrs( $field->condition ) . '>';
 			$out .= '<label class="evreg-label form-label" for="evreg-' . esc_attr( $field->key ) . '">' . esc_html( $field->label );
 			if ( $field->required ) {
 				$out .= ' <span class="evreg-required">*</span>';

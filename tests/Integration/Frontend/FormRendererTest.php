@@ -238,4 +238,57 @@ final class FormRendererTest extends WP_UnitTestCase {
 		$this->assertStringContainsString( 'name="evreg_field[email]" value=""', $html );
 		$this->assertStringNotContainsString( 'Array', $html );
 	}
+
+	public function test_field_with_condition_emits_when_attributes(): void {
+		$schema = FormSchema::fromArray(
+			array(
+				'version'  => 1,
+				'sections' => array(
+					array(
+						'key'    => 'dane',
+						'title'  => 'Dane',
+						'fields' => array(
+							array( 'key' => '__type', 'type' => 'radio', 'label' => 'Typ', 'options' => array( array( 'value' => 'prelegent', 'label' => 'Prelegent' ) ) ),
+							array(
+								'key'       => 'pwz',
+								'type'      => 'text',
+								'label'     => 'PWZ',
+								'condition' => array( 'field' => '__type', 'operator' => 'equals', 'value' => 'prelegent' ),
+							),
+						),
+					),
+				),
+			)
+		);
+
+		$html = $this->renderer->render( $schema, 1 );
+
+		$this->assertMatchesRegularExpression(
+			'/<div class="evreg-field evreg-field-text[^"]*"[^>]*data-evreg-when-field="__type"[^>]*data-evreg-when-operator="equals"[^>]*data-evreg-when-value="&quot;prelegent&quot;"/',
+			$html
+		);
+	}
+
+	public function test_field_condition_empty_operator_has_no_value_attr(): void {
+		$schema = FormSchema::fromArray(
+			array(
+				'version'  => 1,
+				'sections' => array(
+					array(
+						'key'    => 'dane',
+						'title'  => 'Dane',
+						'fields' => array(
+							array( 'key' => 'email', 'type' => 'email', 'label' => 'E-mail' ),
+							array( 'key' => 'pwz', 'type' => 'text', 'label' => 'PWZ', 'condition' => array( 'field' => 'email', 'operator' => 'not_empty' ) ),
+						),
+					),
+				),
+			)
+		);
+
+		$html = $this->renderer->render( $schema, 1 );
+
+		$this->assertStringContainsString( 'data-evreg-when-operator="not_empty"', $html );
+		$this->assertStringNotContainsString( 'data-evreg-when-value', $html );
+	}
 }
