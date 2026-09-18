@@ -5,7 +5,9 @@
     "build": "wp-scripts build assets/admin/index.js --output-path=build/admin",
     "start": "wp-scripts start assets/admin/index.js --output-path=build/admin",
     "test:js": "wp-scripts test-unit-js --config jest.config.js",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "i18n:pot": "node scripts/wp-env.cjs run cli --env-cwd=wp-content/plugins/event-registration -- wp i18n make-pot . languages/event-registration.pot --slug=event-registration --exclude=assets/admin,build,node_modules,tests,vendor,docs,scripts,.superpowers",
+    "i18n:mo": "node scripts/wp-env.cjs run cli --env-cwd=wp-content/plugins/event-registration -- wp i18n make-mo languages languages"
   },
   "devDependencies": {
     "@dnd-kit/core": "^6.3.1",

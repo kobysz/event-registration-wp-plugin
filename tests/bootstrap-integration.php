@@ -14,6 +14,11 @@ tests_add_filter(
 	'muplugins_loaded',
 	static function () {
 		require dirname( __DIR__ ) . '/event-registration.php';
+		// Testy asertują polskie stringi źródłowe. Od kiedy shipujemy katalog
+		// en_US, WP na domyślnym locale en_US tłumaczyłby je na angielski.
+		// Wymuszamy pl_PL (brak pl_PL.mo → zwracany jest polski msgid = źródło).
+		// I18nTest sam przełącza się na en_US przez switch_to_locale.
+		add_filter( 'locale', static fn (): string => 'pl_PL' );
 	}
 );
 

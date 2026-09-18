@@ -1,0 +1,770 @@
+# Copyright (C) 2026 Eorta.pl
+# This file is distributed under the GPL-2.0-or-later.
+msgid ""
+msgstr ""
+"Project-Id-Version: Event Registration 0.1.1\n"
+"Report-Msgid-Bugs-To: https://wordpress.org/support/plugin/event-registration\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"POT-Creation-Date: 2026-09-18T14:21:04+00:00\n"
+"PO-Revision-Date: 2026-09-18 14:30+0000\n"
+"Language: en_US\n"
+"X-Generator: WP-CLI 2.12.0\n"
+"X-Domain: event-registration\n"
+
+#. Plugin Name of the plugin
+#: event-registration.php
+#: src/Privacy/PrivacyProvider.php:73
+msgid "Event Registration"
+msgstr "Event Registration"
+
+#. Description of the plugin
+#: event-registration.php
+msgid "Formularze rejestracji na wydarzenia z limitami miejsc, noclegami i potwierdzeniami mailowymi."
+msgstr "Event registration forms with capacity limits, accommodation, and email confirmations."
+
+#. Author of the plugin
+#: event-registration.php
+msgid "Eorta.pl"
+msgstr "Eorta.pl"
+
+#. Author URI of the plugin
+#: event-registration.php
+msgid "https://eorta.pl"
+msgstr "https://eorta.pl"
+
+#: src/Admin/EventPostType.php:37
+msgid "Wydarzenia"
+msgstr "Events"
+
+#: src/Admin/EventPostType.php:38
+#: src/Admin/MailQueueListTable.php:59
+#: src/Admin/MailQueueScreen.php:118
+#: src/Admin/RegistrationsListTable.php:87
+msgid "Wydarzenie"
+msgstr "Event"
+
+#: src/Admin/EventPostType.php:39
+msgid "Dodaj wydarzenie"
+msgstr "Add event"
+
+#: src/Admin/EventPostType.php:40
+msgid "Edytuj wydarzenie"
+msgstr "Edit event"
+
+#: src/Admin/MailQueueListTable.php:56
+#: src/Admin/MailQueueScreen.php:116
+#: src/Admin/RegistrationsExporter.php:44
+#: src/Admin/RegistrationsListTable.php:86
+#: src/Admin/RegistrationsScreen.php:201
+#: src/Privacy/PrivacyProvider.php:103
+msgid "Status"
+msgstr "Status"
+
+#: src/Admin/MailQueueListTable.php:57
+#: src/Admin/MailQueueScreen.php:119
+msgid "Typ maila"
+msgstr "Mail type"
+
+#: src/Admin/MailQueueListTable.php:58
+#: src/Admin/MailQueueScreen.php:117
+msgid "Odbiorca"
+msgstr "Recipient"
+
+#: src/Admin/MailQueueListTable.php:60
+#: src/Admin/MailQueueScreen.php:120
+msgid "Próby"
+msgstr "Attempts"
+
+#: src/Admin/MailQueueListTable.php:61
+#: src/Admin/MailQueueScreen.php:121
+msgid "Zaplanowano"
+msgstr "Scheduled"
+
+#: src/Admin/MailQueueListTable.php:62
+#: src/Admin/MailQueueScreen.php:122
+msgid "Wysłano"
+msgstr "Sent"
+
+#: src/Admin/MailQueueListTable.php:117
+msgid "W kolejce"
+msgstr "Queued"
+
+#: src/Admin/MailQueueListTable.php:118
+msgid "Wysyłanie"
+msgstr "Sending"
+
+#: src/Admin/MailQueueListTable.php:119
+msgid "Wysłany"
+msgstr "Sent"
+
+#: src/Admin/MailQueueListTable.php:120
+msgid "Nieudany"
+msgstr "Failed"
+
+#: src/Admin/MailQueueListTable.php:152
+#: src/Admin/RegistrationsListTable.php:168
+msgid "Podgląd"
+msgstr "View"
+
+#: src/Admin/MailQueueListTable.php:160
+#: src/Admin/MailQueueScreen.php:135
+msgid "Wznów"
+msgstr "Retry"
+
+#: src/Admin/MailQueueListTable.php:183
+#: src/Admin/RegistrationsListTable.php:224
+msgid "Wszystkie statusy"
+msgstr "All statuses"
+
+#: src/Admin/MailQueueListTable.php:195
+#: src/Admin/RegistrationsListTable.php:231
+msgid "Wszystkie wydarzenia"
+msgstr "All events"
+
+#: src/Admin/MailQueueListTable.php:207
+#: src/Admin/RegistrationsListTable.php:252
+msgid "Filtruj"
+msgstr "Filter"
+
+#: src/Admin/MailQueueScreen.php:38
+#: src/Admin/MailQueueScreen.php:39
+#: src/Admin/MailQueueScreen.php:74
+msgid "Kolejka maili"
+msgstr "Mail queue"
+
+#: src/Admin/MailQueueScreen.php:51
+#: src/Admin/MailQueueScreen.php:165
+#: src/Admin/RegistrationsScreen.php:69
+#: src/Admin/RegistrationsScreen.php:432
+#: src/Admin/RegistrationsScreen.php:519
+#: src/Admin/RegistrationsScreen.php:586
+msgid "Brak uprawnień."
+msgstr "You do not have permission."
+
+#: src/Admin/MailQueueScreen.php:83
+msgid "Mail wznowiony — trafi do najbliższego przebiegu wysyłki."
+msgstr "Mail requeued — it will go out in the next sending run."
+
+#: src/Admin/MailQueueScreen.php:83
+msgid "Nie udało się wznowić maila."
+msgstr "Failed to requeue the mail."
+
+#: src/Admin/MailQueueScreen.php:105
+msgid "Szczegóły maila"
+msgstr "Mail details"
+
+#: src/Admin/MailQueueScreen.php:106
+msgid "← wróć do kolejki"
+msgstr "← back to queue"
+
+#: src/Admin/MailQueueScreen.php:109
+msgid "Nie znaleziono wiersza kolejki."
+msgstr "Queue row not found."
+
+#: src/Admin/MailQueueScreen.php:123
+msgid "Nagłówki"
+msgstr "Headers"
+
+#: src/Admin/MailQueueScreen.php:124
+msgid "Ostatni błąd"
+msgstr "Last error"
+
+#: src/Admin/MailQueueScreen.php:125
+msgid "Temat"
+msgstr "Subject"
+
+#: src/Admin/MailQueueScreen.php:128
+msgid "Treść"
+msgstr "Body"
+
+#: src/Admin/RegistrationEditForm.php:50
+msgid "Zapisz zmiany"
+msgstr "Save changes"
+
+#: src/Admin/RegistrationEditForm.php:92
+#: src/Frontend/FormRenderer.php:338
+msgid "To pole jest wymagane."
+msgstr "This field is required."
+
+#: src/Admin/RegistrationEditForm.php:93
+#: src/Frontend/FormRenderer.php:339
+msgid "Nieprawidłowy adres e-mail."
+msgstr "Invalid email address."
+
+#: src/Admin/RegistrationEditForm.php:94
+#: src/Frontend/FormRenderer.php:340
+msgid "Nieprawidłowy numer telefonu."
+msgstr "Invalid phone number."
+
+#: src/Admin/RegistrationEditForm.php:95
+#: src/Frontend/FormRenderer.php:341
+msgid "Nieprawidłowa liczba."
+msgstr "Invalid number."
+
+#: src/Admin/RegistrationEditForm.php:96
+#: src/Frontend/FormRenderer.php:342
+msgid "Nieprawidłowa data."
+msgstr "Invalid date."
+
+#: src/Admin/RegistrationEditForm.php:97
+#: src/Frontend/FormRenderer.php:343
+msgid "Wybór spoza dostępnych opcji."
+msgstr "Selection outside the available options."
+
+#: src/Admin/RegistrationEditForm.php:98
+#: src/Frontend/FormRenderer.php:344
+msgid "Wpis jest za długi."
+msgstr "The entry is too long."
+
+#: src/Admin/RegistrationEditForm.php:99
+#: src/Frontend/FormRenderer.php:345
+msgid "Nieprawidłowy wybór noclegu."
+msgstr "Invalid accommodation selection."
+
+#: src/Admin/RegistrationEditForm.php:100
+#: src/Frontend/FormRenderer.php:346
+msgid "Współlokator niedozwolony dla tego pokoju."
+msgstr "Roommate not allowed for this room."
+
+#: src/Admin/RegistrationEditForm.php:103
+#: src/Frontend/FormRenderer.php:349
+msgid "Nieprawidłowa wartość."
+msgstr "Invalid value."
+
+#: src/Admin/RegistrationEditForm.php:163
+msgid "— brak —"
+msgstr "— none —"
+
+#: src/Admin/RegistrationEditForm.php:216
+#: src/Frontend/FormRenderer.php:296
+msgid "Bez noclegu"
+msgstr "No accommodation"
+
+#: src/Admin/RegistrationEditForm.php:239
+#: src/Admin/RegistrationsScreen.php:321
+msgid "Współlokator"
+msgstr "Roommate"
+
+#: src/Admin/RegistrationsExporter.php:43
+msgid "ID"
+msgstr "ID"
+
+#: src/Admin/RegistrationsExporter.php:45
+#: src/Admin/RegistrationsListTable.php:85
+#: src/Admin/RegistrationsScreen.php:204
+#: src/Privacy/PrivacyProvider.php:107
+msgid "Typ"
+msgstr "Type"
+
+#: src/Admin/RegistrationsExporter.php:46
+#: src/Admin/RegistrationsListTable.php:84
+#: src/Admin/RegistrationsScreen.php:203
+#: src/Privacy/PrivacyProvider.php:111
+msgid "E-mail"
+msgstr "Email"
+
+#: src/Admin/RegistrationsExporter.php:47
+#: src/Admin/RegistrationsListTable.php:83
+#: src/Admin/RegistrationsScreen.php:202
+#: src/Privacy/PrivacyProvider.php:115
+msgid "Imię i nazwisko"
+msgstr "Full name"
+
+#: src/Admin/RegistrationsExporter.php:48
+#: src/Privacy/PrivacyProvider.php:119
+msgid "Cena"
+msgstr "Price"
+
+#: src/Admin/RegistrationsExporter.php:49
+#: src/Privacy/PrivacyProvider.php:123
+msgid "Utworzono"
+msgstr "Created"
+
+#: src/Admin/RegistrationsExporter.php:50
+#: src/Admin/RegistrationsScreen.php:207
+#: src/Privacy/PrivacyProvider.php:127
+msgid "Potwierdzono"
+msgstr "Confirmed"
+
+#: src/Admin/RegistrationsExporter.php:51
+#: src/Privacy/PrivacyProvider.php:131
+msgid "Notatka"
+msgstr "Note"
+
+#: src/Admin/RegistrationsExporter.php:60
+msgid "Nocleg – pakiet"
+msgstr "Accommodation – package"
+
+#: src/Admin/RegistrationsExporter.php:61
+msgid "Nocleg – pokój"
+msgstr "Accommodation – room"
+
+#: src/Admin/RegistrationsExporter.php:62
+msgid "Nocleg – współlokator"
+msgstr "Accommodation – roommate"
+
+#: src/Admin/RegistrationsListTable.php:67
+msgid "Oczekuje"
+msgstr "Pending"
+
+#: src/Admin/RegistrationsListTable.php:68
+msgid "Potwierdzone"
+msgstr "Confirmed"
+
+#: src/Admin/RegistrationsListTable.php:69
+msgid "Lista rezerwowa"
+msgstr "Waitlist"
+
+#: src/Admin/RegistrationsListTable.php:70
+msgid "Anulowane"
+msgstr "Cancelled"
+
+#: src/Admin/RegistrationsListTable.php:88
+#: src/Admin/RegistrationsScreen.php:205
+msgid "Kwota"
+msgstr "Amount"
+
+#: src/Admin/RegistrationsListTable.php:89
+#: src/Admin/RegistrationsScreen.php:206
+msgid "Zgłoszono"
+msgstr "Submitted"
+
+#: src/Admin/RegistrationsListTable.php:173
+#: src/Admin/RegistrationsScreen.php:353
+msgid "Potwierdź"
+msgstr "Confirm"
+
+#: src/Admin/RegistrationsListTable.php:177
+#: src/Admin/RegistrationsScreen.php:356
+msgid "Promuj"
+msgstr "Promote"
+
+#: src/Admin/RegistrationsListTable.php:181
+#: src/Admin/RegistrationsScreen.php:360
+msgid "Anuluj"
+msgstr "Cancel"
+
+#: src/Admin/RegistrationsListTable.php:185
+#: src/Admin/RegistrationsScreen.php:363
+msgid "Usuń trwale"
+msgstr "Delete permanently"
+
+#: src/Admin/RegistrationsListTable.php:245
+msgid "Wszystkie typy"
+msgstr "All types"
+
+#: src/Admin/RegistrationsScreen.php:56
+#: src/Admin/RegistrationsScreen.php:57
+#: src/Admin/RegistrationsScreen.php:98
+msgid "Zgłoszenia"
+msgstr "Registrations"
+
+#: src/Admin/RegistrationsScreen.php:130
+msgid "Eksportuj CSV"
+msgstr "Export CSV"
+
+#: src/Admin/RegistrationsScreen.php:146
+msgid "Zgłoszenie potwierdzone."
+msgstr "Registration confirmed."
+
+#: src/Admin/RegistrationsScreen.php:147
+msgid "Zgłoszenie anulowane, miejsce zwolnione."
+msgstr "Registration cancelled, the spot has been released."
+
+#: src/Admin/RegistrationsScreen.php:148
+msgid "Awansowano z listy rezerwowej — wysłano prośbę o potwierdzenie."
+msgstr "Promoted from the waitlist — a confirmation request has been sent."
+
+#: src/Admin/RegistrationsScreen.php:149
+msgid "Zgłoszenie trwale usunięte."
+msgstr "Registration permanently deleted."
+
+#: src/Admin/RegistrationsScreen.php:150
+msgid "Notatka zapisana."
+msgstr "Note saved."
+
+#: src/Admin/RegistrationsScreen.php:151
+msgid "Odpowiedzi zgłoszenia zaktualizowane."
+msgstr "Registration answers updated."
+
+#: src/Admin/RegistrationsScreen.php:152
+msgid "Brak wolnych miejsc — nie można awansować."
+msgstr "No spots available — cannot promote."
+
+#: src/Admin/RegistrationsScreen.php:153
+msgid "Akcja niedozwolona dla tego statusu."
+msgstr "Action not allowed for this status."
+
+#: src/Admin/RegistrationsScreen.php:154
+#: src/Admin/RegistrationsScreen.php:192
+#: src/Admin/RegistrationsScreen.php:232
+msgid "Nie znaleziono zgłoszenia."
+msgstr "Registration not found."
+
+#: src/Admin/RegistrationsScreen.php:155
+msgid "Brak wolnych miejsc dla wybranego typu zgłoszenia."
+msgstr "No spots available for the selected registration type."
+
+#: src/Admin/RegistrationsScreen.php:156
+msgid "Brak wolnych miejsc dla wybranego noclegu."
+msgstr "No spots available for the selected accommodation."
+
+#: src/Admin/RegistrationsScreen.php:157
+msgid "Wybierz event, aby wyeksportować zgłoszenia."
+msgstr "Select an event to export registrations."
+
+#: src/Admin/RegistrationsScreen.php:188
+msgid "Szczegóły zgłoszenia"
+msgstr "Registration details"
+
+#: src/Admin/RegistrationsScreen.php:189
+msgid "← wróć do listy"
+msgstr "← back to list"
+
+#: src/Admin/RegistrationsScreen.php:208
+msgid "Wygasa"
+msgstr "Expires"
+
+#: src/Admin/RegistrationsScreen.php:229
+#: src/Admin/RegistrationsScreen.php:542
+msgid "Edytuj zgłoszenie"
+msgstr "Edit registration"
+
+#: src/Admin/RegistrationsScreen.php:237
+msgid "Nie można edytować anulowanego zgłoszenia."
+msgstr "Cannot edit a cancelled registration."
+
+#: src/Admin/RegistrationsScreen.php:244
+msgid "Nie udało się załadować formularza tego wydarzenia."
+msgstr "Failed to load this event's form."
+
+#: src/Admin/RegistrationsScreen.php:291
+msgid "Odpowiedzi"
+msgstr "Answers"
+
+#: src/Admin/RegistrationsScreen.php:317
+#: src/Privacy/PrivacyProvider.php:149
+msgid "Nocleg"
+msgstr "Accommodation"
+
+#: src/Admin/RegistrationsScreen.php:319
+msgid "Pakiet"
+msgstr "Package"
+
+#: src/Admin/RegistrationsScreen.php:320
+msgid "Pokój"
+msgstr "Room"
+
+#: src/Admin/RegistrationsScreen.php:332
+msgid "Notatka organizatora"
+msgstr "Organizer's note"
+
+#: src/Admin/RegistrationsScreen.php:339
+msgid "Zapisz notatkę"
+msgstr "Save note"
+
+#: src/Admin/RegistrationsScreen.php:370
+msgid "Akcje"
+msgstr "Actions"
+
+#: src/Admin/RegistrationsScreen.php:408
+msgid "Edytuj"
+msgstr "Edit"
+
+#: src/Admin/SettingsScreen.php:37
+#: src/Admin/SettingsScreen.php:38
+msgid "Ustawienia"
+msgstr "Settings"
+
+#: src/Admin/SettingsScreen.php:68
+msgid "Usuwanie danych"
+msgstr "Data deletion"
+
+#: src/Admin/SettingsScreen.php:75
+msgid "Bootstrap 5"
+msgstr "Bootstrap 5"
+
+#: src/Admin/SettingsScreen.php:88
+msgid "Załaduj Bootstrap 5 CSS na stronie z formularzem."
+msgstr "Load Bootstrap 5 CSS on the page with the form."
+
+#: src/Admin/SettingsScreen.php:89
+msgid "Włącz tylko jeśli motyw nie ładuje już Bootstrapa 5 — styluje całą stronę."
+msgstr "Enable only if the theme doesn't already load Bootstrap 5 — it styles the entire page."
+
+#: src/Admin/SettingsScreen.php:111
+msgid "Usuń wszystkie dane wtyczki (zgłoszenia, ustawienia) przy odinstalowaniu. Nieodwracalne."
+msgstr "Delete all plugin data (registrations, settings) on uninstall. Irreversible."
+
+#: src/Admin/SettingsScreen.php:114
+msgid "Wymuszone stałą EVREG_DELETE_DATA_ON_UNINSTALL w wp-config."
+msgstr "Enforced by the EVREG_DELETE_DATA_ON_UNINSTALL constant in wp-config."
+
+#: src/Admin/SettingsScreen.php:120
+msgid "Event Registration — Ustawienia"
+msgstr "Event Registration — Settings"
+
+#: src/Cron/DispatchMail.php:68
+msgid "Co minutę (Event Registration)"
+msgstr "Every minute (Event Registration)"
+
+#: src/Cron/ExpirePending.php:61
+msgid "Co 15 minut (Event Registration)"
+msgstr "Every 15 minutes (Event Registration)"
+
+#: src/Frontend/Block.php:39
+msgid "Formularz rejestracji"
+msgstr "Registration form"
+
+#: src/Frontend/ConfirmationController.php:74
+msgid "Zgłoszenie potwierdzone. Do zobaczenia!"
+msgstr "Registration confirmed. See you there!"
+
+#: src/Frontend/ConfirmationController.php:75
+msgid "To zgłoszenie było już potwierdzone."
+msgstr "This registration has already been confirmed."
+
+#: src/Frontend/ConfirmationController.php:76
+msgid "Link potwierdzający wygasł."
+msgstr "The confirmation link has expired."
+
+#: src/Frontend/ConfirmationController.php:77
+msgid "Jesteś na liście rezerwowej."
+msgstr "You are on the waitlist."
+
+#: src/Frontend/ConfirmationController.php:78
+msgid "Nie znaleziono zgłoszenia dla tego linku."
+msgstr "No registration was found for this link."
+
+#: src/Frontend/ConfirmationController.php:81
+msgid "Nieznany status potwierdzenia."
+msgstr "Unknown confirmation status."
+
+#: src/Frontend/FormRenderer.php:48
+msgid "Zostaw puste"
+msgstr "Leave empty"
+
+#: src/Frontend/FormRenderer.php:54
+msgid "Wyślij zgłoszenie"
+msgstr "Submit registration"
+
+#: src/Frontend/FormRenderer.php:323
+msgid "Preferowana osoba w pokoju"
+msgstr "Preferred roommate"
+
+#: src/Frontend/Shortcode.php:70
+msgid "Rejestracja jest niedostępna."
+msgstr "Registration is unavailable."
+
+#: src/Frontend/Shortcode.php:89
+msgid "Jesteś na liście rezerwowej. Poinformujemy Cię, gdy zwolni się miejsce."
+msgstr "You are on the waitlist. We'll let you know when a spot opens up."
+
+#: src/Frontend/Shortcode.php:90
+msgid "Dziękujemy! Sprawdź e-mail i potwierdź zgłoszenie."
+msgstr "Thank you! Check your email and confirm your registration."
+
+#: src/Frontend/Shortcode.php:141
+msgid "Jesteś już zapisany na to wydarzenie."
+msgstr "You are already registered for this event."
+
+#: src/Frontend/Shortcode.php:142
+msgid "Brak wolnych miejsc."
+msgstr "No spots available."
+
+#: src/Frontend/Shortcode.php:143
+msgid "Nie udało się wysłać zgłoszenia. Spróbuj ponownie."
+msgstr "Failed to submit the registration. Please try again."
+
+#: src/Frontend/Shortcode.php:144
+msgid "Formularz jest nieprawidłowo skonfigurowany."
+msgstr "The form is incorrectly configured."
+
+#: src/Frontend/Shortcode.php:145
+msgid "Popraw zaznaczone pola."
+msgstr "Please correct the highlighted fields."
+
+#: src/Mail/DefaultTemplates.php:53
+msgid "Potwierdź zgłoszenie na {event}"
+msgstr "Confirm your registration for {event}"
+
+#: src/Mail/DefaultTemplates.php:54
+msgid ""
+"Cześć {imie},\n"
+"\n"
+"dziękujemy za zgłoszenie na {event} ({typ}).\n"
+"\n"
+"Potwierdź je, otwierając ten link:\n"
+"{link_potwierdzenia}\n"
+"\n"
+"Bez potwierdzenia rezerwacja wygaśnie po 48 godzinach, a miejsce wróci do puli.\n"
+"\n"
+"Twoje zgłoszenie:\n"
+"{podsumowanie}"
+msgstr ""
+"Hi {imie},\n"
+"\n"
+"thank you for registering for {event} ({typ}).\n"
+"\n"
+"Please confirm by opening this link:\n"
+"{link_potwierdzenia}\n"
+"\n"
+"If it isn't confirmed, the reservation will expire after 48 hours and the spot will return to the pool.\n"
+"\n"
+"Your registration:\n"
+"{podsumowanie}"
+
+#: src/Mail/DefaultTemplates.php:70
+msgid "Zgłoszenie na {event} potwierdzone"
+msgstr "Registration for {event} confirmed"
+
+#: src/Mail/DefaultTemplates.php:71
+msgid ""
+"Cześć {imie},\n"
+"\n"
+"Twoje zgłoszenie na {event} ({typ}) jest potwierdzone. Do zobaczenia.\n"
+"\n"
+"Twoje zgłoszenie:\n"
+"{podsumowanie}"
+msgstr ""
+"Hi {imie},\n"
+"\n"
+"Your registration for {event} ({typ}) is confirmed. See you there.\n"
+"\n"
+"Your registration:\n"
+"{podsumowanie}"
+
+#: src/Mail/DefaultTemplates.php:82
+msgid "Lista rezerwowa — {event}"
+msgstr "Waitlist — {event}"
+
+#: src/Mail/DefaultTemplates.php:83
+msgid ""
+"Cześć {imie},\n"
+"\n"
+"komplet miejsc na {event} ({typ}) został wyczerpany, więc Twoje zgłoszenie trafiło na listę rezerwową.\n"
+"\n"
+"Odezwiemy się, gdy zwolni się miejsce.\n"
+"\n"
+"Twoje zgłoszenie:\n"
+"{podsumowanie}"
+msgstr ""
+"Hi {imie},\n"
+"\n"
+"all spots for {event} ({typ}) are full, so your registration has been placed on the waitlist.\n"
+"\n"
+"We'll get in touch when a spot opens up.\n"
+"\n"
+"Your registration:\n"
+"{podsumowanie}"
+
+#: src/Mail/DefaultTemplates.php:96
+msgid "Rezerwacja na {event} wygasła"
+msgstr "Reservation for {event} expired"
+
+#: src/Mail/DefaultTemplates.php:97
+msgid ""
+"Cześć {imie},\n"
+"\n"
+"Twoja rezerwacja na {event} wygasła, bo zgłoszenie nie zostało potwierdzone w ciągu 48 godzin. Miejsce wróciło do puli.\n"
+"\n"
+"Jeśli nadal chcesz wziąć udział, wypełnij formularz ponownie."
+msgstr ""
+"Hi {imie},\n"
+"\n"
+"Your reservation for {event} has expired because the registration wasn't confirmed within 48 hours. The spot has returned to the pool.\n"
+"\n"
+"If you'd still like to take part, please fill out the form again."
+
+#: src/Mail/DefaultTemplates.php:107
+msgid "Nowe zgłoszenie: {event}"
+msgstr "New registration: {event}"
+
+#: src/Mail/DefaultTemplates.php:108
+msgid ""
+"Nowe zgłoszenie na {event}.\n"
+"\n"
+"Osoba: {imie} ({email})\n"
+"Typ: {typ}\n"
+"Nocleg: {nocleg}\n"
+"\n"
+"Odpowiedzi:\n"
+"{podsumowanie}"
+msgstr ""
+"New registration for {event}.\n"
+"\n"
+"Person: {imie} ({email})\n"
+"Type: {typ}\n"
+"Accommodation: {nocleg}\n"
+"\n"
+"Answers:\n"
+"{podsumowanie}"
+
+#: src/Mail/Dispatcher.php:116
+msgid "wp_mail zwróciło false bez podania przyczyny."
+msgstr "wp_mail returned false without providing a reason."
+
+#. translators: 1: opis noclegu, 2: preferowany współlokator.
+#: src/Mail/PlaceholderFactory.php:114
+#, php-format
+msgid "%1$s (współlokator: %2$s)"
+msgstr "%1$s (roommate: %2$s)"
+
+#: src/Mail/PlaceholderFactory.php:158
+msgid "Tak"
+msgstr "Yes"
+
+#. translators: %s: opis rezerwacji noclegowej.
+#: src/Mail/PlaceholderFactory.php:168
+#, php-format
+msgid "Nocleg: %s"
+msgstr "Accommodation: %s"
+
+#: src/Privacy/PrivacyProvider.php:48
+#: src/Privacy/PrivacyProvider.php:62
+#: src/Privacy/PrivacyProvider.php:180
+msgid "Zgłoszenia (Event Registration)"
+msgstr "Registrations (Event Registration)"
+
+#: src/Privacy/PrivacyProvider.php:72
+msgid "Wtyczka Event Registration przechowuje dane zgłoszeń na wydarzenia: adres e-mail, imię i nazwisko, odpowiedzi z formularza, wybór noclegu oraz treść wysłanych potwierdzeń. Dane są przechowywane do czasu usunięcia zgłoszenia lub odinstalowania wtyczki."
+msgstr "The Event Registration plugin stores event registration data: email address, full name, form answers, accommodation selection, and the content of sent confirmations. Data is retained until the registration is deleted or the plugin is uninstalled."
+
+#: src/Privacy/PrivacyProvider.php:157
+msgid "E-mail: adresat"
+msgstr "Email: recipient"
+
+#: src/Privacy/PrivacyProvider.php:161
+msgid "E-mail: temat"
+msgstr "Email: subject"
+
+#: src/Privacy/PrivacyProvider.php:165
+msgid "E-mail: zaplanowano"
+msgstr "Email: scheduled"
+
+#: src/Privacy/PrivacyProvider.php:169
+msgid "E-mail: wysłano"
+msgstr "Email: sent"
+
+#: src/Privacy/PrivacyProvider.php:173
+msgid "E-mail: status"
+msgstr "Email: status"
+
+#. translators: %d: liczba zgłoszeń
+#: src/Privacy/PrivacyProvider.php:221
+#, php-format
+msgid "Zanonimizowano dane %d zgłoszeń."
+msgstr "Anonymized data for %d registrations."
+
+#: src/Rest/EventConfigController.php:103
+#: src/Rest/MailTemplateController.php:106
+msgid "Brak uprawnień do edycji tego wydarzenia."
+msgstr "You do not have permission to edit this event."
+
+#: src/Rest/MailTemplateController.php:98
+msgid "Nie znaleziono wydarzenia."
+msgstr "Event not found."

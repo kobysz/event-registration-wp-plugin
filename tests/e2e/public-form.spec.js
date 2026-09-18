@@ -31,7 +31,7 @@ test( 'participant fills the form, submits, and confirms via token link', async 
 
 	// Wait out the antispam min-fill-time gate (>= 3s, see SubmitHandler::MIN_FILL_SECONDS).
 	await page.waitForTimeout( 3500 );
-	await page.getByRole( 'button', { name: 'Wyślij zgłoszenie' } ).click();
+	await page.locator( 'button.evreg-submit' ).click();
 
 	await expect( page.locator( '.evreg-success' ) ).toBeVisible();
 

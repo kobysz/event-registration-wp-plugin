@@ -2,7 +2,7 @@
 /**
  * Plugin Name:       Event Registration
  * Description:       Formularze rejestracji na wydarzenia z limitami miejsc, noclegami i potwierdzeniami mailowymi.
- * Version:           0.1.1
+ * Version:           0.1.2
  * Requires at least: 6.4
  * Requires PHP:      8.1
  * Author:            Eorta.pl
@@ -10,6 +10,7 @@
  * License:           GPL-2.0-or-later
  * License URI:       https://www.gnu.org/licenses/gpl-2.0.html
  * Text Domain:       event-registration
+ * Domain Path:       /languages
  * Update URI:        https://github.com/kobysz/event-registration-wp-plugin
  *
  * @package EvReg
@@ -25,6 +26,7 @@ if ( file_exists( __DIR__ . '/vendor/autoload.php' ) ) {
 
 \EvReg\Plugin::boot( __FILE__ );
 
+add_action( 'plugins_loaded', array( \EvReg\I18n::class, 'register' ) );
 add_action( 'plugins_loaded', array( \EvReg\Admin\EventPostType::class, 'register' ) );
 add_action( 'plugins_loaded', array( \EvReg\Admin\Capabilities::class, 'register' ) );
 add_action( 'plugins_loaded', array( \EvReg\Rest\EventConfigController::class, 'register' ) );
