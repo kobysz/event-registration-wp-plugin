@@ -102,9 +102,18 @@ export default function App( { eventId } ) {
 					setConfig( ( prev ) => ( { ...prev, i18n: i18n.value || {} } ) );
 				}
 
-				const rejected = [ cfg, tpl, i18n ].filter( ( r ) => r && 'rejected' === r.status );
-				if ( rejected.length ) {
-					setError( __( 'Zapis nie powiódł się w całości.', 'event-registration' ) );
+				const rejectedLabels = [];
+				if ( 'rejected' === cfg.status ) {
+					rejectedLabels.push( __( 'konfiguracja', 'event-registration' ) );
+				}
+				if ( tpl && 'rejected' === tpl.status ) {
+					rejectedLabels.push( __( 'szablony maili', 'event-registration' ) );
+				}
+				if ( i18n && 'rejected' === i18n.status ) {
+					rejectedLabels.push( __( 'tłumaczenia', 'event-registration' ) );
+				}
+				if ( rejectedLabels.length ) {
+					setError( `${ __( 'Nie zapisano:', 'event-registration' ) } ${ rejectedLabels.join( ', ' ) }.` );
 				}
 			} )
 			.finally( () => setSaving( false ) );
