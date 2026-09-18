@@ -96,6 +96,8 @@ B2 (nowa baza klas) → B1 (dołożyć atrybuty warunków na już-BS5 render).
 
 **Status B3b:** ZROBIONE (2026-09-18) — meta `_evreg_i18n` + `ContentTranslator` (domena) + wpięcie w `EventFormLoader` (język przez `CurrentLanguage`/filtr `evreg_current_language`) + `I18nController` REST + zakładka Tłumaczenia (macierz string×język, języki z Polylang). Pozostaje B3c (mail/link/formaty locale).
 
+**Status B3c-1:** ZROBIONE (2026-09-18) — kolumna `lang` w `evreg_registrations` (db v4), `TemplateResolver::resolve(event, key, lang='')` rozstrzyga per język przez `_evreg_i18n[lang].mail` (fallback per pole → baza → default), `MailQueue::enqueue` i `Subscriber` przekazują język zgłoszenia (uczestnik) / `''` (organizator), przełącznik języka w `MailTemplatesTab`. Pozostaje B3c-2 (język linku/strony potwierdzenia) i B3c-3 (formaty daty/waluty locale).
+
 **Cel:** wielojęzyczność wtyczki na stronach z **Polylang** — formularz,
 komunikaty, maile i etykiety w języku strony/odwiedzającego.
 
