@@ -1,46 +1,65 @@
 ( function () {
-	function currentType( form ) {
-		var checked = form.querySelector( 'input[name="__type"]:checked' );
-		return checked ? checked.value : '';
+	function toList( value ) {
+		if ( value === null || value === undefined ) { return []; }
+		if ( Array.isArray( value ) ) { return value.map( String ); }
+		var s = String( value );
+		return s === '' ? [] : [ s ];
 	}
 
-	function matches( type, operator, rawValue ) {
-		var value;
-		try { value = JSON.parse( rawValue ); } catch ( e ) { value = rawValue; }
-		var list = Array.isArray( value ) ? value.map( String ) : [ String( value ) ];
+	function listEquals( a, b ) {
+		if ( a.length !== b.length ) { return false; }
+		for ( var i = 0; i < a.length; i++ ) { if ( a[ i ] !== b[ i ] ) { return false; } }
+		return true;
+	}
+
+	function intersects( a, b ) {
+		for ( var i = 0; i < a.length; i++ ) { if ( b.indexOf( a[ i ] ) !== -1 ) { return true; } }
+		return false;
+	}
+
+	// Lustro EvReg\Domain\Conditions\ConditionEngine::isMet (semantyka listowa).
+	function isMet( operator, answer, expected ) {
 		switch ( operator ) {
-			case 'in': return list.indexOf( type ) !== -1;
-			case 'not_in': return list.indexOf( type ) === -1;
-			case 'equals': return String( value ) === type;
-			case 'not_equals': return String( value ) !== type;
-			case 'empty': return type === '';
-			case 'not_empty': return type !== '';
+			case 'equals': return listEquals( answer, expected );
+			case 'not_equals': return ! listEquals( answer, expected );
+			case 'in': return intersects( answer, expected );
+			case 'not_in': return ! intersects( answer, expected );
+			case 'empty': return answer.length === 0;
+			case 'not_empty': return answer.length > 0;
 			default: return true;
 		}
 	}
 
-	function applyConditional( form ) {
-		var type = currentType( form );
-		form.querySelectorAll( '[data-evreg-when-field]' ).forEach( function ( section ) {
-			if ( section.getAttribute( 'data-evreg-when-field' ) !== '__type' ) { return; }
-			var visible = matches(
-				type,
-				section.getAttribute( 'data-evreg-when-operator' ),
-				section.getAttribute( 'data-evreg-when-value' )
-			);
-			section.hidden = ! visible;
+	// Bieżąca wartość pola triggera jako lista stringów (lustro toList na odpowiedzi).
+	function readTrigger( form, key ) {
+		var out = [];
+		var nodes = form.querySelectorAll(
+			'[name="evreg_field[' + key + ']"], [name="evreg_field[' + key + '][]"]'
+		);
+		nodes.forEach( function ( node ) {
+			if ( node.type === 'checkbox' || node.type === 'radio' ) {
+				if ( node.checked ) { out.push( String( node.value ) ); }
+			} else if ( node.value !== '' ) {
+				out.push( String( node.value ) );
+			}
+		} );
+		return out;
+	}
+
+	function apply( form ) {
+		form.querySelectorAll( '[data-evreg-when-field]' ).forEach( function ( el ) {
+			var key = el.getAttribute( 'data-evreg-when-field' );
+			var operator = el.getAttribute( 'data-evreg-when-operator' );
+			var raw = el.getAttribute( 'data-evreg-when-value' );
+			var expected;
+			try { expected = toList( JSON.parse( raw ) ); } catch ( e ) { expected = toList( raw ); }
+			el.hidden = ! isMet( operator, readTrigger( form, key ), expected );
 		} );
 	}
 
-	// Pole współlokatora jest per pokój: widoczne tylko gdy wybrany slot należy do
-	// pokoju z włączoną flagą (kontrolka slotu — radio lub option — ma
-	// data-evreg-roommate="1"). Działa w formularzu publicznym (radio) i w edycji
-	// admina (select), niezależnie od klasy formularza.
 	function selectedSlotAllowsRoommate( container ) {
 		var radio = container.querySelector( 'input[type="radio"][name$="[slot]"]:checked' );
-		if ( radio ) {
-			return radio.getAttribute( 'data-evreg-roommate' ) === '1';
-		}
+		if ( radio ) { return radio.getAttribute( 'data-evreg-roommate' ) === '1'; }
 		var select = container.querySelector( 'select[name$="[slot]"]' );
 		if ( select && select.selectedIndex >= 0 ) {
 			var option = select.options[ select.selectedIndex ];
@@ -56,10 +75,9 @@
 	}
 
 	document.querySelectorAll( '.evreg-form' ).forEach( function ( form ) {
-		applyConditional( form );
-		form.addEventListener( 'change', function ( e ) {
-			if ( e.target && e.target.name === '__type' ) { applyConditional( form ); }
-		} );
+		apply( form );
+		form.addEventListener( 'change', function () { apply( form ); } );
+		form.addEventListener( 'input', function () { apply( form ); } );
 	} );
 
 	document.querySelectorAll( '.evreg-accommodation' ).forEach( function ( container ) {
