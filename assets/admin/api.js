@@ -27,3 +27,17 @@ export function saveTemplates( eventId, templates ) {
 		data: { templates },
 	} );
 }
+
+const i18nBase = ( eventId ) => `/evreg/v1/events/${ eventId }/i18n`;
+
+export function loadI18n( eventId ) {
+	return apiFetch( { path: i18nBase( eventId ) } );
+}
+
+export function saveI18n( eventId, overlay ) {
+	return apiFetch( {
+		path: i18nBase( eventId ),
+		method: 'POST',
+		data: overlay,
+	} );
+}
