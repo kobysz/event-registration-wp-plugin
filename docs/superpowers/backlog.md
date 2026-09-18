@@ -85,3 +85,62 @@ kolejność/wspólny plan, by nie przerabiać renderu dwa razy. Sugerowana kolej
 B2 (nowa baza klas) → B1 (dołożyć atrybuty warunków na już-BS5 render).
 
 **Kontekst użytkownika:** buduje większość skórek na Bootstrap 5 — stąd wybór BS5.
+
+---
+
+## B3 — Wersje językowe (WordPress + Polylang)
+
+**Cel:** wielojęzyczność wtyczki na stronach z **Polylang** — formularz,
+komunikaty, maile i etykiety w języku strony/odwiedzającego.
+
+**Stan obecny:** wszystkie stringi UI przez i18n (text domain `event-registration`),
+ale brak tłumaczeń (.po/.mo) i brak integracji z Polylang. Konfiguracja eventu
+(schema/typy/nocleg/szablony maili) jest jednojęzyczna (meta per post).
+
+**Do zaplanowania (spec):**
+- Tłumaczenia stringów wtyczki: `languages/` + `load_plugin_textdomain`,
+  pot/po/mo; ewentualnie translation-ready dla wtyczek tłumaczących.
+- Treści konfigurowane per event (etykiety pól, typy, szablony maili) — jak
+  tłumaczyć? Opcje: (a) osobny event per język (Polylang tłumaczy CPT
+  `evreg_event`, każdy język = własna konfiguracja), (b) pola wielojęzyczne w
+  schemie, (c) integracja z rejestrem stringów Polylang. Rozstrzygnąć w spec.
+- Język maila potwierdzającego = język zgłoszenia/strony (obecnie jeden zestaw
+  `DefaultTemplates`/meta).
+- Link potwierdzenia i strona docelowa w odpowiednim języku (`form_page_id`
+  per język?).
+- Data/waluta/format wg locale.
+
+**Zależności:** dotyka `FormRenderer`, `PlaceholderFactory`/szablonów maili,
+`SettingsScreen`, `EventFormLoader`. Duży temat — prawdopodobnie własna
+roadmapa, nie pojedynczy plan.
+
+---
+
+## B4 — Opcja pola „unikalne" (walidacja unikalności per pole)
+
+**Cel:** flaga „unikalne" na polu schematu — wartość nie może się powtórzyć
+w obrębie eventu (np. numer PWZ — prawo wykonywania zawodu — jeden numer =
+jedno zgłoszenie).
+
+**Stan obecny:** jest TYLKO unikalność e-maila na rezerwacji publicznej —
+`ReservationService::reserve` woła `RegistrationRepository::activeRegistrationExists(event, email)`
+→ `ReservationResult::duplicate()`. Indeks `idx_event_email` jest NIE-unikalny
+(miękki guard w kodzie). `editAnswers` (admin) świadomie NIE sprawdza duplikatu.
+Brak mechanizmu unikalności dla dowolnego innego pola.
+
+**Do przemyślenia — ZASADNOŚĆ (uwaga użytkownika):** skoro e-mail jest już
+unikalny per event, lekarz chcący zdublować numer PWZ musiałby użyć innego
+e-maila — więc osobna flaga „unikalne" na PWZ łapałaby dokładnie ten przypadek
+(inny mail, ten sam numer). Pytanie czy realny/warty obsługi. Rozstrzygnąć
+przed budową; być może niepotrzebne.
+
+**Jeśli robimy (szkic zakresu):**
+- Flaga `unique` na polu w builderze (checkbox obok „wymagane"; ops + testy).
+- Walidacja: sprawdzenie kolizji wartości w obrębie eventu przy submicie
+  (i przy edycji admina?). Gdzie liczyć — odpowiedzi trzymane jako JSON w
+  `evreg_registrations.data`; zapytanie po wartości pola = skan/`JSON_EXTRACT`
+  (MySQL 5.7+) albo osobna kolumna/indeks dla pól unikalnych (wydajność).
+- Komunikat błędu per pole (jak `roommate_not_allowed`/`invalid_email`).
+- Spójność z edycją admina (`editAnswers` dziś pomija duplikat-email — czy
+  „unikalne" ma tam działać?).
+- Normalizacja porównania (trim, wielkość liter dla numerów/tekstu).
