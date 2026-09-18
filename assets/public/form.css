@@ -1,4 +1,4 @@
-.evreg-form { max-width: 640px; }
+.evreg-form { max-width: 640px; margin-inline: auto; }
 .evreg-section { border: 1px solid var(--evreg-border, #ddd); padding: 1rem; margin: 0 0 1rem; }
 /* Legenda jako zwykły nagłówek sekcji. Neutralizujemy reboot Bootstrapa
    (legend { float:left; width:100% }) i ewentualne obramowania z motywu,
@@ -6,10 +6,10 @@
 .evreg-section > legend {
 	display: block;
 	float: none;
-	width: 100%;
+	width: auto;
 	max-width: 100%;
-	margin-bottom: .5rem;
-	padding: 0;
+	margin: 0 0 .5rem .5rem;
+	padding: 0 .5rem;
 	border: 0;
 	font-size: 1.25rem;
 	font-weight: 600;
