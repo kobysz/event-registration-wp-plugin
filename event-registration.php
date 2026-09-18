@@ -5,7 +5,8 @@
  * Version:           0.1.1
  * Requires at least: 6.4
  * Requires PHP:      8.1
- * Author:            Kuba
+ * Author:            Eorta.pl
+ * Author URI:        https://eorta.pl
  * License:           GPL-2.0-or-later
  * License URI:       https://www.gnu.org/licenses/gpl-2.0.html
  * Text Domain:       event-registration
