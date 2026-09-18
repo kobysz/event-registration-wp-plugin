@@ -62,6 +62,39 @@ final class ShortcodeTest extends WP_UnitTestCase {
 		$this->assertStringNotContainsString( '<form', $html );
 	}
 
+	public function test_confirmed_link_shows_message_not_form(): void {
+		$_GET['evreg_confirmed'] = 'confirmed';
+
+		$html = Shortcode::render( array( 'event' => (string) $this->event_id ) );
+
+		$this->assertStringNotContainsString( '<form', $html );
+		$this->assertStringContainsString( 'Zgłoszenie potwierdzone', $html );
+		$this->assertStringContainsString( 'alert alert-success', $html );
+
+		unset( $_GET['evreg_confirmed'] );
+	}
+
+	public function test_confirmed_expired_uses_warning_alert(): void {
+		$_GET['evreg_confirmed'] = 'expired';
+
+		$html = Shortcode::render( array( 'event' => (string) $this->event_id ) );
+
+		$this->assertStringContainsString( 'alert alert-warning', $html );
+
+		unset( $_GET['evreg_confirmed'] );
+	}
+
+	public function test_reserved_success_is_bootstrap_alert(): void {
+		$_GET['evreg'] = 'reserved';
+
+		$html = Shortcode::render( array( 'event' => (string) $this->event_id ) );
+
+		$this->assertStringContainsString( 'evreg-success', $html );
+		$this->assertStringContainsString( 'alert alert-success', $html );
+
+		unset( $_GET['evreg'] );
+	}
+
 	public function test_bootstrap_not_enqueued_by_default(): void {
 		delete_option( SettingsScreen::LOAD_BOOTSTRAP_OPTION );
 
