@@ -39,6 +39,7 @@ const FieldRow = forwardRef( function FieldRow(
 		field.type !== 'heading' &&
 		field.type !== 'paragraph';
 	const showOptions = isChoice( field.type ) && ! special;
+	const showCondition = ! special && field.type !== 'heading' && field.type !== 'paragraph';
 	const options = field.options || [];
 
 	const classes = [ 'evreg-field-row' ];
@@ -144,7 +145,7 @@ const FieldRow = forwardRef( function FieldRow(
 					</p>
 				) }
 
-				{ ! special && (
+				{ showCondition && (
 					<ConditionEditor
 						condition={ field.condition || null }
 						triggers={ triggers }
