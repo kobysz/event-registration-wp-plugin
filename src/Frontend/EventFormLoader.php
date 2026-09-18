@@ -9,6 +9,7 @@ declare( strict_types=1 );
 
 namespace EvReg\Frontend;
 
+use EvReg\Domain\Schema\ContentTranslator;
 use EvReg\Domain\Schema\FormSchema;
 use EvReg\Domain\Schema\SchemaAssembler;
 use EvReg\Domain\Schema\SchemaException;
@@ -50,10 +51,18 @@ final class EventFormLoader {
 			return null;
 		}
 
+		$types              = is_array( $config['types'] ) ? $config['types'] : array();
+		[ $schema, $types ] = ( new ContentTranslator() )->apply(
+			$schema,
+			$types,
+			$this->config->getI18n( $event_id ),
+			CurrentLanguage::get()
+		);
+
 		try {
 			return $this->assembler->assemble(
 				$schema,
-				is_array( $config['types'] ) ? $config['types'] : array(),
+				$types,
 				is_array( $config['accommodation'] ) ? $config['accommodation'] : array()
 			);
 		} catch ( SchemaException $e ) {
