@@ -146,7 +146,7 @@ final class RegistrationRepository {
 	 * Wstawia nowe zgłoszenie i zwraca jego ID.
 	 *
 	 * @param array<string,mixed> $row Dane zgłoszenia: event_id, type_key, status, email,
-	 *                                 name, token, data (JSON), price_total, expires_at.
+	 *                                 name, token, data (JSON), price_total, expires_at, lang.
 	 */
 	public function insertRegistration( array $row ): int {
 		global $wpdb;
@@ -167,11 +167,22 @@ final class RegistrationRepository {
 				'created_at'  => $now,
 				'updated_at'  => $now,
 				'expires_at'  => $row['expires_at'],
+				'lang'        => (string) ( $row['lang'] ?? '' ),
 			),
-			array( '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%f', '%s', '%s', '%s' )
+			array( '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%f', '%s', '%s', '%s', '%s' )
 		);
 
 		return (int) $wpdb->insert_id;
+	}
+
+	/**
+	 * Zwraca slug języka zgłoszenia ('' gdy brak).
+	 *
+	 * @param int $registration_id ID zgłoszenia.
+	 */
+	public function langOf( int $registration_id ): string {
+		$row = $this->findById( $registration_id );
+		return is_array( $row ) ? (string) ( $row['lang'] ?? '' ) : '';
 	}
 
 	/**

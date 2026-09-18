@@ -52,7 +52,8 @@ final class SubmissionAssembler {
 			$this->extractName( $schema, $values, $email ),
 			(string) ( $values[ FormSchema::TYPE_FIELD_KEY ] ?? '' ),
 			$values,
-			$this->extractSelection( $schema, $values )
+			$this->extractSelection( $schema, $values ),
+			CurrentLanguage::get()
 		);
 
 		return AssembledSubmission::valid( $values, $request );

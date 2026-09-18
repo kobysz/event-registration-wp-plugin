@@ -135,6 +135,7 @@ final class ReservationService {
 					'data'        => (string) wp_json_encode( $request->data ),
 					'price_total' => $price,
 					'expires_at'  => $expires_at,
+					'lang'        => $request->lang,
 				)
 			);
 
