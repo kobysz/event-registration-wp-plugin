@@ -4,6 +4,8 @@ import {
 	getOptionTranslation,
 	setTranslation,
 	setOptionTranslation,
+	getMailTranslation,
+	setMailTranslation,
 } from './i18nOps';
 
 const schema = {
@@ -59,6 +61,28 @@ describe( 'i18nOps', () => {
 		const before = JSON.stringify( overlay );
 		setTranslation( overlay, 'en', 'field', 'imie', 'Y' );
 		setOptionTranslation( overlay, 'en', 'rozmiar', 's', 'Z' );
+		expect( JSON.stringify( overlay ) ).toBe( before );
+	} );
+} );
+
+describe( 'i18nOps mail bucket', () => {
+	it( 'setMailTranslation/getMailTranslation dla subject i body', () => {
+		let overlay = {};
+		overlay = setMailTranslation( overlay, 'en', 'optin', 'subject', 'Confirm your registration' );
+		overlay = setMailTranslation( overlay, 'en', 'optin', 'body', 'Click the link.' );
+		expect( getMailTranslation( overlay, 'en', 'optin', 'subject' ) ).toBe( 'Confirm your registration' );
+		expect( getMailTranslation( overlay, 'en', 'optin', 'body' ) ).toBe( 'Click the link.' );
+		expect( overlay.en.mail.optin.subject ).toBe( 'Confirm your registration' );
+	} );
+
+	it( 'getMailTranslation zwraca pusty string gdy brak', () => {
+		expect( getMailTranslation( {}, 'en', 'optin', 'subject' ) ).toBe( '' );
+	} );
+
+	it( 'mail ops nie mutują wejścia', () => {
+		const overlay = { en: { mail: { optin: { subject: 'X' } } } };
+		const before = JSON.stringify( overlay );
+		setMailTranslation( overlay, 'en', 'optin', 'body', 'Y' );
 		expect( JSON.stringify( overlay ) ).toBe( before );
 	} );
 } );

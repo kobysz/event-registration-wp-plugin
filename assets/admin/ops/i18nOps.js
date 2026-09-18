@@ -73,3 +73,24 @@ export function setOptionTranslation( overlay, lang, fieldKey, optionValue, valu
 		},
 	};
 }
+
+export function getMailTranslation( overlay, lang, templateKey, field ) {
+	const mail = ( ( overlay[ lang ] || {} ).mail || {} )[ templateKey ] || {};
+	return mail[ field ] ? String( mail[ field ] ) : '';
+}
+
+export function setMailTranslation( overlay, lang, templateKey, field, value ) {
+	const langEntry = overlay[ lang ] || {};
+	const mail = langEntry.mail || {};
+	const tpl = mail[ templateKey ] || {};
+	return {
+		...overlay,
+		[ lang ]: {
+			...langEntry,
+			mail: {
+				...mail,
+				[ templateKey ]: { ...tpl, [ field ]: value },
+			},
+		},
+	};
+}
