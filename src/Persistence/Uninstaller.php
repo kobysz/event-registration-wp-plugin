@@ -49,6 +49,7 @@ final class Uninstaller {
 
 		delete_option( Migrations::VERSION_OPTION );
 		delete_option( self::DELETE_OPTION );
+		delete_option( \EvReg\Admin\SettingsScreen::LOAD_BOOTSTRAP_OPTION );
 
 		self::deleteEvents();
 

@@ -1,6 +1,20 @@
 .evreg-form { max-width: 640px; }
 .evreg-section { border: 1px solid var(--evreg-border, #ddd); padding: 1rem; margin: 0 0 1rem; }
-.evreg-section > legend { font-weight: 600; padding: 0 .5rem; }
+/* Legenda jako zwykły nagłówek sekcji. Neutralizujemy reboot Bootstrapa
+   (legend { float:left; width:100% }) i ewentualne obramowania z motywu,
+   inaczej tytuł sekcji dziwnie się rozjeżdża. */
+.evreg-section > legend {
+	display: block;
+	float: none;
+	width: 100%;
+	max-width: 100%;
+	margin-bottom: .5rem;
+	padding: 0;
+	border: 0;
+	font-size: 1.25rem;
+	font-weight: 600;
+	line-height: 1.2;
+}
 .evreg-field { margin: 0 0 .75rem; }
 .evreg-label { display: block; margin-bottom: .25rem; }
 .evreg-checkbox-label { display: inline-flex; align-items: center; gap: .4rem; }
@@ -19,5 +33,8 @@
 .evreg-error-msg { color: var(--evreg-required, #c00); font-size: .875rem; display: block; }
 .evreg-choice { display: block; }
 .evreg-submit { margin-top: 1rem; }
-.evreg-success, .evreg-notice { padding: .75rem 1rem; margin: 0 0 1rem; border-left: 4px solid var(--evreg-accent, #2271b1); background: #f6f7f7; }
+/* Baseline komunikatów bez Bootstrapa. :where() = zero specyficzności, więc gdy
+   BS5 jest załadowany jego klasy .alert-* wygrywają (kolor alertu), a bez BS5
+   ten styl nadal działa. */
+:where( .evreg-success, .evreg-notice, .evreg-confirmed ) { padding: .75rem 1rem; margin: 0 0 1rem; border-left: 4px solid var(--evreg-accent, #2271b1); background: #f6f7f7; }
 .evreg-section[hidden] { display: none; }

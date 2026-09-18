@@ -80,6 +80,16 @@ final class FormRendererTest extends WP_UnitTestCase {
 		$this->assertStringNotContainsString( '[nocleg][roommate]', $html );
 	}
 
+	public function test_accommodation_slots_use_bootstrap_form_check(): void {
+		$html = $this->renderer->render( $this->accommodationSchema( false ), 1 );
+
+		$this->assertMatchesRegularExpression(
+			'/<div class="evreg-choice form-check"><input class="form-check-input" type="radio"[^>]*name="evreg_field\[nocleg\]\[slot\]"/',
+			$html
+		);
+		$this->assertStringContainsString( 'form-check-label', $html );
+	}
+
 	public function test_roommate_input_present_and_tagged_when_a_room_allows_it(): void {
 		$html = $this->renderer->render( $this->accommodationSchema( true ), 1 );
 
@@ -87,7 +97,7 @@ final class FormRendererTest extends WP_UnitTestCase {
 		$this->assertStringContainsString( 'data-evreg-roommate="1"', $html );
 	}
 
-	public function test_single_checkbox_renders_label_inline_after_the_box(): void {
+	public function test_single_checkbox_renders_as_bootstrap_form_check_with_label_beside_box(): void {
 		$schema = FormSchema::fromArray(
 			array(
 				'version'  => 1,
@@ -105,15 +115,65 @@ final class FormRendererTest extends WP_UnitTestCase {
 
 		$html = $this->renderer->render( $schema, 1 );
 
-		// Checkbox input poprzedza tekst etykiety w jednym, wewnętrznym <label>.
+		// Struktura BS5 form-check: input (form-check-input) przed labelem (form-check-label).
 		$this->assertMatchesRegularExpression(
-			'/<label class="evreg-checkbox-label"[^>]*>\s*<input type="checkbox"[^>]*>\s*<span[^>]*>Wyrażam zgodę/',
+			'/<input class="form-check-input" type="checkbox"[^>]*>\s*<label class="form-check-label"[^>]*>Wyrażam zgodę/',
 			$html
 		);
+		$this->assertStringContainsString( 'evreg-field-checkbox', $html );
+		$this->assertStringContainsString( 'form-check', $html );
 		// Brak stackowanej etykiety blokowej dla checkboxa.
 		$this->assertStringNotContainsString( '<label class="evreg-label" for="evreg-zgoda"', $html );
-		// Gwiazdka wymagania nadal obecna.
 		$this->assertStringContainsString( 'evreg-required', $html );
+	}
+
+	public function test_bootstrap_classes_on_inputs_labels_and_submit(): void {
+		$html = $this->renderer->render( $this->schema(), 1 );
+
+		$this->assertStringContainsString( 'form-label', $html );
+		// Email/text input dostają form-control.
+		$this->assertMatchesRegularExpression( '/<input class="form-control" type="email"/', $html );
+		$this->assertMatchesRegularExpression( '/<textarea class="form-control"/', $html );
+		// Przycisk wysyłki.
+		$this->assertStringContainsString( 'class="evreg-submit btn btn-primary"', $html );
+		// Wrapper pola z odstępem BS5.
+		$this->assertStringContainsString( 'evreg-field evreg-field-email mb-3', $html );
+	}
+
+	public function test_bootstrap_select_and_radio_use_form_select_and_form_check(): void {
+		$schema = FormSchema::fromArray(
+			array(
+				'version'  => 1,
+				'sections' => array(
+					array(
+						'key'    => 'dane',
+						'title'  => 'Dane',
+						'fields' => array(
+							array( 'key' => 'rozmiar', 'type' => 'select', 'label' => 'Rozmiar', 'options' => array( array( 'value' => 's', 'label' => 'S' ) ) ),
+							array( 'key' => 'zgoda2', 'type' => 'radio', 'label' => 'Wybór', 'options' => array( array( 'value' => 'a', 'label' => 'A' ) ) ),
+						),
+					),
+				),
+			)
+		);
+
+		$html = $this->renderer->render( $schema, 1 );
+
+		$this->assertMatchesRegularExpression( '/<select class="form-select"/', $html );
+		$this->assertStringContainsString( 'form-check-input', $html );
+		$this->assertStringContainsString( 'form-check-label', $html );
+	}
+
+	public function test_bootstrap_error_marks_control_invalid_and_feedback(): void {
+		$result = SubmitResult::invalid(
+			array( 'email' => 'invalid_email' ),
+			array( 'email' => 'zły@@adres' )
+		);
+
+		$html = $this->renderer->render( $this->schema(), 1, $result );
+
+		$this->assertMatchesRegularExpression( '/<input class="form-control is-invalid" type="email"/', $html );
+		$this->assertStringContainsString( 'invalid-feedback', $html );
 	}
 
 	public function test_renders_form_with_fields_sections_and_hidden_controls(): void {

@@ -4,6 +4,7 @@ declare( strict_types=1 );
 
 namespace EvReg\Tests\Integration\Frontend;
 
+use EvReg\Admin\SettingsScreen;
 use EvReg\Frontend\Shortcode;
 use EvReg\Persistence\EventConfigRepository;
 use WP_UnitTestCase;
@@ -59,5 +60,57 @@ final class ShortcodeTest extends WP_UnitTestCase {
 		$html = Shortcode::render( array( 'event' => '0' ) );
 
 		$this->assertStringNotContainsString( '<form', $html );
+	}
+
+	public function test_confirmed_link_shows_message_not_form(): void {
+		$_GET['evreg_confirmed'] = 'confirmed';
+
+		$html = Shortcode::render( array( 'event' => (string) $this->event_id ) );
+
+		$this->assertStringNotContainsString( '<form', $html );
+		$this->assertStringContainsString( 'Zgłoszenie potwierdzone', $html );
+		$this->assertStringContainsString( 'alert alert-success', $html );
+
+		unset( $_GET['evreg_confirmed'] );
+	}
+
+	public function test_confirmed_expired_uses_warning_alert(): void {
+		$_GET['evreg_confirmed'] = 'expired';
+
+		$html = Shortcode::render( array( 'event' => (string) $this->event_id ) );
+
+		$this->assertStringContainsString( 'alert alert-warning', $html );
+
+		unset( $_GET['evreg_confirmed'] );
+	}
+
+	public function test_reserved_success_is_bootstrap_alert(): void {
+		$_GET['evreg'] = 'reserved';
+
+		$html = Shortcode::render( array( 'event' => (string) $this->event_id ) );
+
+		$this->assertStringContainsString( 'evreg-success', $html );
+		$this->assertStringContainsString( 'alert alert-success', $html );
+
+		unset( $_GET['evreg'] );
+	}
+
+	public function test_bootstrap_not_enqueued_by_default(): void {
+		delete_option( SettingsScreen::LOAD_BOOTSTRAP_OPTION );
+
+		Shortcode::render( array( 'event' => (string) $this->event_id ) );
+
+		$this->assertTrue( wp_style_is( 'evreg-public', 'enqueued' ) );
+		$this->assertFalse( wp_style_is( 'evreg-bootstrap', 'enqueued' ) );
+	}
+
+	public function test_bootstrap_enqueued_when_option_enabled(): void {
+		update_option( SettingsScreen::LOAD_BOOTSTRAP_OPTION, 1 );
+
+		Shortcode::render( array( 'event' => (string) $this->event_id ) );
+
+		$this->assertTrue( wp_style_is( 'evreg-bootstrap', 'enqueued' ) );
+
+		delete_option( SettingsScreen::LOAD_BOOTSTRAP_OPTION );
 	}
 }

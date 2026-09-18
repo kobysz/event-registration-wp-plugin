@@ -47,7 +47,16 @@ walidowane/zapisywane; walidacja serwerowa spójna z klientem.
 
 ---
 
-## B2 — Render formularza z klasami Bootstrap 5
+## B2 — Render formularza z klasami Bootstrap 5 — ZROBIONE (2026-08-24)
+
+**Status:** scalone. `FormRenderer` emituje klasy BS5 (`form-control`/`form-select`/
+`form-check*`/`form-label`/`is-invalid`+`invalid-feedback`/`btn btn-primary`/
+`mb-3`/`mb-4`) obok zachowanych hooków `evreg-*`. Ładowanie BS5 opt-in: globalna
+opcja `evreg_load_bootstrap` (`SettingsScreen`) warunkowo enqueue'uje bundlowany
+`assets/public/bootstrap.min.css` (v5.3.3); default OFF; kasowana przez uninstaller.
+Sekcje: fieldset+legend (`fs-5`). Oryginalny szkic zakresu poniżej (zrealizowany).
+
+
 
 **Cel:** publiczny formularz renderowany z klasami **Bootstrap 5** (czyste BS5),
 by wpasować się w motywy budowane na BS5. Założenie: motyw ładuje Bootstrap 5

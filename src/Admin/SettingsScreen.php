@@ -21,6 +21,9 @@ final class SettingsScreen {
 	private const SLUG         = 'evreg-settings';
 	private const OPTION_GROUP = 'evreg_settings';
 
+	/** Opcja: czy wtyczka ma ładować Bootstrap 5 CSS na stronie formularza. */
+	public const LOAD_BOOTSTRAP_OPTION = 'evreg_load_bootstrap';
+
 	/** Podpina menu i rejestrację ustawienia. */
 	public static function register(): void {
 		add_action( 'admin_menu', array( self::class, 'add_menu' ) );
@@ -50,6 +53,15 @@ final class SettingsScreen {
 				'default'           => false,
 			)
 		);
+		register_setting(
+			self::OPTION_GROUP,
+			self::LOAD_BOOTSTRAP_OPTION,
+			array(
+				'type'              => 'boolean',
+				'sanitize_callback' => array( self::class, 'sanitize' ),
+				'default'           => false,
+			)
+		);
 		add_settings_section( 'evreg_settings_main', '', '__return_null', self::SLUG );
 		add_settings_field(
 			Uninstaller::DELETE_OPTION,
@@ -57,6 +69,24 @@ final class SettingsScreen {
 			array( self::class, 'render_field' ),
 			self::SLUG,
 			'evreg_settings_main'
+		);
+		add_settings_field(
+			self::LOAD_BOOTSTRAP_OPTION,
+			__( 'Bootstrap 5', 'event-registration' ),
+			array( self::class, 'render_bootstrap_field' ),
+			self::SLUG,
+			'evreg_settings_main'
+		);
+	}
+
+	/** Renderuje checkbox ładowania Bootstrap 5 na froncie. */
+	public static function render_bootstrap_field(): void {
+		printf(
+			'<label><input type="checkbox" name="%s" value="1" %s /> %s</label><p class="description">%s</p>',
+			esc_attr( self::LOAD_BOOTSTRAP_OPTION ),
+			checked( (bool) get_option( self::LOAD_BOOTSTRAP_OPTION, false ), true, false ),
+			esc_html__( 'Załaduj Bootstrap 5 CSS na stronie z formularzem.', 'event-registration' ),
+			esc_html__( 'Włącz tylko jeśli motyw nie ładuje już Bootstrapa 5 — styluje całą stronę.', 'event-registration' )
 		);
 	}
 
