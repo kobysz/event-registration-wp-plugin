@@ -6,12 +6,13 @@ function langBucket( overlay, lang ) {
 		types: base.types || {},
 		options: base.options || {},
 		mail: base.mail || {},
+		accommodation: base.accommodation || {},
 	};
 }
 
 const KIND_BUCKET = { section: 'sections', field: 'fields', type: 'types' };
 
-export function translatableItems( schema, types ) {
+export function translatableItems( schema, types, accommodation ) {
 	const items = [];
 	( schema.sections || [] ).forEach( ( section ) => {
 		items.push( { kind: 'section', key: section.key, base: section.title || section.key } );
@@ -35,6 +36,13 @@ export function translatableItems( schema, types ) {
 	} );
 	( types || [] ).forEach( ( type ) => {
 		items.push( { kind: 'type', key: type.key, base: type.label || type.key } );
+	} );
+	const acc = accommodation || {};
+	( acc.packages || [] ).forEach( ( pkg ) => {
+		items.push( { kind: 'accommodation', accKind: 'packages', key: pkg.key, base: pkg.label || pkg.key } );
+	} );
+	( acc.rooms || [] ).forEach( ( room ) => {
+		items.push( { kind: 'accommodation', accKind: 'rooms', key: room.key, base: room.label || room.key } );
 	} );
 	return items;
 }
@@ -70,6 +78,25 @@ export function setOptionTranslation( overlay, lang, fieldKey, optionValue, valu
 			options: {
 				...current.options,
 				[ fieldKey ]: { ...( current.options[ fieldKey ] || {} ), [ optionValue ]: value },
+			},
+		},
+	};
+}
+
+export function getAccommodationTranslation( overlay, lang, accKind, key ) {
+	const bucket = ( ( overlay[ lang ] || {} ).accommodation || {} )[ accKind ] || {};
+	return bucket[ key ] ? String( bucket[ key ] ) : '';
+}
+
+export function setAccommodationTranslation( overlay, lang, accKind, key, value ) {
+	const current = langBucket( overlay, lang );
+	return {
+		...overlay,
+		[ lang ]: {
+			...current,
+			accommodation: {
+				...current.accommodation,
+				[ accKind ]: { ...( current.accommodation[ accKind ] || {} ), [ key ]: value },
 			},
 		},
 	};

@@ -6,6 +6,8 @@ import {
 	setOptionTranslation,
 	getMailTranslation,
 	setMailTranslation,
+	getAccommodationTranslation,
+	setAccommodationTranslation,
 } from './i18nOps';
 
 const schema = {
@@ -111,6 +113,61 @@ describe( 'i18nOps mail bucket', () => {
 		expect( overlay.en.sections.dane ).toBe( 'Data' );
 		expect( overlay.en.fields.imie ).toBe( 'Name' );
 		expect( overlay.en.options.rozmiar.s ).toBe( 'Small' );
+		expect( overlay.en.mail.optin.subject ).toBe( 'Hello' );
+	} );
+} );
+
+describe( 'i18nOps accommodation bucket', () => {
+	const accommodation = {
+		packages: [ { key: 'n12', label: 'Noc 1–2' }, { key: 'n23', label: 'Noc 2–3' } ],
+		rooms: [ { key: 'double', label: 'Pokój 2-osobowy' } ],
+		inventory: [ { package: 'n12', room: 'double', capacity: 5, price: 180 } ],
+	};
+
+	it( 'translatableItems dopisuje wiersze pakietów i pokojów', () => {
+		const items = translatableItems( schema, types, accommodation );
+		expect( items ).toContainEqual( { kind: 'accommodation', accKind: 'packages', key: 'n12', base: 'Noc 1–2' } );
+		expect( items ).toContainEqual( { kind: 'accommodation', accKind: 'packages', key: 'n23', base: 'Noc 2–3' } );
+		expect( items ).toContainEqual( { kind: 'accommodation', accKind: 'rooms', key: 'double', base: 'Pokój 2-osobowy' } );
+	} );
+
+	it( 'translatableItems bez noclegu nie dopisuje wierszy (kompatybilność)', () => {
+		expect( translatableItems( schema, types ) ).toHaveLength( 6 );
+	} );
+
+	it( 'set/getAccommodationTranslation dla pakietu i pokoju', () => {
+		let overlay = {};
+		overlay = setAccommodationTranslation( overlay, 'en', 'packages', 'n12', 'Night 1–2' );
+		overlay = setAccommodationTranslation( overlay, 'en', 'rooms', 'double', 'Double room' );
+		expect( getAccommodationTranslation( overlay, 'en', 'packages', 'n12' ) ).toBe( 'Night 1–2' );
+		expect( getAccommodationTranslation( overlay, 'en', 'rooms', 'double' ) ).toBe( 'Double room' );
+		expect( overlay.en.accommodation.packages.n12 ).toBe( 'Night 1–2' );
+	} );
+
+	it( 'getAccommodationTranslation zwraca pusty string gdy brak', () => {
+		expect( getAccommodationTranslation( {}, 'en', 'packages', 'x' ) ).toBe( '' );
+	} );
+
+	it( 'accommodation ops nie mutują wejścia', () => {
+		const overlay = { en: { accommodation: { packages: { n12: 'X' } } } };
+		const before = JSON.stringify( overlay );
+		setAccommodationTranslation( overlay, 'en', 'rooms', 'double', 'Y' );
+		expect( JSON.stringify( overlay ) ).toBe( before );
+	} );
+
+	it( 'setTranslation po setAccommodationTranslation zachowuje bucket accommodation (regresja utraty danych)', () => {
+		let overlay = {};
+		overlay = setAccommodationTranslation( overlay, 'en', 'packages', 'n12', 'Night 1–2' );
+		overlay = setTranslation( overlay, 'en', 'field', 'imie', 'Name' );
+		expect( overlay.en.accommodation.packages.n12 ).toBe( 'Night 1–2' );
+		expect( overlay.en.fields.imie ).toBe( 'Name' );
+	} );
+
+	it( 'setMailTranslation po setAccommodationTranslation zachowuje bucket accommodation', () => {
+		let overlay = {};
+		overlay = setAccommodationTranslation( overlay, 'en', 'packages', 'n12', 'Night 1–2' );
+		overlay = setMailTranslation( overlay, 'en', 'optin', 'subject', 'Hello' );
+		expect( overlay.en.accommodation.packages.n12 ).toBe( 'Night 1–2' );
 		expect( overlay.en.mail.optin.subject ).toBe( 'Hello' );
 	} );
 } );

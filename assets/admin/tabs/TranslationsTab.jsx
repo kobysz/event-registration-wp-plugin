@@ -6,6 +6,8 @@ import {
 	getOptionTranslation,
 	setTranslation,
 	setOptionTranslation,
+	getAccommodationTranslation,
+	setAccommodationTranslation,
 } from '../ops/i18nOps';
 
 export default function TranslationsTab( { config, update } ) {
@@ -21,7 +23,7 @@ export default function TranslationsTab( { config, update } ) {
 
 	const setOverlay = update( 'i18n' );
 	const overlay = config.i18n || {};
-	const items = translatableItems( config.schema || {}, config.types || [] );
+	const items = translatableItems( config.schema || {}, config.types || [], config.accommodation || {} );
 
 	return (
 		<div className="evreg-i18n-tab">
@@ -36,13 +38,17 @@ export default function TranslationsTab( { config, update } ) {
 				</thead>
 				<tbody>
 					{ items.map( ( item ) => (
-						<tr key={ `${ item.kind }:${ item.key }` }>
+						<tr key={ `${ item.kind }:${ item.accKind || '' }:${ item.key }` }>
 							<td className="evreg-i18n-tab__base">{ item.base }</td>
 							{ languages.map( ( lang ) => {
-								const value =
-									'option' === item.kind
-										? getOptionTranslation( overlay, lang.value, item.fieldKey, item.optionValue )
-										: getTranslation( overlay, lang.value, item.kind, item.key );
+								let value;
+								if ( 'option' === item.kind ) {
+									value = getOptionTranslation( overlay, lang.value, item.fieldKey, item.optionValue );
+								} else if ( 'accommodation' === item.kind ) {
+									value = getAccommodationTranslation( overlay, lang.value, item.accKind, item.key );
+								} else {
+									value = getTranslation( overlay, lang.value, item.kind, item.key );
+								}
 
 								const onChange = ( next ) => {
 									if ( 'option' === item.kind ) {
@@ -52,6 +58,18 @@ export default function TranslationsTab( { config, update } ) {
 												lang.value,
 												item.fieldKey,
 												item.optionValue,
+												next
+											)
+										);
+										return;
+									}
+									if ( 'accommodation' === item.kind ) {
+										setOverlay(
+											setAccommodationTranslation(
+												overlay,
+												lang.value,
+												item.accKind,
+												item.key,
 												next
 											)
 										);

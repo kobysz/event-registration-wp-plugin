@@ -52,18 +52,18 @@ final class EventFormLoader {
 		}
 
 		$types              = is_array( $config['types'] ) ? $config['types'] : array();
-		[ $schema, $types ] = ( new ContentTranslator() )->apply(
-			$schema,
-			$types,
-			$this->config->getI18n( $event_id ),
-			CurrentLanguage::get()
-		);
+		$accommodation      = is_array( $config['accommodation'] ) ? $config['accommodation'] : array();
+		$overlay            = $this->config->getI18n( $event_id );
+		$lang               = CurrentLanguage::get();
+		$translator         = new ContentTranslator();
+		[ $schema, $types ] = $translator->apply( $schema, $types, $overlay, $lang );
+		$accommodation      = $translator->translateAccommodation( $accommodation, $overlay, $lang );
 
 		try {
 			return $this->assembler->assemble(
 				$schema,
 				$types,
-				is_array( $config['accommodation'] ) ? $config['accommodation'] : array()
+				$accommodation
 			);
 		} catch ( SchemaException $e ) {
 			return null;
