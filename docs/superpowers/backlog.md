@@ -214,7 +214,9 @@ modelu danych noclegu. Własny spec → plan → SDD.
 
 ---
 
-## B6 — Tłumaczenie labeli noclegów (i18n, uzupełnienie B3b)
+## B6 — Tłumaczenie labeli noclegów (i18n, uzupełnienie B3b) — ZROBIONE (2026-09-19)
+
+**Status:** scalone. Overlay `_evreg_i18n[lang]` dostał bucket `accommodation: { packages:{key:label}, rooms:{key:label} }`. `ContentTranslator::translateAccommodation` nakłada labele pakietów/pokojów przed `SchemaAssembler` (wołane w `EventFormLoader`); `translatableItems` + `get/setAccommodationTranslation` w `i18nOps` (`langBucket` whitelistuje bucket). Macierz w `TranslationsTab` listuje wiersze noclegu. Tylko labele — klucze/ceny/pojemności nietknięte (data-safe). „Bez noclegu"/label współlokatora zostają stałymi stringami pluginu (B3a/.po). Szkic zakresu poniżej (zrealizowany bez bucketu `misc` — te stringi nie są per-event).
 
 **Cel:** labele pakietów, pokojów, opcji „Bez noclegu" i pola współlokatora
 tłumaczone per język (Polylang), jak reszta treści formularza.
