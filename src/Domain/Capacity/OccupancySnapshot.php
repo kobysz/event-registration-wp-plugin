@@ -20,11 +20,13 @@ final class OccupancySnapshot {
 	 * @param int               $globalCount Liczba zajętych miejsc globalnie.
 	 * @param array<string,int> $perType     Liczba zajętych miejsc per typ zgłoszenia.
 	 * @param array<string,int> $perSlot     Liczba zajętych miejsc per slot "pakiet|pokój".
+	 * @param int               $companions  Liczba osób towarzyszących wliczonych do obłożenia.
 	 */
 	public function __construct(
 		private readonly int $globalCount,
 		private readonly array $perType = array(),
-		private readonly array $perSlot = array()
+		private readonly array $perSlot = array(),
+		private readonly int $companions = 0
 	) {
 	}
 
@@ -51,5 +53,12 @@ final class OccupancySnapshot {
 	 */
 	public function forSlot( string $key ): int {
 		return $this->perSlot[ $key ] ?? 0;
+	}
+
+	/**
+	 * Zwraca liczbę osób towarzyszących wliczonych do obłożenia.
+	 */
+	public function companions(): int {
+		return $this->companions;
 	}
 }

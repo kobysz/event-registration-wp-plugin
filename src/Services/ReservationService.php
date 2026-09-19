@@ -101,14 +101,16 @@ final class ReservationService {
 				isset( $settings['global_cap'] ) && null !== $settings['global_cap'] ? (int) $settings['global_cap'] : null,
 				$types->capacities(),
 				$accommodation->capacities(),
-				(bool) ( $settings['waitlist_enabled'] ?? true )
+				(bool) ( $settings['waitlist_enabled'] ?? true ),
+				$accommodation->companionCountsEvent()
 			);
 
 			$decision = $this->calculator->decide(
 				$limits,
 				$this->repository->occupancy( $event_id ),
 				$request->typeKey,
-				$request->selection
+				$request->selection,
+				$request->companion
 			);
 
 			if ( Outcome::Rejected === $decision->outcome ) {
@@ -121,28 +123,31 @@ final class ReservationService {
 			$expires_at  = $is_waitlist ? null : gmdate( 'Y-m-d H:i:s', strtotime( self::PENDING_TTL, time() ) );
 
 			$type  = $types->get( $request->typeKey );
-			$price = null === $type ? 0.0 : $this->pricing->total( $type, $accommodation, $request->selection );
+			$price = null === $type ? 0.0 : $this->pricing->total( $type, $accommodation, $request->selection, $request->companion );
 			$token = bin2hex( random_bytes( 16 ) );
 
 			$id = $this->repository->insertRegistration(
 				array(
-					'event_id'    => $event_id,
-					'type_key'    => $request->typeKey,
-					'status'      => $status->value,
-					'email'       => $request->email,
-					'name'        => $request->name,
-					'token'       => $token,
-					'data'        => (string) wp_json_encode( $request->data ),
-					'price_total' => $price,
-					'expires_at'  => $expires_at,
-					'lang'        => $request->lang,
+					'event_id'       => $event_id,
+					'type_key'       => $request->typeKey,
+					'status'         => $status->value,
+					'email'          => $request->email,
+					'name'           => $request->name,
+					'token'          => $token,
+					'data'           => (string) wp_json_encode( $request->data ),
+					'price_total'    => $price,
+					'expires_at'     => $expires_at,
+					'lang'           => $request->lang,
+					'companion'      => $request->companion ? 1 : 0,
+					'companion_name' => $request->companion ? $request->companionName : '',
 				)
 			);
 
 			if ( $decision->accommodationGranted && null !== $request->selection ) {
 				$item      = $accommodation->item( $request->selection->packageKey, $request->selection->roomKey );
-				$acc_price = null === $item ? 0.0 : $item->price;
-				$this->repository->insertAccommodationBooking( $id, $request->selection, $acc_price );
+				$seats     = $request->companion ? 2 : 1;
+				$acc_price = ( null === $item ? 0.0 : $item->price ) * $seats;
+				$this->repository->insertAccommodationBooking( $id, $request->selection, $acc_price, $seats );
 			}
 
 			$wpdb->query( 'COMMIT' );
@@ -278,6 +283,16 @@ final class ReservationService {
 	 * Powtarza inwariant lock→count z reserve(): lockEvent PRZED occupancy. Przy wolnym
 	 * miejscu: waitlist→pending + nowy expires_at, emituje evreg_registration_reserved
 	 * (mail opt-in z 4A). Brak miejsc: rejected. Hook emitowany po COMMIT.
+	 * Companion-aware jak reserve()/editAnswers(): flaga companion czytana z wiersza,
+	 * decide() dostaje ją jako 5. arg, a przyznany booking jest przebudowywany z
+	 * seats=2/cena×2 (rozjazd z bookingiem zapisanym wcześniej przez editAnswers na
+	 * liście rezerwowej — np. inne companion_counts_event — jest naprawiany przy promocji).
+	 * Gdy nocleg NIE zostanie przyznany na promocji (accommodation_full — companion czyni
+	 * to prawdopodobnym, bo żąda 2 miejsc), istniejący booking sprzed listy rezerwowej jest
+	 * kasowany PRZED markPending() — inaczej zgłoszenie wchodzi w status zajmujący miejsce
+	 * z "widmowym" bookingiem i slot zostaje przesprzedany (jak reserve(), które po prostu
+	 * nie wstawia bookingu przy braku grantu). price_total jest przeliczane na promocji tak
+	 * samo jak w reserve(): typ + (nocleg przyznany ? cena pozycji×seats : 0).
 	 *
 	 * @param int $id ID zgłoszenia.
 	 *
@@ -306,6 +321,7 @@ final class ReservationService {
 		$selection = null === $booking
 			? null
 			: new AccommodationSelection( (string) $booking['package_key'], (string) $booking['room_type_key'], (string) ( $booking['roommate_pref'] ?? '' ) );
+		$companion = (bool) ( $row['companion'] ?? false );
 
 		$wpdb->query( 'START TRANSACTION' );
 
@@ -317,20 +333,42 @@ final class ReservationService {
 				isset( $settings['global_cap'] ) && null !== $settings['global_cap'] ? (int) $settings['global_cap'] : null,
 				$types->capacities(),
 				$accommodation->capacities(),
-				(bool) ( $settings['waitlist_enabled'] ?? true )
+				(bool) ( $settings['waitlist_enabled'] ?? true ),
+				$accommodation->companionCountsEvent()
 			);
 
 			$decision = $this->calculator->decide(
 				$limits,
 				$this->repository->occupancy( $event_id ),
 				(string) $row['type_key'],
-				$selection
+				$selection,
+				$companion
 			);
 
 			if ( Outcome::Accepted !== $decision->outcome ) {
 				$wpdb->query( 'ROLLBACK' );
 				return AdminActionResult::rejected( null === $decision->reason ? null : (string) $decision->reason );
 			}
+
+			if ( null !== $selection ) {
+				if ( $decision->accommodationGranted ) {
+					$item      = $accommodation->item( $selection->packageKey, $selection->roomKey );
+					$seats     = $companion ? 2 : 1;
+					$acc_price = ( null === $item ? 0.0 : $item->price ) * $seats;
+					$this->repository->deleteAccommodationBooking( $id );
+					$this->repository->insertAccommodationBooking( $id, $selection, $acc_price, $seats );
+				} else {
+					// Brak grantu na promocji (np. companion żąda 2 miejsc, zostało 1) —
+					// skasuj nieaktualny booking sprzed listy rezerwowej. Bez tego markPending()
+					// poniżej przeniesie zgłoszenie w status zajmujący miejsce z widmowym
+					// bookingiem i slot zostanie przesprzedany.
+					$this->repository->deleteAccommodationBooking( $id );
+				}
+			}
+
+			$type  = $types->get( (string) $row['type_key'] );
+			$price = null === $type ? 0.0 : $this->pricing->total( $type, $accommodation, $decision->accommodationGranted ? $selection : null, $companion );
+			$this->repository->updatePrice( $id, $price );
 
 			$expires_at = gmdate( 'Y-m-d H:i:s', strtotime( self::PENDING_TTL, time() ) );
 			$this->repository->markPending( $id, $expires_at );
@@ -396,14 +434,16 @@ final class ReservationService {
 					isset( $settings['global_cap'] ) && null !== $settings['global_cap'] ? (int) $settings['global_cap'] : null,
 					$types->capacities(),
 					$accommodation->capacities(),
-					(bool) ( $settings['waitlist_enabled'] ?? true )
+					(bool) ( $settings['waitlist_enabled'] ?? true ),
+					$accommodation->companionCountsEvent()
 				);
 
 				$decision = $this->calculator->decide(
 					$limits,
 					$this->repository->occupancyExcluding( $event_id, $id ),
 					$request->typeKey,
-					$request->selection
+					$request->selection,
+					$request->companion
 				);
 
 				if ( Outcome::Accepted !== $decision->outcome ) {
@@ -416,7 +456,7 @@ final class ReservationService {
 				}
 			}
 
-			$price = $this->pricing->total( $type, $accommodation, $request->selection );
+			$price = $this->pricing->total( $type, $accommodation, $request->selection, $request->companion );
 
 			$this->repository->updateRegistration(
 				$id,
@@ -424,14 +464,17 @@ final class ReservationService {
 				$request->email,
 				$request->name,
 				(string) wp_json_encode( $request->data ),
-				$price
+				$price,
+				$request->companion ? 1 : 0,
+				$request->companion ? $request->companionName : ''
 			);
 
 			$this->repository->deleteAccommodationBooking( $id );
 			if ( null !== $request->selection ) {
 				$item      = $accommodation->item( $request->selection->packageKey, $request->selection->roomKey );
-				$acc_price = null === $item ? 0.0 : $item->price;
-				$this->repository->insertAccommodationBooking( $id, $request->selection, $acc_price );
+				$seats     = $request->companion ? 2 : 1;
+				$acc_price = ( null === $item ? 0.0 : $item->price ) * $seats;
+				$this->repository->insertAccommodationBooking( $id, $request->selection, $acc_price, $seats );
 			}
 
 			$wpdb->query( 'COMMIT' );

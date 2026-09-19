@@ -21,14 +21,18 @@ final class AccommodationConfig {
 	 *
 	 * @param Package[]       $packages  Dostępne pakiety.
 	 * @param RoomType[]      $rooms     Dostępne typy pokoi.
-	 * @param InventoryItem[] $items     Pozycje inwentarza łączące pakiety i pokoje.
-	 * @param bool            $allowNone Czy zgłaszający się może zrezygnować z zakwaterowania.
+	 * @param InventoryItem[] $items                 Pozycje inwentarza łączące pakiety i pokoje.
+	 * @param bool            $allowNone             Czy zgłaszający się może zrezygnować z zakwaterowania.
+	 * @param bool            $companionEnabled      Czy zgłoszenie może zawierać osobę towarzyszącą.
+	 * @param bool            $companionCountsEvent  Czy osoba towarzysząca wlicza się do globalnego limitu wydarzenia.
 	 */
 	private function __construct(
 		private readonly array $packages,
 		private readonly array $rooms,
 		private readonly array $items,
-		private readonly bool $allowNone
+		private readonly bool $allowNone,
+		private readonly bool $companionEnabled = false,
+		private readonly bool $companionCountsEvent = false
 	) {
 	}
 
@@ -83,7 +87,14 @@ final class AccommodationConfig {
 			$items[] = $item;
 		}
 
-		return new self( $packages, $rooms, $items, (bool) ( $config['allow_none'] ?? true ) );
+		return new self(
+			$packages,
+			$rooms,
+			$items,
+			(bool) ( $config['allow_none'] ?? true ),
+			(bool) ( $config['companion_enabled'] ?? false ),
+			(bool) ( $config['companion_counts_event'] ?? false )
+		);
 	}
 
 	/**
@@ -93,10 +104,12 @@ final class AccommodationConfig {
 	 */
 	public function toArray(): array {
 		return array(
-			'packages'   => array_map( static fn ( Package $item ): array => $item->toArray(), $this->packages ),
-			'rooms'      => array_map( static fn ( RoomType $item ): array => $item->toArray(), $this->rooms ),
-			'inventory'  => array_map( static fn ( InventoryItem $item ): array => $item->toArray(), $this->items ),
-			'allow_none' => $this->allowNone,
+			'packages'               => array_map( static fn ( Package $item ): array => $item->toArray(), $this->packages ),
+			'rooms'                  => array_map( static fn ( RoomType $item ): array => $item->toArray(), $this->rooms ),
+			'inventory'              => array_map( static fn ( InventoryItem $item ): array => $item->toArray(), $this->items ),
+			'allow_none'             => $this->allowNone,
+			'companion_enabled'      => $this->companionEnabled,
+			'companion_counts_event' => $this->companionCountsEvent,
 		);
 	}
 
@@ -163,6 +176,20 @@ final class AccommodationConfig {
 	 */
 	public function allowsNone(): bool {
 		return $this->allowNone;
+	}
+
+	/**
+	 * Czy zgłoszenie może zawierać osobę towarzyszącą.
+	 */
+	public function companionEnabled(): bool {
+		return $this->companionEnabled;
+	}
+
+	/**
+	 * Czy osoba towarzysząca wlicza się do globalnego limitu wydarzenia.
+	 */
+	public function companionCountsEvent(): bool {
+		return $this->companionCountsEvent;
 	}
 
 	/**

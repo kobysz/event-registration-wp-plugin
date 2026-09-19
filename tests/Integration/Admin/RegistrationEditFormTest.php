@@ -33,7 +33,7 @@ final class RegistrationEditFormTest extends WP_UnitTestCase {
 		);
 	}
 
-	private function schemaWithChoicesAndAccommodation(): FormSchema {
+	private function schemaWithChoicesAndAccommodation( array $accommodationConfigOverrides = array() ): FormSchema {
 		return FormSchema::fromArray(
 			array(
 				'version'  => 1,
@@ -64,12 +64,15 @@ final class RegistrationEditFormTest extends WP_UnitTestCase {
 								'key'    => 'nocleg',
 								'type'   => 'accommodation',
 								'label'  => 'Nocleg',
-								'config' => array(
-									'packages'  => array( array( 'key' => 'n1', 'label' => 'Noc 1' ) ),
-									'rooms'     => array( array( 'key' => 'std', 'label' => 'Standard', 'roommate_field' => true ) ),
-									'inventory' => array(
-										array( 'package' => 'n1', 'room' => 'std', 'capacity' => 5, 'price' => 50.0 ),
+								'config' => array_merge(
+									array(
+										'packages'  => array( array( 'key' => 'n1', 'label' => 'Noc 1' ) ),
+										'rooms'     => array( array( 'key' => 'std', 'label' => 'Standard', 'roommate_field' => true ) ),
+										'inventory' => array(
+											array( 'package' => 'n1', 'room' => 'std', 'capacity' => 5, 'price' => 50.0 ),
+										),
 									),
+									$accommodationConfigOverrides
 								),
 							),
 						),
@@ -217,5 +220,41 @@ final class RegistrationEditFormTest extends WP_UnitTestCase {
 		$html = RegistrationEditForm::render( $this->schema(), array( 'email' => 'a@b.pl' ), 1 );
 
 		$this->assertStringNotContainsString( 'notice-error', $html );
+	}
+
+	public function test_companion_controls_absent_when_companion_disabled(): void {
+		$html = RegistrationEditForm::render( $this->schemaWithChoicesAndAccommodation(), array(), 7 );
+
+		$this->assertStringNotContainsString( 'name="evreg_companion"', $html );
+	}
+
+	public function test_companion_controls_rendered_and_prefilled_when_enabled(): void {
+		$answers = array(
+			'evreg_companion'      => true,
+			'evreg_companion_name' => 'Jan T.',
+		);
+
+		$html = RegistrationEditForm::render(
+			$this->schemaWithChoicesAndAccommodation( array( 'companion_enabled' => true ) ),
+			$answers,
+			7
+		);
+
+		$this->assertStringContainsString( 'name="evreg_companion"', $html );
+		$this->assertStringContainsString( 'name="evreg_companion_name"', $html );
+		$this->assertMatchesRegularExpression( '/name="evreg_companion"[^>]*checked/', $html );
+		$this->assertStringContainsString( 'value="Jan T."', $html );
+	}
+
+	public function test_companion_name_required_error_shown_translated(): void {
+		$html = RegistrationEditForm::render(
+			$this->schemaWithChoicesAndAccommodation( array( 'companion_enabled' => true ) ),
+			array(),
+			7,
+			array( 'evreg_companion' => 'companion_name_required' )
+		);
+
+		$this->assertStringContainsString( 'Podaj imię i nazwisko osoby towarzyszącej.', $html );
+		$this->assertStringNotContainsString( 'companion_name_required', $html );
 	}
 }

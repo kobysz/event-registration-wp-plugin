@@ -49,6 +49,7 @@ final class RegistrationsExporter {
 			__( 'Utworzono', 'event-registration' ),
 			__( 'Potwierdzono', 'event-registration' ),
 			__( 'Notatka', 'event-registration' ),
+			__( 'Osoba towarzysząca', 'event-registration' ),
 		);
 
 		$answer_headers = array();
@@ -86,6 +87,7 @@ final class RegistrationsExporter {
 				(string) $row['created_at'],
 				(string) ( $row['confirmed_at'] ?? '' ),
 				(string) ( $row['note'] ?? '' ),
+				(string) ( $row['companion_name'] ?? '' ),
 			);
 
 			$cells = array_merge(

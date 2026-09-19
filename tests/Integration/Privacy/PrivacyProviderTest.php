@@ -138,6 +138,36 @@ final class PrivacyProviderTest extends WP_UnitTestCase {
 		$this->assertSame( 'a@b.pl', $values['E-mail: adresat'] );
 	}
 
+	public function test_export_includes_companion_name_when_present(): void {
+		$this->repository->insertRegistration(
+			$this->row(
+				array(
+					'companion'      => 1,
+					'companion_name' => 'Jan T.',
+				)
+			)
+		);
+
+		$result = ( new PrivacyProvider() )->export( 'a@b.pl', 1 );
+
+		$group  = $result['data'][0];
+		$values = wp_list_pluck( $group['data'], 'value', 'name' );
+
+		$this->assertArrayHasKey( 'Osoba towarzysząca', $values );
+		$this->assertSame( 'Jan T.', $values['Osoba towarzysząca'] );
+	}
+
+	public function test_export_omits_companion_name_when_absent(): void {
+		$this->repository->insertRegistration( $this->row() );
+
+		$result = ( new PrivacyProvider() )->export( 'a@b.pl', 1 );
+
+		$group  = $result['data'][0];
+		$values = wp_list_pluck( $group['data'], 'value', 'name' );
+
+		$this->assertArrayNotHasKey( 'Osoba towarzysząca', $values );
+	}
+
 	public function test_export_other_email_returns_empty_and_done(): void {
 		$this->repository->insertRegistration( $this->row() );
 
@@ -209,6 +239,24 @@ final class PrivacyProviderTest extends WP_UnitTestCase {
 		$this->assertTrue( $again['done'] );
 		$this->assertFalse( $again['items_retained'] );
 		$this->assertSame( array(), $again['messages'] );
+	}
+
+	public function test_erase_clears_companion_name_but_keeps_companion_flag(): void {
+		$id = $this->repository->insertRegistration(
+			$this->row(
+				array(
+					'companion'      => 1,
+					'companion_name' => 'Jan T.',
+				)
+			)
+		);
+
+		( new PrivacyProvider() )->erase( 'a@b.pl', 1 );
+
+		$row = $this->repository->findById( $id );
+		$this->assertSame( '', (string) $row['companion_name'] );
+		$this->assertSame( 1, (int) $row['companion'] );
+		$this->assertSame( 'confirmed', (string) $row['status'] );
 	}
 
 	public function test_erase_leaves_other_email_untouched(): void {

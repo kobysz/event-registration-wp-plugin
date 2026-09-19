@@ -101,12 +101,15 @@ final class RegistrationRepository {
 
 		$per_slot = array();
 		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-		$slot_rows = $wpdb->get_results( $wpdb->prepare( "SELECT CONCAT(b.package_key, '|', b.room_type_key) AS slot, COUNT(*) AS c FROM {$this->bookings()} b INNER JOIN {$this->registrations()} r ON b.registration_id = r.id WHERE r.event_id = %d AND r.status IN ($in) GROUP BY slot", $args ), ARRAY_A );
+		$slot_rows = $wpdb->get_results( $wpdb->prepare( "SELECT CONCAT(b.package_key, '|', b.room_type_key) AS slot, SUM(b.seats) AS c FROM {$this->bookings()} b INNER JOIN {$this->registrations()} r ON b.registration_id = r.id WHERE r.event_id = %d AND r.status IN ($in) GROUP BY slot", $args ), ARRAY_A );
 		foreach ( (array) $slot_rows as $row ) {
 			$per_slot[ (string) $row['slot'] ] = (int) $row['c'];
 		}
 
-		return new OccupancySnapshot( $global, $per_type, $per_slot );
+		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		$companions = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COALESCE(SUM(companion),0) FROM {$this->registrations()} WHERE event_id = %d AND status IN ($in)", $args ) );
+
+		return new OccupancySnapshot( $global, $per_type, $per_slot, $companions );
 	}
 
 	/**
@@ -134,19 +137,23 @@ final class RegistrationRepository {
 
 		$per_slot = array();
 		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQLPlaceholders.ReplacementsWrongNumber -- $in oraz $args mają zmienną, ale dopasowaną liczbę elementów.
-		$slot_rows = $wpdb->get_results( $wpdb->prepare( "SELECT CONCAT(b.package_key, '|', b.room_type_key) AS slot, COUNT(*) AS c FROM {$this->bookings()} b INNER JOIN {$this->registrations()} r ON b.registration_id = r.id WHERE r.event_id = %d AND r.status IN ($in) AND r.id != %d GROUP BY slot", $args ), ARRAY_A );
+		$slot_rows = $wpdb->get_results( $wpdb->prepare( "SELECT CONCAT(b.package_key, '|', b.room_type_key) AS slot, SUM(b.seats) AS c FROM {$this->bookings()} b INNER JOIN {$this->registrations()} r ON b.registration_id = r.id WHERE r.event_id = %d AND r.status IN ($in) AND r.id != %d GROUP BY slot", $args ), ARRAY_A );
 		foreach ( (array) $slot_rows as $row ) {
 			$per_slot[ (string) $row['slot'] ] = (int) $row['c'];
 		}
 
-		return new OccupancySnapshot( $global, $per_type, $per_slot );
+		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQLPlaceholders.ReplacementsWrongNumber -- $in oraz $args mają zmienną, ale dopasowaną liczbę elementów.
+		$companions = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COALESCE(SUM(companion),0) FROM {$this->registrations()} WHERE event_id = %d AND status IN ($in) AND id != %d", $args ) );
+
+		return new OccupancySnapshot( $global, $per_type, $per_slot, $companions );
 	}
 
 	/**
 	 * Wstawia nowe zgłoszenie i zwraca jego ID.
 	 *
 	 * @param array<string,mixed> $row Dane zgłoszenia: event_id, type_key, status, email,
-	 *                                 name, token, data (JSON), price_total, expires_at, lang.
+	 *                                 name, token, data (JSON), price_total, expires_at, lang,
+	 *                                 companion, companion_name.
 	 */
 	public function insertRegistration( array $row ): int {
 		global $wpdb;
@@ -156,20 +163,22 @@ final class RegistrationRepository {
 		$wpdb->insert(
 			$this->registrations(),
 			array(
-				'event_id'    => (int) $row['event_id'],
-				'type_key'    => (string) $row['type_key'],
-				'status'      => (string) $row['status'],
-				'email'       => (string) $row['email'],
-				'name'        => (string) $row['name'],
-				'token'       => (string) $row['token'],
-				'data'        => (string) $row['data'],
-				'price_total' => (float) $row['price_total'],
-				'created_at'  => $now,
-				'updated_at'  => $now,
-				'expires_at'  => $row['expires_at'],
-				'lang'        => (string) ( $row['lang'] ?? '' ),
+				'event_id'       => (int) $row['event_id'],
+				'type_key'       => (string) $row['type_key'],
+				'status'         => (string) $row['status'],
+				'email'          => (string) $row['email'],
+				'name'           => (string) $row['name'],
+				'token'          => (string) $row['token'],
+				'data'           => (string) $row['data'],
+				'price_total'    => (float) $row['price_total'],
+				'created_at'     => $now,
+				'updated_at'     => $now,
+				'expires_at'     => $row['expires_at'],
+				'lang'           => (string) ( $row['lang'] ?? '' ),
+				'companion'      => (int) ( $row['companion'] ?? 0 ),
+				'companion_name' => (string) ( $row['companion_name'] ?? '' ),
 			),
-			array( '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%f', '%s', '%s', '%s', '%s' )
+			array( '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%f', '%s', '%s', '%s', '%s', '%d', '%s' )
 		);
 
 		return (int) $wpdb->insert_id;
@@ -191,8 +200,9 @@ final class RegistrationRepository {
 	 * @param int                    $registration_id ID zgłoszenia.
 	 * @param AccommodationSelection $selection       Wybór pakietu/pokoju.
 	 * @param float                  $price           Cena rezerwacji.
+	 * @param int                    $seats           Liczba zajmowanych miejsc w slocie (1 + towarzysz).
 	 */
-	public function insertAccommodationBooking( int $registration_id, AccommodationSelection $selection, float $price ): void {
+	public function insertAccommodationBooking( int $registration_id, AccommodationSelection $selection, float $price, int $seats = 1 ): void {
 		global $wpdb;
 
 		$wpdb->insert(
@@ -203,8 +213,9 @@ final class RegistrationRepository {
 				'room_type_key'   => $selection->roomKey,
 				'roommate_pref'   => '' === $selection->roommatePref ? null : $selection->roommatePref,
 				'price'           => $price,
+				'seats'           => $seats,
 			),
-			array( '%d', '%s', '%s', '%s', '%f' )
+			array( '%d', '%s', '%s', '%s', '%f', '%d' )
 		);
 	}
 
@@ -553,30 +564,55 @@ final class RegistrationRepository {
 	}
 
 	/**
-	 * Nadpisuje edytowalne pola zgłoszenia (bez zmiany statusu/tokenu/dat cyklu życia).
+	 * Zapisuje przeliczoną cenę łączną zgłoszenia (bez zmiany innych pól).
 	 *
-	 * @param int    $id        ID zgłoszenia.
-	 * @param string $type_key  Klucz typu zgłoszenia.
-	 * @param string $email     Adres e-mail.
-	 * @param string $name      Imię/nazwa.
-	 * @param string $data_json Odpowiedzi formularza (JSON).
-	 * @param float  $price     Cena łączna.
+	 * @param int   $id    ID zgłoszenia.
+	 * @param float $price Nowa cena łączna.
 	 */
-	public function updateRegistration( int $id, string $type_key, string $email, string $name, string $data_json, float $price ): void {
+	public function updatePrice( int $id, float $price ): void {
 		global $wpdb;
 
 		$wpdb->update(
 			$this->registrations(),
 			array(
-				'type_key'    => $type_key,
-				'email'       => $email,
-				'name'        => $name,
-				'data'        => $data_json,
 				'price_total' => $price,
 				'updated_at'  => current_time( 'mysql', true ),
 			),
 			array( 'id' => $id ),
-			array( '%s', '%s', '%s', '%s', '%f', '%s' ),
+			array( '%f', '%s' ),
+			array( '%d' )
+		); // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+	}
+
+	/**
+	 * Nadpisuje edytowalne pola zgłoszenia (bez zmiany statusu/tokenu/dat cyklu życia).
+	 *
+	 * @param int    $id             ID zgłoszenia.
+	 * @param string $type_key       Klucz typu zgłoszenia.
+	 * @param string $email          Adres e-mail.
+	 * @param string $name           Imię/nazwa.
+	 * @param string $data_json      Odpowiedzi formularza (JSON).
+	 * @param float  $price          Cena łączna.
+	 * @param int    $companion      Czy zgłoszenie ma osobę towarzyszącą (0/1).
+	 * @param string $companion_name Imię/nazwa osoby towarzyszącej.
+	 */
+	public function updateRegistration( int $id, string $type_key, string $email, string $name, string $data_json, float $price, int $companion = 0, string $companion_name = '' ): void {
+		global $wpdb;
+
+		$wpdb->update(
+			$this->registrations(),
+			array(
+				'type_key'       => $type_key,
+				'email'          => $email,
+				'name'           => $name,
+				'data'           => $data_json,
+				'price_total'    => $price,
+				'companion'      => $companion,
+				'companion_name' => $companion_name,
+				'updated_at'     => current_time( 'mysql', true ),
+			),
+			array( 'id' => $id ),
+			array( '%s', '%s', '%s', '%s', '%f', '%d', '%s', '%s' ),
 			array( '%d' )
 		); // phpcs:ignore WordPress.DB.DirectDatabaseQuery
 	}
@@ -607,6 +643,7 @@ final class RegistrationRepository {
 
 	/**
 	 * Anonimizuje pola PII zgłoszenia (bez zmiany statusu/typu/ceny/dat) — WP Privacy eraser.
+	 * Czyści też imię osoby towarzyszącej; flaga companion ZOSTAJE (zajętość/liczniki spójne).
 	 *
 	 * @param int $id ID zgłoszenia.
 	 */
@@ -615,15 +652,16 @@ final class RegistrationRepository {
 		$wpdb->update(
 			$this->registrations(),
 			array(
-				'email'      => 'deleted-' . $id . '@example.invalid',
-				'name'       => '',
-				'data'       => '{}',
-				'note'       => '',
-				'token'      => '',
-				'updated_at' => current_time( 'mysql', true ),
+				'email'          => 'deleted-' . $id . '@example.invalid',
+				'name'           => '',
+				'data'           => '{}',
+				'note'           => '',
+				'token'          => '',
+				'companion_name' => '',
+				'updated_at'     => current_time( 'mysql', true ),
 			),
 			array( 'id' => $id ),
-			array( '%s', '%s', '%s', '%s', '%s', '%s' ),
+			array( '%s', '%s', '%s', '%s', '%s', '%s', '%s' ),
 			array( '%d' )
 		); // phpcs:ignore WordPress.DB.DirectDatabaseQuery
 	}

@@ -259,6 +259,27 @@ final class PlaceholderFactoryTest extends WP_UnitTestCase {
 		$this->assertStringContainsString( 'Noc 1–2', $values->get( 'podsumowanie' ) );
 	}
 
+	public function test_companion_placeholder_empty_and_no_summary_line_without_companion(): void {
+		$values = $this->placeholderFactory->build( $this->registration() );
+
+		$this->assertSame( '', $values->get( 'osoba_towarzyszaca' ) );
+		$this->assertStringNotContainsString( 'Osoba towarzysząca', $values->get( 'podsumowanie' ) );
+	}
+
+	public function test_companion_placeholder_and_summary_line_when_present(): void {
+		$row = $this->registration(
+			array(
+				'companion'      => 1,
+				'companion_name' => 'Jan T.',
+			)
+		);
+
+		$values = $this->placeholderFactory->build( $row );
+
+		$this->assertSame( 'Jan T.', $values->get( 'osoba_towarzyszaca' ) );
+		$this->assertStringContainsString( 'Osoba towarzysząca: Jan T.', $values->get( 'podsumowanie' ) );
+	}
+
 	public function test_summary_is_empty_when_schema_missing(): void {
 		$other  = self::factory()->post->create(
 			array(

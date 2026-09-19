@@ -69,7 +69,7 @@ final class PrivacyProvider {
 	 * Dokłada treść o przechowywanych danych do polityki prywatności.
 	 */
 	public static function add_policy_content(): void {
-		$content = __( 'Wtyczka Event Registration przechowuje dane zgłoszeń na wydarzenia: adres e-mail, imię i nazwisko, odpowiedzi z formularza, wybór noclegu oraz treść wysłanych potwierdzeń. Dane są przechowywane do czasu usunięcia zgłoszenia lub odinstalowania wtyczki.', 'event-registration' );
+		$content = __( 'Wtyczka Event Registration przechowuje dane zgłoszeń na wydarzenia: adres e-mail, imię i nazwisko, odpowiedzi z formularza, wybór noclegu, dane osoby towarzyszącej (jeśli dotyczy) oraz treść wysłanych potwierdzeń. Dane są przechowywane do czasu usunięcia zgłoszenia lub odinstalowania wtyczki.', 'event-registration' );
 		wp_add_privacy_policy_content( __( 'Event Registration', 'event-registration' ), wp_kses_post( wpautop( $content ) ) );
 	}
 
@@ -132,6 +132,16 @@ final class PrivacyProvider {
 					'value' => (string) ( $row['note'] ?? '' ),
 				),
 			);
+
+			// Osoba towarzysząca — jak historia maili niżej, tylko gdy obecna (puste pomijamy,
+			// nie eksportujemy pustego wiersza dla zgłoszeń bez companiona).
+			$companion_name = (string) ( $row['companion_name'] ?? '' );
+			if ( '' !== $companion_name ) {
+				$data[] = array(
+					'name'  => __( 'Osoba towarzysząca', 'event-registration' ),
+					'value' => $companion_name,
+				);
+			}
 
 			// Odpowiedzi (reuse mapper 5C).
 			if ( null !== $schema ) {

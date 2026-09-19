@@ -21,12 +21,14 @@ final class CapacityLimits {
 	 * @param array<string,int|null> $perType     Limit per typ zgłoszenia; null = bez limitu.
 	 * @param array<string,int>      $perSlot     Limit per "pakiet|pokój".
 	 * @param bool                   $waitlistEnabled Czy po wyczerpaniu limitu włączyć listę rezerwową.
+	 * @param bool                   $companionCountsEvent Czy osoba towarzysząca wlicza się do limitu globalnego.
 	 */
 	public function __construct(
 		public readonly ?int $globalLimit,
 		private readonly array $perType,
 		private readonly array $perSlot,
-		public readonly bool $waitlistEnabled = true
+		public readonly bool $waitlistEnabled = true,
+		public readonly bool $companionCountsEvent = false
 	) {
 	}
 

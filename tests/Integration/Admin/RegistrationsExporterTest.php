@@ -81,13 +81,14 @@ final class RegistrationsExporterTest extends WP_UnitTestCase {
 				'created_at'   => '2026-08-01 10:00:00',
 				'confirmed_at' => '2026-08-02 10:00:00',
 				'note'         => '',
+				'companion_name' => '',
 			),
 			$overrides
 		);
 	}
 
 	public function test_buildCsv_full_row_header_and_values(): void {
-		$row     = $this->row();
+		$row     = $this->row( array( 'companion_name' => 'Jan T.' ) );
 		$booking = array(
 			'package_key'   => 'n12',
 			'room_type_key' => 'double',
@@ -108,10 +109,12 @@ final class RegistrationsExporterTest extends WP_UnitTestCase {
 
 		$this->assertStringContainsString( 'E-mail', $lines[0] );
 		$this->assertStringContainsString( 'Nocleg', $lines[0] );
+		$this->assertStringContainsString( 'Osoba towarzysząca', $lines[0] );
 
 		$this->assertStringContainsString( 'Potwierdzone', $lines[1] );
 		$this->assertStringContainsString( 'Standard', $lines[1] );
 		$this->assertStringContainsString( 'sob, ndz', $lines[1] );
+		$this->assertStringContainsString( 'Jan T.', $lines[1] );
 	}
 
 	public function test_buildCsv_neutralizes_injection_in_data_but_not_header(): void {
@@ -125,6 +128,23 @@ final class RegistrationsExporterTest extends WP_UnitTestCase {
 				),
 			)
 		);
+
+		$csv = ( new RegistrationsExporter() )->buildCsv(
+			$this->schema(),
+			$this->accommodation(),
+			$this->types(),
+			array( $row ),
+			array()
+		);
+
+		$lines = explode( "\n", trim( substr( $csv, 3 ) ) );
+
+		$this->assertStringNotContainsString( '=CMD()', $lines[0] );
+		$this->assertStringContainsString( "'=CMD()", $lines[1] );
+	}
+
+	public function test_buildCsv_neutralizes_injection_in_companion_name(): void {
+		$row = $this->row( array( 'companion_name' => '=CMD()' ) );
 
 		$csv = ( new RegistrationsExporter() )->buildCsv(
 			$this->schema(),

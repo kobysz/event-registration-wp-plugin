@@ -9,6 +9,7 @@ declare( strict_types=1 );
 
 namespace EvReg\Admin;
 
+use EvReg\Domain\Accommodation\AccommodationConfig;
 use EvReg\Domain\Schema\Field;
 use EvReg\Domain\Schema\FieldType;
 use EvReg\Domain\Schema\FormSchema;
@@ -33,7 +34,9 @@ final class RegistrationEditForm {
 		$source = null !== $submitted ? $submitted : $answers;
 		$nonce  = wp_nonce_field( 'evreg_edit_' . $reg_id, '_wpnonce', true, false );
 
-		$out  = '<form method="post" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '">';
+		// Klasa evreg-form — reuse publicznego assets/public/form.js (evreg-public, wp_enqueue_script
+		// w RegistrationsScreen::render_edit) do przełączania widoczności pola imienia companiona.
+		$out  = '<form class="evreg-form" method="post" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '">';
 		$out .= '<input type="hidden" name="action" value="evreg_edit_registration" />';
 		$out .= '<input type="hidden" name="registration" value="' . esc_attr( (string) $reg_id ) . '" />';
 		$out .= $nonce;
@@ -45,6 +48,9 @@ final class RegistrationEditForm {
 				continue;
 			}
 			$out .= self::renderRow( $field, $source[ $field->key ] ?? '' );
+			if ( FieldType::Accommodation === $field->type ) {
+				$out .= self::renderCompanionRow( $field, $source, $errors );
+			}
 		}
 		$out .= '</tbody></table>';
 		$out .= '<p><button type="submit" class="button button-primary">' . esc_html__( 'Zapisz zmiany', 'event-registration' ) . '</button></p>';
@@ -68,6 +74,9 @@ final class RegistrationEditForm {
 		foreach ( $schema->allFields() as $field ) {
 			$labels[ $field->key ] = $field->label;
 		}
+		// Kontrolka companion NIE jest polem schematu (patrz renderCompanionRow) — dokładamy
+		// etykietę ręcznie, inaczej lista błędów pokazałaby surowy klucz evreg_companion.
+		$labels['evreg_companion'] = __( 'Osoba towarzysząca', 'event-registration' );
 
 		$items = '';
 		foreach ( $errors as $field_key => $code ) {
@@ -89,15 +98,16 @@ final class RegistrationEditForm {
 	 */
 	private static function errorMessage( string $code ): string {
 		$map = array(
-			'required'              => __( 'To pole jest wymagane.', 'event-registration' ),
-			'invalid_email'         => __( 'Nieprawidłowy adres e-mail.', 'event-registration' ),
-			'invalid_tel'           => __( 'Nieprawidłowy numer telefonu.', 'event-registration' ),
-			'invalid_number'        => __( 'Nieprawidłowa liczba.', 'event-registration' ),
-			'invalid_date'          => __( 'Nieprawidłowa data.', 'event-registration' ),
-			'not_in_options'        => __( 'Wybór spoza dostępnych opcji.', 'event-registration' ),
-			'too_long'              => __( 'Wpis jest za długi.', 'event-registration' ),
-			'invalid_accommodation' => __( 'Nieprawidłowy wybór noclegu.', 'event-registration' ),
-			'roommate_not_allowed'  => __( 'Współlokator niedozwolony dla tego pokoju.', 'event-registration' ),
+			'required'                => __( 'To pole jest wymagane.', 'event-registration' ),
+			'invalid_email'           => __( 'Nieprawidłowy adres e-mail.', 'event-registration' ),
+			'invalid_tel'             => __( 'Nieprawidłowy numer telefonu.', 'event-registration' ),
+			'invalid_number'          => __( 'Nieprawidłowa liczba.', 'event-registration' ),
+			'invalid_date'            => __( 'Nieprawidłowa data.', 'event-registration' ),
+			'not_in_options'          => __( 'Wybór spoza dostępnych opcji.', 'event-registration' ),
+			'too_long'                => __( 'Wpis jest za długi.', 'event-registration' ),
+			'invalid_accommodation'   => __( 'Nieprawidłowy wybór noclegu.', 'event-registration' ),
+			'roommate_not_allowed'    => __( 'Współlokator niedozwolony dla tego pokoju.', 'event-registration' ),
+			'companion_name_required' => __( 'Podaj imię i nazwisko osoby towarzyszącej.', 'event-registration' ),
 		);
 
 		return $map[ $code ] ?? __( 'Nieprawidłowa wartość.', 'event-registration' );
@@ -242,6 +252,44 @@ final class RegistrationEditForm {
 		$out .= '</div>';
 
 		return $out;
+	}
+
+	/**
+	 * Renderuje wiersz checkbox + pole imienia „Osoba towarzysząca", gdy event ma włączoną
+	 * tę opcję w konfiguracji noclegów (mirror {@see \EvReg\Frontend\FormRenderer::renderCompanion()}).
+	 * Kontrolki evreg_companion/evreg_companion_name NIE są polami schematu — bez namespace
+	 * evreg_field[...], zgodnie z publicznym formularzem (SubmissionAssembler czyta je wprost
+	 * z $_POST). Klasa .evreg-form na <form> (patrz render()) daje reuse publicznego
+	 * assets/public/form.js (applyCompanion) do przełączania widoczności pola imienia.
+	 *
+	 * @param Field                     $field  Pole typu accommodation (niesie config noclegów).
+	 * @param array<string,mixed>       $source Źródło prefill (submitted, w innym wypadku answers).
+	 * @param array<string,string>|null $errors Błędy walidacji: klucz pola => kod błędu.
+	 */
+	private static function renderCompanionRow( Field $field, array $source, ?array $errors ): string {
+		$config = AccommodationConfig::fromArray( $field->config );
+		if ( ! $config->companionEnabled() ) {
+			return '';
+		}
+
+		$companion_on   = ! empty( $source['evreg_companion'] );
+		$companion_name = self::scalar( $source['evreg_companion_name'] ?? '' );
+		$error          = null !== $errors ? ( $errors['evreg_companion'] ?? null ) : null;
+
+		$checkbox = '<input type="checkbox" id="evreg_companion" name="evreg_companion" value="1"'
+			. checked( $companion_on, true, false ) . ' data-evreg-companion />';
+
+		$hidden     = $companion_on ? '' : ' hidden';
+		$name_class = 'regular-text' . ( null !== $error ? ' evreg-field-error' : '' );
+		$name_input = '<br /><input type="text" class="' . $name_class . '" data-evreg-companion-input name="evreg_companion_name" placeholder="'
+			. esc_attr__( 'Imię i nazwisko osoby towarzyszącej', 'event-registration' ) . '" value="' . esc_attr( $companion_name ) . '"' . $hidden . ' />';
+
+		$error_html = null !== $error ? '<p class="description">' . esc_html( self::errorMessage( (string) $error ) ) . '</p>' : '';
+
+		$label_cell = '<th scope="row"><label for="evreg_companion">' . esc_html__( 'Osoba towarzysząca', 'event-registration' ) . '</label></th>';
+		$value_cell = '<td>' . $checkbox . $name_input . $error_html . '</td>';
+
+		return '<tr>' . $label_cell . $value_cell . '</tr>';
 	}
 
 	/**

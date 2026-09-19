@@ -190,6 +190,91 @@ final class RegistrationEditScreenTest extends WP_UnitTestCase {
 		$this->assertSame( 'Jan', $row['name'] );
 	}
 
+	/**
+	 * Zapisuje config eventu z polem accommodation w schemie i companion_enabled=true —
+	 * bez pola typu accommodation w _evreg_schema SchemaAssembler nie doczepia configu
+	 * noclegu do żadnego pola, więc SubmissionAssembler::accommodationField() nie
+	 * znajduje pola i ekstrakcja companion nigdy się nie uruchamia (Model 2 configuracji).
+	 */
+	private function enableCompanionOnEvent(): void {
+		( new EventConfigRepository() )->save(
+			$this->event_id,
+			array(
+				'schema'        => array(
+					'version'  => 1,
+					'sections' => array(
+						array(
+							'key'    => 'dane',
+							'title'  => 'Dane',
+							'fields' => array(
+								array( 'key' => '__type', 'type' => 'radio', 'label' => 'Typ' ),
+								array( 'key' => 'imie', 'type' => 'text', 'label' => 'Imię', 'required' => true ),
+								array( 'key' => 'email', 'type' => 'email', 'label' => 'E-mail', 'required' => true ),
+								array( 'key' => 'nocleg', 'type' => 'accommodation', 'label' => 'Nocleg' ),
+							),
+						),
+					),
+				),
+				'accommodation' => array(
+					'packages'          => array(),
+					'rooms'             => array(),
+					'inventory'         => array(),
+					'companion_enabled' => true,
+				),
+			)
+		);
+	}
+
+	public function test_handle_edit_round_trips_companion(): void {
+		$this->enableCompanionOnEvent();
+
+		wp_set_current_user( $this->admin_id );
+		$id = $this->seed( 'pending' );
+
+		$_POST['registration']       = $id;
+		$_REQUEST['_wpnonce']        = wp_create_nonce( 'evreg_edit_' . $id );
+		$_POST['evreg_field']        = array(
+			'__type' => 'uczestnik',
+			'imie'   => 'Jan Nowy',
+			'email'  => 'nowy@example.com',
+		);
+		$_POST['evreg_companion']      = '1';
+		$_POST['evreg_companion_name'] = 'Jan T.';
+
+		$redirect = $this->catchRedirect( array( RegistrationsScreen::class, 'handle_edit' ) );
+
+		unset( $_POST['evreg_companion'], $_POST['evreg_companion_name'] );
+
+		$this->assertNotNull( $redirect, 'Poprawny POST z osobą towarzyszącą powinien zakończyć się przekierowaniem (PRG).' );
+		$this->assertStringContainsString( 'evreg_msg=edited', $redirect->location );
+
+		$row = $this->repository->findById( $id );
+		$this->assertSame( 1, (int) $row['companion'] );
+		$this->assertSame( 'Jan T.', (string) $row['companion_name'] );
+
+		$booking = $this->repository->findAccommodationBooking( $id );
+		$this->assertNull( $booking, 'Brak wyboru noclegu w tym teście — booking nie powinien powstać mimo companion=1.' );
+	}
+
+	public function test_render_edit_prefills_companion_controls_from_row(): void {
+		$this->enableCompanionOnEvent();
+
+		wp_set_current_user( $this->admin_id );
+		$id = $this->seed( 'pending' );
+		$this->repository->updateRegistration( $id, 'uczestnik', 'jan1@example.com', 'Jan', '{}', 0.0, 1, 'Jan T.' );
+
+		$_GET['action'] = 'edit';
+		$_GET['id']     = $id;
+
+		ob_start();
+		RegistrationsScreen::render();
+		$html = ob_get_clean();
+
+		$this->assertStringContainsString( 'name="evreg_companion"', (string) $html );
+		$this->assertMatchesRegularExpression( '/name="evreg_companion"[^>]*checked/', (string) $html );
+		$this->assertStringContainsString( 'value="Jan T."', (string) $html );
+	}
+
 	public function test_render_edit_on_cancelled_registration_does_not_render_form(): void {
 		wp_set_current_user( $this->admin_id );
 		$id = $this->seed( 'cancelled' );
