@@ -57,7 +57,7 @@ final class PlaceholderFactory {
 				'event'              => (string) get_the_title( $event_id ),
 				'typ'                => $this->typeLabel( $config, (string) ( $registration['type_key'] ?? '' ) ),
 				'nocleg'             => $accommodation,
-				'link_potwierdzenia' => $this->confirmationUrl( $config, $event_id, (string) ( $registration['token'] ?? '' ) ),
+				'link_potwierdzenia' => $this->confirmationUrl( $config, $event_id, (string) ( $registration['token'] ?? '' ), (string) ( $registration['lang'] ?? '' ) ),
 				'podsumowanie'       => $this->summary( $event_id, $registration, $accommodation ),
 			)
 		);
@@ -115,26 +115,50 @@ final class PlaceholderFactory {
 	}
 
 	/**
-	 * Buduje adres potwierdzenia zgłoszenia.
+	 * Buduje adres potwierdzenia zgłoszenia w języku zgłoszenia.
 	 *
 	 * @param array<string,mixed> $config   Konfiguracja eventu.
 	 * @param int                 $event_id ID eventu.
 	 * @param string              $token    Token zgłoszenia.
+	 * @param string              $lang     Slug języka zgłoszenia ('' = wersja bazowa).
 	 */
-	private function confirmationUrl( array $config, int $event_id, string $token ): string {
+	private function confirmationUrl( array $config, int $event_id, string $token, string $lang ): string {
 		if ( '' === $token ) {
 			return '';
 		}
 
 		$settings = is_array( $config['settings'] ) ? $config['settings'] : array();
 		$page_id  = isset( $settings['form_page_id'] ) ? (int) $settings['form_page_id'] : 0;
-		$base     = $page_id > 0 ? get_permalink( $page_id ) : get_permalink( $event_id );
+		$target   = $this->localizedPageId( $page_id > 0 ? $page_id : $event_id, $lang );
+		$base     = get_permalink( $target );
 
 		if ( ! is_string( $base ) || '' === $base ) {
 			$base = home_url( '/' );
 		}
 
 		return add_query_arg( 'evreg_confirm', $token, $base );
+	}
+
+	/**
+	 * Zwraca ID strony potwierdzenia przetłumaczonej na język zgłoszenia (Polylang).
+	 *
+	 * `lang=''` lub brak Polylang → oryginalne ID (zero regresji). Filtr
+	 * `evreg_confirmation_page_id` pozwala nadpisać mapowanie per język i jest
+	 * jedynym seamem testowym (Polylang nieobecny w środowisku testowym).
+	 *
+	 * @param int    $post_id Bazowe ID strony/eventu.
+	 * @param string $lang    Slug języka zgłoszenia.
+	 */
+	private function localizedPageId( int $post_id, string $lang ): int {
+		if ( '' !== $lang && function_exists( 'pll_get_post' ) ) {
+			$translated = pll_get_post( $post_id, $lang );
+
+			if ( is_int( $translated ) && $translated > 0 ) {
+				$post_id = $translated;
+			}
+		}
+
+		return (int) apply_filters( 'evreg_confirmation_page_id', $post_id, $lang );
 	}
 
 	/**
