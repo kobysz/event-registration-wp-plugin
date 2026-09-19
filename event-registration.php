@@ -2,7 +2,7 @@
 /**
  * Plugin Name:       Event Registration
  * Description:       Formularze rejestracji na wydarzenia z limitami miejsc, noclegami i potwierdzeniami mailowymi.
- * Version:           0.1.3
+ * Version:           0.1.4
  * Requires at least: 6.4
  * Requires PHP:      8.1
  * Author:            Eorta.pl
