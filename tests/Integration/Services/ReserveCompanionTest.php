@@ -173,6 +173,50 @@ final class ReserveCompanionTest extends WP_UnitTestCase {
 		$row = $this->repository->findById( $result->registrationId );
 		$this->assertSame( '1', (string) $row['companion'] );
 		$this->assertNull( $this->repository->findAccommodationBooking( $result->registrationId ) );
+		// Nocleg nieprzyznany → cena tylko za typ, BEZ noclegu i BEZ ×2 companion.
+		$this->assertSame( '100.00', $row['price_total'] );
+	}
+
+	public function test_reserve_without_companion_not_charged_for_ungranted_room(): void {
+		$this->configure(
+			array(
+				'accommodation' => array(
+					'packages'          => array(
+						array(
+							'key'   => 'n12',
+							'label' => 'Noc 1–2',
+						),
+					),
+					'rooms'             => array(
+						array(
+							'key'   => 'double',
+							'label' => '2-os.',
+						),
+					),
+					'inventory'         => array(
+						array(
+							'package'  => 'n12',
+							'room'     => 'double',
+							'capacity' => 0,
+							'price'    => 180.0,
+						),
+					),
+					'companion_enabled' => false,
+				),
+			)
+		);
+
+		$result = $this->service->reserve(
+			$this->event_id,
+			$this->request( 'a@example.com', false, '', new AccommodationSelection( 'n12', 'double' ) )
+		);
+
+		$this->assertSame( 'reserved', $result->code );
+		$this->assertFalse( $result->accommodationGranted );
+
+		$row = $this->repository->findById( $result->registrationId );
+		$this->assertNull( $this->repository->findAccommodationBooking( $result->registrationId ) );
+		$this->assertSame( '100.00', $row['price_total'] );
 	}
 
 	public function test_reserve_companion_counts_toward_event_limit_when_enabled(): void {

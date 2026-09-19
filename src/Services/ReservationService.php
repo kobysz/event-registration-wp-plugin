@@ -122,8 +122,10 @@ final class ReservationService {
 			$status      = $is_waitlist ? RegistrationStatus::Waitlist : RegistrationStatus::Pending;
 			$expires_at  = $is_waitlist ? null : gmdate( 'Y-m-d H:i:s', strtotime( self::PENDING_TTL, time() ) );
 
-			$type  = $types->get( $request->typeKey );
-			$price = null === $type ? 0.0 : $this->pricing->total( $type, $accommodation, $request->selection, $request->companion );
+			$type = $types->get( $request->typeKey );
+			// Cena noclegu tylko gdy nocleg faktycznie przyznany — przy accommodation_full
+			// zgłoszenie wchodzi bez bookingu, więc nie może być obciążone (companion: bez ×2).
+			$price = null === $type ? 0.0 : $this->pricing->total( $type, $accommodation, $decision->accommodationGranted ? $request->selection : null, $request->companion );
 			$token = bin2hex( random_bytes( 16 ) );
 
 			$id = $this->repository->insertRegistration(
@@ -317,6 +319,12 @@ final class ReservationService {
 		$accommodation = AccommodationConfig::fromArray( is_array( $config['accommodation'] ) ? $config['accommodation'] : array() );
 		$settings      = is_array( $config['settings'] ) ? $config['settings'] : array();
 
+		// Typ usunięty z configu po zawaitlistowaniu (config-drift) → nie promuj (jak editAnswers).
+		// Bez tego decide() bez limitu typu przepuściłby zgłoszenie, a wycena wyzerowałaby price_total.
+		if ( null === $types->get( (string) $row['type_key'] ) ) {
+			return AdminActionResult::invalidStatus();
+		}
+
 		$booking   = $this->repository->findAccommodationBooking( $id );
 		$selection = null === $booking
 			? null
@@ -366,8 +374,9 @@ final class ReservationService {
 				}
 			}
 
+			// Typ gwarantowany niepusty przez guard na wejściu promoteFromWaitlist.
 			$type  = $types->get( (string) $row['type_key'] );
-			$price = null === $type ? 0.0 : $this->pricing->total( $type, $accommodation, $decision->accommodationGranted ? $selection : null, $companion );
+			$price = $this->pricing->total( $type, $accommodation, $decision->accommodationGranted ? $selection : null, $companion );
 			$this->repository->updatePrice( $id, $price );
 
 			$expires_at = gmdate( 'Y-m-d H:i:s', strtotime( self::PENDING_TTL, time() ) );
