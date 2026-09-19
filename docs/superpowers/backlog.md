@@ -235,7 +235,9 @@ z B5 (jeśli B5 zmienia model noclegu) — zrobić po B5 albo skoordynować.
 
 ---
 
-## B7 — Wycena noclegu bramkowana przyznaniem (pre-existing bug, ujawniony przez B5)
+## B7 — Wycena noclegu bramkowana przyznaniem (pre-existing bug, ujawniony przez B5) — ZROBIONE (2026-09-19)
+
+**Status:** scalone. `reserve()` liczy cenę noclegu z `$decision->accommodationGranted ? $selection : null` — przy `accommodation_full` (brak bookingu) cena = tylko typ (companion bez ×2). `promoteFromWaitlist()` odrzuca (`invalid_status`) zgłoszenie z typem usuniętym z configu (guard jak `editAnswers`), zamiast cichego zerowania `price_total`. `editAnswers` był już bezpieczny (odrzuca edycję `accommodationFull` przed wyceną). Jeden plik `ReservationService`.
 
 **Cel:** cena zgłoszenia nie powinna zawierać opłaty za nocleg, którego NIE
 przyznano. Dziś `ReservationService::reserve` liczy `price_total` przez

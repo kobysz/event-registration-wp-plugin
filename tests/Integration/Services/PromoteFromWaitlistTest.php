@@ -100,6 +100,26 @@ final class PromoteFromWaitlistTest extends WP_UnitTestCase {
 		$this->assertSame( 'invalid_status', $this->service->promoteFromWaitlist( $id )->code );
 	}
 
+	public function test_promote_rejects_unknown_type(): void {
+		// Typ usunięty z configu po zawaitlistowaniu (config-drift) → nie promuj, nie zeruj ceny.
+		$id = $this->repository->insertRegistration(
+			array(
+				'event_id'    => $this->event_id,
+				'type_key'    => 'ghost',
+				'status'      => 'waitlist',
+				'email'       => 'ghost@example.com',
+				'name'        => 'Jan',
+				'token'       => str_repeat( 'c', 32 ),
+				'data'        => '{}',
+				'price_total' => 0.0,
+				'expires_at'  => null,
+			)
+		);
+
+		$this->assertSame( 'invalid_status', $this->service->promoteFromWaitlist( $id )->code );
+		$this->assertSame( 'waitlist', $this->repository->findById( $id )['status'] );
+	}
+
 	public function test_delete_registration_removes_cancelled_and_orphans(): void {
 		$id = $this->seed( 'cancelled', str_repeat( 'a', 32 ) );
 		global $wpdb;
