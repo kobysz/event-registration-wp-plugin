@@ -1,7 +1,7 @@
 /* Panel konfiguracji wydarzenia — układ i czytelność zakładek. */
 
 .evreg-admin {
-	max-width: 900px;
+	max-width: 1200px;
 }
 
 .evreg-admin__actions {
@@ -284,13 +284,27 @@
 /* Kontenery zakładek: odstęp między kartami / kontrolkami / nagłówkami. */
 .evreg-types-tab,
 .evreg-accommodation-tab,
-.evreg-settings-tab,
 .evreg-mail-templates-tab {
 	display: flex;
 	flex-direction: column;
 	gap: 16px;
 	margin-top: 12px;
-	max-width: 640px;
+	max-width: 860px;
+}
+
+/* Ustawienia: dwie kolumny — wykorzystanie szerokości okna.
+   Dwa szerokie pola (e-maile organizatora, strona formularza) na pełną szerokość. */
+.evreg-settings-tab {
+	display: grid;
+	grid-template-columns: repeat( 2, minmax( 0, 1fr ) );
+	gap: 16px 24px;
+	margin-top: 12px;
+	max-width: 860px;
+	align-items: start;
+}
+
+.evreg-settings-tab > .components-base-control:nth-last-child( -n + 2 ) {
+	grid-column: 1 / -1;
 }
 
 /* Wiersze rekordów jako karty grupujące. */
@@ -385,6 +399,13 @@
 .evreg-i18n-tab__table {
 	width: 100%;
 	border-collapse: collapse;
+	table-layout: fixed;
+}
+
+/* Kolumna „Oryginał" trzyma stałą szerokość; reszta dzielona równo między języki. */
+.evreg-i18n-tab__table th:first-child,
+.evreg-i18n-tab__base {
+	width: 34%;
 }
 
 .evreg-i18n-tab__table th,
@@ -404,9 +425,12 @@
 
 .evreg-i18n-tab__base {
 	color: #757575;
-	white-space: nowrap;
+	word-break: break-word;
+	overflow-wrap: anywhere;
 }
 
+/* Inputy wypełniają komórkę; przy table-layout:fixed min-width rozsadzałby tabelę. */
 .evreg-i18n-tab__table td .components-text-control__input {
-	min-width: 160px;
+	min-width: 0;
+	width: 100%;
 }
