@@ -74,9 +74,20 @@
 		input.hidden = ! selectedSlotAllowsRoommate( container );
 	}
 
+	function applyCompanion( form ) {
+		var checkbox = form.querySelector( 'input[name="evreg_companion"]' );
+		var input = form.querySelector( '[data-evreg-companion-input]' );
+		if ( ! checkbox || ! input ) { return; }
+		input.hidden = ! checkbox.checked;
+	}
+
 	document.querySelectorAll( '.evreg-form' ).forEach( function ( form ) {
 		apply( form );
-		form.addEventListener( 'change', function () { apply( form ); } );
+		applyCompanion( form );
+		form.addEventListener( 'change', function () {
+			apply( form );
+			applyCompanion( form );
+		} );
 		form.addEventListener( 'input', function () { apply( form ); } );
 	} );
 

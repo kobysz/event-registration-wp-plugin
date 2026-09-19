@@ -42,7 +42,7 @@ final class FormRendererTest extends WP_UnitTestCase {
 		);
 	}
 
-	private function accommodationSchema( bool $roommateField ): FormSchema {
+	private function accommodationSchema( bool $roommateField, bool $companionEnabled = false ): FormSchema {
 		return FormSchema::fromArray(
 			array(
 				'version'  => 1,
@@ -56,14 +56,15 @@ final class FormRendererTest extends WP_UnitTestCase {
 								'type'   => 'accommodation',
 								'label'  => 'Nocleg',
 								'config' => array(
-									'packages'   => array( array( 'key' => 'std', 'label' => 'Standard' ) ),
-									'rooms'      => array(
+									'packages'          => array( array( 'key' => 'std', 'label' => 'Standard' ) ),
+									'rooms'             => array(
 										array( 'key' => 'double', 'label' => 'Dwuosobowy', 'roommate_field' => $roommateField ),
 									),
-									'inventory'  => array(
+									'inventory'         => array(
 										array( 'package' => 'std', 'room' => 'double', 'capacity' => 10, 'price' => 0 ),
 									),
-									'allow_none' => true,
+									'allow_none'        => true,
+									'companion_enabled' => $companionEnabled,
 								),
 							),
 						),
@@ -95,6 +96,36 @@ final class FormRendererTest extends WP_UnitTestCase {
 
 		$this->assertStringContainsString( 'name="evreg_field[nocleg][roommate]"', $html );
 		$this->assertStringContainsString( 'data-evreg-roommate="1"', $html );
+	}
+
+	public function test_companion_controls_present_when_companion_enabled(): void {
+		$html = $this->renderer->render( $this->accommodationSchema( false, true ), 1 );
+
+		$this->assertStringContainsString( 'name="evreg_companion"', $html );
+		$this->assertStringContainsString( 'name="evreg_companion_name"', $html );
+		$this->assertStringContainsString( 'data-evreg-companion', $html );
+		$this->assertStringContainsString( 'data-evreg-companion-input', $html );
+	}
+
+	public function test_companion_controls_absent_when_companion_disabled(): void {
+		$html = $this->renderer->render( $this->accommodationSchema( false, false ), 1 );
+
+		$this->assertStringNotContainsString( 'evreg_companion', $html );
+	}
+
+	public function test_companion_re_render_preserves_checked_state_and_shows_error(): void {
+		$result = SubmitResult::invalid(
+			array( 'evreg_companion' => 'companion_name_required' ),
+			array(
+				'evreg_companion'      => true,
+				'evreg_companion_name' => '',
+			)
+		);
+
+		$html = $this->renderer->render( $this->accommodationSchema( false, true ), 1, $result );
+
+		$this->assertMatchesRegularExpression( '/id="evreg_companion"[^>]*checked/', $html );
+		$this->assertStringContainsString( 'Podaj imię i nazwisko osoby towarzyszącej.', $html );
 	}
 
 	public function test_single_checkbox_renders_as_bootstrap_form_check_with_label_beside_box(): void {

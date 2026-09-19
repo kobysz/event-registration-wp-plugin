@@ -9,6 +9,7 @@ declare( strict_types=1 );
 
 namespace EvReg\Frontend;
 
+use EvReg\Domain\Accommodation\AccommodationConfig;
 use EvReg\Domain\Conditions\Condition;
 use EvReg\Domain\Schema\Field;
 use EvReg\Domain\Schema\FieldType;
@@ -151,6 +152,45 @@ final class FormRenderer {
 		}
 
 		$out .= '</div>';
+
+		if ( FieldType::Accommodation === $field->type ) {
+			$out .= $this->renderCompanion( $field, $result );
+		}
+
+		return $out;
+	}
+
+	/**
+	 * Renderuje checkbox „Osoba towarzysząca" + pole jej imienia i nazwiska, gdy event ma
+	 * włączoną tę opcję w konfiguracji noclegów. Kontrolki evreg_companion/evreg_companion_name
+	 * NIE są polami schematu — nie idą pod evreg_field[...] namespace (nie kolidują z niczym
+	 * wśród publicznych query-vars WordPressa i nie muszą, bo nie są tam używane).
+	 *
+	 * @param Field             $field  Pole typu accommodation (niesie config noclegów).
+	 * @param SubmitResult|null $result Wynik poprzedniej próby submisji (do re-renderu).
+	 */
+	private function renderCompanion( Field $field, ?SubmitResult $result ): string {
+		$config = AccommodationConfig::fromArray( $field->config );
+		if ( ! $config->companionEnabled() ) {
+			return '';
+		}
+
+		$companion_on   = null !== $result && ! empty( $result->submittedValue( 'evreg_companion' ) );
+		$companion_name = null === $result ? '' : $this->scalarValue( $result->submittedValue( 'evreg_companion_name' ) );
+		$error          = null === $result ? null : ( $result->errors()['evreg_companion'] ?? null );
+
+		$out = '<div class="evreg-companion form-check mt-2">'
+			. '<input class="form-check-input" type="checkbox" id="evreg_companion" name="evreg_companion" value="1"' . checked( $companion_on, true, false ) . ' data-evreg-companion>'
+			. ' <label class="form-check-label" for="evreg_companion">' . esc_html__( 'Osoba towarzysząca', 'event-registration' ) . '</label>'
+			. '</div>';
+
+		$hidden     = $companion_on ? '' : ' hidden';
+		$name_class = 'form-control mt-2' . ( null !== $error ? ' is-invalid' : '' );
+		$out       .= '<input class="' . $name_class . '" type="text" data-evreg-companion-input name="evreg_companion_name" placeholder="' . esc_attr__( 'Imię i nazwisko osoby towarzyszącej', 'event-registration' ) . '" value="' . esc_attr( $companion_name ) . '"' . $hidden . '>';
+
+		if ( null !== $error ) {
+			$out .= '<div class="evreg-error-msg invalid-feedback d-block">' . esc_html( $this->errorMessage( (string) $error ) ) . '</div>';
+		}
 
 		return $out;
 	}
@@ -335,15 +375,16 @@ final class FormRenderer {
 	 */
 	private function errorMessage( string $code ): string {
 		$map = array(
-			'required'              => __( 'To pole jest wymagane.', 'event-registration' ),
-			'invalid_email'         => __( 'Nieprawidłowy adres e-mail.', 'event-registration' ),
-			'invalid_tel'           => __( 'Nieprawidłowy numer telefonu.', 'event-registration' ),
-			'invalid_number'        => __( 'Nieprawidłowa liczba.', 'event-registration' ),
-			'invalid_date'          => __( 'Nieprawidłowa data.', 'event-registration' ),
-			'not_in_options'        => __( 'Wybór spoza dostępnych opcji.', 'event-registration' ),
-			'too_long'              => __( 'Wpis jest za długi.', 'event-registration' ),
-			'invalid_accommodation' => __( 'Nieprawidłowy wybór noclegu.', 'event-registration' ),
-			'roommate_not_allowed'  => __( 'Współlokator niedozwolony dla tego pokoju.', 'event-registration' ),
+			'required'                => __( 'To pole jest wymagane.', 'event-registration' ),
+			'invalid_email'           => __( 'Nieprawidłowy adres e-mail.', 'event-registration' ),
+			'invalid_tel'             => __( 'Nieprawidłowy numer telefonu.', 'event-registration' ),
+			'invalid_number'          => __( 'Nieprawidłowa liczba.', 'event-registration' ),
+			'invalid_date'            => __( 'Nieprawidłowa data.', 'event-registration' ),
+			'not_in_options'          => __( 'Wybór spoza dostępnych opcji.', 'event-registration' ),
+			'too_long'                => __( 'Wpis jest za długi.', 'event-registration' ),
+			'invalid_accommodation'   => __( 'Nieprawidłowy wybór noclegu.', 'event-registration' ),
+			'roommate_not_allowed'    => __( 'Współlokator niedozwolony dla tego pokoju.', 'event-registration' ),
+			'companion_name_required' => __( 'Podaj imię i nazwisko osoby towarzyszącej.', 'event-registration' ),
 		);
 
 		return $map[ $code ] ?? __( 'Nieprawidłowa wartość.', 'event-registration' );

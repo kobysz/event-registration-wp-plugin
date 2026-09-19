@@ -9,8 +9,10 @@ declare( strict_types=1 );
 
 namespace EvReg\Frontend;
 
+use EvReg\Domain\Accommodation\AccommodationConfig;
 use EvReg\Domain\Accommodation\AccommodationSelection;
 use EvReg\Domain\Conditions\ConditionEngine;
+use EvReg\Domain\Schema\Field;
 use EvReg\Domain\Schema\FieldType;
 use EvReg\Domain\Schema\FormSchema;
 use EvReg\Domain\Schema\VisibilityResolver;
@@ -41,8 +43,30 @@ final class SubmissionAssembler {
 		$validator = new Validator( new VisibilityResolver( new ConditionEngine() ), new FieldValidatorRegistry() );
 		$result    = $validator->validate( $schema, $answers );
 
-		if ( ! $result->isValid() ) {
-			return AssembledSubmission::invalid( $result->errors(), $answers );
+		$accommodationField = $this->accommodationField( $schema );
+		$companion          = false;
+		$companionName      = '';
+
+		if ( null !== $accommodationField ) {
+			[ $companion, $companionName ] = $this->extractCompanion( $accommodationField, $post );
+
+			// Kontrolki evreg_companion/evreg_companion_name NIE są polami schematu — nie idą
+			// pod evreg_field[...], więc dokładamy je do $answers ręcznie, by re-render błędu
+			// (FormRenderer) miał z czego odtworzyć stan checkboxa i wpisane imię. Dokładamy je
+			// tylko gdy schemat w ogóle ma pole noclegu (spójnie z FormRenderer, który
+			// checkbox rysuje wyłącznie obok tego pola) — bez tego $values pojedynczego
+			// formularza bez noclegu dostawałoby martwe klucze.
+			$answers['evreg_companion']      = $companion;
+			$answers['evreg_companion_name'] = $companionName;
+		}
+
+		$errors = $result->errors();
+		if ( $companion && '' === trim( $companionName ) ) {
+			$errors['evreg_companion'] = 'companion_name_required';
+		}
+
+		if ( array() !== $errors ) {
+			return AssembledSubmission::invalid( $errors, $answers );
 		}
 
 		$values  = $result->values();
@@ -53,10 +77,48 @@ final class SubmissionAssembler {
 			(string) ( $values[ FormSchema::TYPE_FIELD_KEY ] ?? '' ),
 			$values,
 			$this->extractSelection( $schema, $values ),
-			CurrentLanguage::get()
+			CurrentLanguage::get(),
+			$companion,
+			$companionName
 		);
 
 		return AssembledSubmission::valid( $values, $request );
+	}
+
+	/**
+	 * Wyodrębnia flagę i imię osoby towarzyszącej z posta. Honorowane TYLKO gdy event
+	 * ma włączoną opcję companion_enabled w konfiguracji noclegów — klientowi się nie
+	 * ufa: gdy wyłączone, POST evreg_companion jest ignorowany (companion=false).
+	 *
+	 * @param Field               $accommodationField Pole typu accommodation (niesie config noclegów).
+	 * @param array<string,mixed> $post                Surowe $_POST (już wp_unslash przez wywołującego).
+	 * @return array{0:bool,1:string}
+	 */
+	private function extractCompanion( Field $accommodationField, array $post ): array {
+		$config = AccommodationConfig::fromArray( $accommodationField->config );
+		if ( ! $config->companionEnabled() ) {
+			return array( false, '' );
+		}
+
+		$companion      = ! empty( $post['evreg_companion'] );
+		$companion_name = sanitize_text_field( (string) ( $post['evreg_companion_name'] ?? '' ) );
+
+		return array( $companion, $companion_name );
+	}
+
+	/**
+	 * Znajduje pole zakwaterowania schematu, jeśli obecne.
+	 *
+	 * @param FormSchema $schema Złożony schemat formularza.
+	 */
+	private function accommodationField( FormSchema $schema ): ?Field {
+		foreach ( $schema->allFields() as $field ) {
+			if ( FieldType::Accommodation === $field->type ) {
+				return $field;
+			}
+		}
+
+		return null;
 	}
 
 	/**
