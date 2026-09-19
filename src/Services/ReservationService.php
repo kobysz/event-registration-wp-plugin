@@ -283,6 +283,10 @@ final class ReservationService {
 	 * Powtarza inwariant lock→count z reserve(): lockEvent PRZED occupancy. Przy wolnym
 	 * miejscu: waitlist→pending + nowy expires_at, emituje evreg_registration_reserved
 	 * (mail opt-in z 4A). Brak miejsc: rejected. Hook emitowany po COMMIT.
+	 * Companion-aware jak reserve()/editAnswers(): flaga companion czytana z wiersza,
+	 * decide() dostaje ją jako 5. arg, a przyznany booking jest przebudowywany z
+	 * seats=2/cena×2 (rozjazd z bookingiem zapisanym wcześniej przez editAnswers na
+	 * liście rezerwowej — np. inne companion_counts_event — jest naprawiany przy promocji).
 	 *
 	 * @param int $id ID zgłoszenia.
 	 *
@@ -311,6 +315,7 @@ final class ReservationService {
 		$selection = null === $booking
 			? null
 			: new AccommodationSelection( (string) $booking['package_key'], (string) $booking['room_type_key'], (string) ( $booking['roommate_pref'] ?? '' ) );
+		$companion = (bool) ( $row['companion'] ?? false );
 
 		$wpdb->query( 'START TRANSACTION' );
 
@@ -322,19 +327,29 @@ final class ReservationService {
 				isset( $settings['global_cap'] ) && null !== $settings['global_cap'] ? (int) $settings['global_cap'] : null,
 				$types->capacities(),
 				$accommodation->capacities(),
-				(bool) ( $settings['waitlist_enabled'] ?? true )
+				(bool) ( $settings['waitlist_enabled'] ?? true ),
+				$accommodation->companionCountsEvent()
 			);
 
 			$decision = $this->calculator->decide(
 				$limits,
 				$this->repository->occupancy( $event_id ),
 				(string) $row['type_key'],
-				$selection
+				$selection,
+				$companion
 			);
 
 			if ( Outcome::Accepted !== $decision->outcome ) {
 				$wpdb->query( 'ROLLBACK' );
 				return AdminActionResult::rejected( null === $decision->reason ? null : (string) $decision->reason );
+			}
+
+			if ( $decision->accommodationGranted && null !== $selection ) {
+				$item      = $accommodation->item( $selection->packageKey, $selection->roomKey );
+				$seats     = $companion ? 2 : 1;
+				$acc_price = ( null === $item ? 0.0 : $item->price ) * $seats;
+				$this->repository->deleteAccommodationBooking( $id );
+				$this->repository->insertAccommodationBooking( $id, $selection, $acc_price, $seats );
 			}
 
 			$expires_at = gmdate( 'Y-m-d H:i:s', strtotime( self::PENDING_TTL, time() ) );

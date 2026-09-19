@@ -83,6 +83,30 @@ final class ReserveCompanionTest extends WP_UnitTestCase {
 		return new ReservationRequest( $email, 'Jan', 'uczestnik', array( 'email' => $email ), $sel, '', $companion, $companion_name );
 	}
 
+	/**
+	 * Seeds a registration row directly (bypassing reserve()) so it can start on the waitlist —
+	 * reserve() never waitlists with a booking already attached, but editAnswers() can leave one
+	 * behind on a waitlisted row (spec: waitlist edits skip the capacity gate but still persist
+	 * the accommodation selection), which is the scenario promoteFromWaitlist must handle.
+	 */
+	private function seed_waitlisted( string $email, bool $companion, string $companion_name = '' ): int {
+		return $this->repository->insertRegistration(
+			array(
+				'event_id'       => $this->event_id,
+				'type_key'       => 'uczestnik',
+				'status'         => 'waitlist',
+				'email'          => $email,
+				'name'           => 'Jan',
+				'token'          => bin2hex( random_bytes( 16 ) ),
+				'data'           => '{}',
+				'price_total'    => 0.0,
+				'expires_at'     => null,
+				'companion'      => $companion ? 1 : 0,
+				'companion_name' => $companion ? $companion_name : '',
+			)
+		);
+	}
+
 	public function test_reserve_with_companion_stores_flag_seats_and_price(): void {
 		$this->configure();
 
@@ -269,5 +293,104 @@ final class ReserveCompanionTest extends WP_UnitTestCase {
 		$this->assertSame( '', $row2['companion_name'] );
 		$this->assertSame( '100.00', $row2['price_total'] );
 		$this->assertNull( $this->repository->findAccommodationBooking( $reserved->registrationId ) );
+	}
+
+	public function test_promote_from_waitlist_keeps_companion_waitlisted_when_only_one_event_seat_free(): void {
+		$this->configure(
+			array(
+				'accommodation' => array(
+					'packages'               => array(
+						array(
+							'key'   => 'n12',
+							'label' => 'Noc 1–2',
+						),
+					),
+					'rooms'                  => array(
+						array(
+							'key'   => 'double',
+							'label' => '2-os.',
+						),
+					),
+					'inventory'              => array(
+						array(
+							'package'  => 'n12',
+							'room'     => 'double',
+							'capacity' => 5,
+							'price'    => 180.0,
+						),
+					),
+					'companion_enabled'      => true,
+					'companion_counts_event' => true,
+				),
+				'settings'      => array(
+					'global_cap'       => 2,
+					'waitlist_enabled' => true,
+				),
+			)
+		);
+
+		$this->service->reserve( $this->event_id, $this->request( 'a@example.com', false ) ); // occupies 1/2 event seats.
+		$waitlisted = $this->seed_waitlisted( 'b@example.com', true, 'Ktoś' );
+
+		// Promoting the companion registration needs 2 event seats (self + companion);
+		// only 1 is free (2 - 1 taken), so it must stay on the waitlist, NOT be promoted
+		// as if it needed just 1 seat.
+		$result = $this->service->promoteFromWaitlist( $waitlisted );
+
+		$this->assertSame( 'rejected', $result->code );
+		$this->assertSame( 'waitlist', $this->repository->findById( $waitlisted )['status'] );
+	}
+
+	public function test_promote_from_waitlist_grants_companion_when_two_event_seats_free_and_rebuilds_booking_seats(): void {
+		$this->configure(
+			array(
+				'accommodation' => array(
+					'packages'               => array(
+						array(
+							'key'   => 'n12',
+							'label' => 'Noc 1–2',
+						),
+					),
+					'rooms'                  => array(
+						array(
+							'key'   => 'double',
+							'label' => '2-os.',
+						),
+					),
+					'inventory'              => array(
+						array(
+							'package'  => 'n12',
+							'room'     => 'double',
+							'capacity' => 5,
+							'price'    => 180.0,
+						),
+					),
+					'companion_enabled'      => true,
+					'companion_counts_event' => true,
+				),
+				'settings'      => array(
+					'global_cap'       => 3,
+					'waitlist_enabled' => true,
+				),
+			)
+		);
+
+		$this->service->reserve( $this->event_id, $this->request( 'a@example.com', false ) ); // occupies 1/3 event seats.
+		$waitlisted = $this->seed_waitlisted( 'b@example.com', true, 'Ktoś' );
+		// Simulate a booking left over from an earlier waitlist edit, stored with stale
+		// seats=1/price=180 (as if companion had been toggled on after the booking was
+		// first written) — promotion must rebuild it companion-aware, not trust it as-is.
+		$this->repository->insertAccommodationBooking( $waitlisted, new AccommodationSelection( 'n12', 'double' ), 180.0, 1 );
+
+		// 1 (a) + 2 (b + companion) = 3 <= global_cap 3 -> promotable.
+		$result = $this->service->promoteFromWaitlist( $waitlisted );
+
+		$this->assertSame( 'promoted', $result->code );
+		$row = $this->repository->findById( $waitlisted );
+		$this->assertSame( 'pending', $row['status'] );
+
+		$booking = $this->repository->findAccommodationBooking( $waitlisted );
+		$this->assertSame( 2, (int) $booking['seats'] );
+		$this->assertSame( '360.00', $booking['price'] );
 	}
 }
