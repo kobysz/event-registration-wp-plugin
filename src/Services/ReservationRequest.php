@@ -25,8 +25,10 @@ final class ReservationRequest {
 	 * @param string                      $name      Imię i nazwisko zgłaszającego się.
 	 * @param string                      $typeKey   Klucz wybranego typu zgłoszenia.
 	 * @param array<string,mixed>         $data      Znormalizowane odpowiedzi z Validatora.
-	 * @param AccommodationSelection|null $selection Wybór zakwaterowania, jeśli dotyczy.
-	 * @param string                      $lang      Slug języka zgłoszenia ('' gdy brak).
+	 * @param AccommodationSelection|null $selection      Wybór zakwaterowania, jeśli dotyczy.
+	 * @param string                      $lang           Slug języka zgłoszenia ('' gdy brak).
+	 * @param bool                        $companion      Czy zgłoszenie obejmuje osobę towarzyszącą.
+	 * @param string                      $companionName  Imię i nazwisko osoby towarzyszącej ('' gdy brak/nie dotyczy).
 	 */
 	public function __construct(
 		public readonly string $email,
@@ -34,7 +36,9 @@ final class ReservationRequest {
 		public readonly string $typeKey,
 		public readonly array $data,
 		public readonly ?AccommodationSelection $selection = null,
-		public readonly string $lang = ''
+		public readonly string $lang = '',
+		public readonly bool $companion = false,
+		public readonly string $companionName = ''
 	) {
 	}
 }

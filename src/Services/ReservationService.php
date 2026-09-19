@@ -101,14 +101,16 @@ final class ReservationService {
 				isset( $settings['global_cap'] ) && null !== $settings['global_cap'] ? (int) $settings['global_cap'] : null,
 				$types->capacities(),
 				$accommodation->capacities(),
-				(bool) ( $settings['waitlist_enabled'] ?? true )
+				(bool) ( $settings['waitlist_enabled'] ?? true ),
+				$accommodation->companionCountsEvent()
 			);
 
 			$decision = $this->calculator->decide(
 				$limits,
 				$this->repository->occupancy( $event_id ),
 				$request->typeKey,
-				$request->selection
+				$request->selection,
+				$request->companion
 			);
 
 			if ( Outcome::Rejected === $decision->outcome ) {
@@ -121,28 +123,31 @@ final class ReservationService {
 			$expires_at  = $is_waitlist ? null : gmdate( 'Y-m-d H:i:s', strtotime( self::PENDING_TTL, time() ) );
 
 			$type  = $types->get( $request->typeKey );
-			$price = null === $type ? 0.0 : $this->pricing->total( $type, $accommodation, $request->selection );
+			$price = null === $type ? 0.0 : $this->pricing->total( $type, $accommodation, $request->selection, $request->companion );
 			$token = bin2hex( random_bytes( 16 ) );
 
 			$id = $this->repository->insertRegistration(
 				array(
-					'event_id'    => $event_id,
-					'type_key'    => $request->typeKey,
-					'status'      => $status->value,
-					'email'       => $request->email,
-					'name'        => $request->name,
-					'token'       => $token,
-					'data'        => (string) wp_json_encode( $request->data ),
-					'price_total' => $price,
-					'expires_at'  => $expires_at,
-					'lang'        => $request->lang,
+					'event_id'       => $event_id,
+					'type_key'       => $request->typeKey,
+					'status'         => $status->value,
+					'email'          => $request->email,
+					'name'           => $request->name,
+					'token'          => $token,
+					'data'           => (string) wp_json_encode( $request->data ),
+					'price_total'    => $price,
+					'expires_at'     => $expires_at,
+					'lang'           => $request->lang,
+					'companion'      => $request->companion ? 1 : 0,
+					'companion_name' => $request->companion ? $request->companionName : '',
 				)
 			);
 
 			if ( $decision->accommodationGranted && null !== $request->selection ) {
 				$item      = $accommodation->item( $request->selection->packageKey, $request->selection->roomKey );
-				$acc_price = null === $item ? 0.0 : $item->price;
-				$this->repository->insertAccommodationBooking( $id, $request->selection, $acc_price );
+				$seats     = $request->companion ? 2 : 1;
+				$acc_price = ( null === $item ? 0.0 : $item->price ) * $seats;
+				$this->repository->insertAccommodationBooking( $id, $request->selection, $acc_price, $seats );
 			}
 
 			$wpdb->query( 'COMMIT' );
@@ -396,14 +401,16 @@ final class ReservationService {
 					isset( $settings['global_cap'] ) && null !== $settings['global_cap'] ? (int) $settings['global_cap'] : null,
 					$types->capacities(),
 					$accommodation->capacities(),
-					(bool) ( $settings['waitlist_enabled'] ?? true )
+					(bool) ( $settings['waitlist_enabled'] ?? true ),
+					$accommodation->companionCountsEvent()
 				);
 
 				$decision = $this->calculator->decide(
 					$limits,
 					$this->repository->occupancyExcluding( $event_id, $id ),
 					$request->typeKey,
-					$request->selection
+					$request->selection,
+					$request->companion
 				);
 
 				if ( Outcome::Accepted !== $decision->outcome ) {
@@ -416,7 +423,7 @@ final class ReservationService {
 				}
 			}
 
-			$price = $this->pricing->total( $type, $accommodation, $request->selection );
+			$price = $this->pricing->total( $type, $accommodation, $request->selection, $request->companion );
 
 			$this->repository->updateRegistration(
 				$id,
@@ -424,14 +431,17 @@ final class ReservationService {
 				$request->email,
 				$request->name,
 				(string) wp_json_encode( $request->data ),
-				$price
+				$price,
+				$request->companion ? 1 : 0,
+				$request->companion ? $request->companionName : ''
 			);
 
 			$this->repository->deleteAccommodationBooking( $id );
 			if ( null !== $request->selection ) {
 				$item      = $accommodation->item( $request->selection->packageKey, $request->selection->roomKey );
-				$acc_price = null === $item ? 0.0 : $item->price;
-				$this->repository->insertAccommodationBooking( $id, $request->selection, $acc_price );
+				$seats     = $request->companion ? 2 : 1;
+				$acc_price = ( null === $item ? 0.0 : $item->price ) * $seats;
+				$this->repository->insertAccommodationBooking( $id, $request->selection, $acc_price, $seats );
 			}
 
 			$wpdb->query( 'COMMIT' );
