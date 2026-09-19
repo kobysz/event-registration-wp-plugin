@@ -141,4 +141,40 @@ final class EventConfigControllerTest extends WP_UnitTestCase {
 		// Wartości nie-łańcuchowe zachowane bez zmian typu.
 		$this->assertSame( 200, $data['settings']['global_cap'] );
 	}
+
+	public function test_put_preserves_companion_flags_as_bool(): void {
+		wp_set_current_user( $this->admin_id );
+
+		$body = $this->valid_body();
+		$body['accommodation']['companion_enabled']      = true;
+		$body['accommodation']['companion_counts_event'] = false;
+
+		$request = new WP_REST_Request( 'PUT', "/evreg/v1/events/{$this->event_id}/config" );
+		$request->set_body_params( $body );
+		rest_do_request( $request );
+
+		$get      = new WP_REST_Request( 'GET', "/evreg/v1/events/{$this->event_id}/config" );
+		$get_data = rest_do_request( $get )->get_data();
+
+		$this->assertSame( true, $get_data['accommodation']['companion_enabled'] );
+		$this->assertSame( false, $get_data['accommodation']['companion_counts_event'] );
+	}
+
+	public function test_put_casts_stringy_companion_flags_to_bool(): void {
+		wp_set_current_user( $this->admin_id );
+
+		$body = $this->valid_body();
+		$body['accommodation']['companion_enabled']      = '1';
+		$body['accommodation']['companion_counts_event'] = '';
+
+		$request = new WP_REST_Request( 'PUT', "/evreg/v1/events/{$this->event_id}/config" );
+		$request->set_body_params( $body );
+		rest_do_request( $request );
+
+		$get      = new WP_REST_Request( 'GET', "/evreg/v1/events/{$this->event_id}/config" );
+		$get_data = rest_do_request( $get )->get_data();
+
+		$this->assertSame( true, $get_data['accommodation']['companion_enabled'] );
+		$this->assertSame( false, $get_data['accommodation']['companion_counts_event'] );
+	}
 }

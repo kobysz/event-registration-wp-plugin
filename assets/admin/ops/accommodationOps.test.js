@@ -9,6 +9,8 @@ import {
 	setInventoryCell,
 	getInventoryCell,
 	setAllowNone,
+	setCompanionEnabled,
+	setCompanionCountsEvent,
 } from './accommodationOps';
 
 describe( 'accommodationOps', () => {
@@ -98,5 +100,31 @@ describe( 'accommodationOps', () => {
 		const before = JSON.stringify( acc );
 		addPackage( acc );
 		expect( JSON.stringify( acc ) ).toBe( before );
+	} );
+
+	it( 'setCompanionEnabled ustawia flagę i nie mutuje wejścia', () => {
+		const acc = emptyAccommodation();
+		const before = JSON.stringify( acc );
+		const next = setCompanionEnabled( acc, true );
+		expect( next.companion_enabled ).toBe( true );
+		expect( JSON.stringify( acc ) ).toBe( before );
+	} );
+
+	it( 'setCompanionEnabled rzutuje wartość na bool', () => {
+		expect( setCompanionEnabled( emptyAccommodation(), 1 ).companion_enabled ).toBe( true );
+		expect( setCompanionEnabled( emptyAccommodation(), 0 ).companion_enabled ).toBe( false );
+	} );
+
+	it( 'setCompanionCountsEvent ustawia flagę i nie mutuje wejścia', () => {
+		const acc = emptyAccommodation();
+		const before = JSON.stringify( acc );
+		const next = setCompanionCountsEvent( acc, true );
+		expect( next.companion_counts_event ).toBe( true );
+		expect( JSON.stringify( acc ) ).toBe( before );
+	} );
+
+	it( 'setCompanionCountsEvent rzutuje wartość na bool', () => {
+		expect( setCompanionCountsEvent( emptyAccommodation(), 1 ).companion_counts_event ).toBe( true );
+		expect( setCompanionCountsEvent( emptyAccommodation(), 0 ).companion_counts_event ).toBe( false );
 	} );
 } );

@@ -11,6 +11,8 @@ import {
 	setInventoryCell,
 	getInventoryCell,
 	setAllowNone,
+	setCompanionEnabled,
+	setCompanionCountsEvent,
 } from '../ops/accommodationOps';
 
 export default function AccommodationTab( { config, update } ) {
@@ -127,6 +129,23 @@ export default function AccommodationTab( { config, update } ) {
 				checked={ acc.allow_none !== false }
 				onChange={ ( value ) => setAcc( setAllowNone( acc, value ) ) }
 			/>
+
+			<h3>{ __( 'Osoba towarzysząca', 'event-registration' ) }</h3>
+			<ToggleControl
+				label={ __( 'Opcja osoby towarzyszącej', 'event-registration' ) }
+				checked={ !! acc.companion_enabled }
+				onChange={ ( value ) => setAcc( setCompanionEnabled( acc, value ) ) }
+			/>
+			{ acc.companion_enabled && (
+				<ToggleControl
+					label={ __(
+						'Osoba towarzysząca zajmuje miejsce w limicie wydarzenia',
+						'event-registration'
+					) }
+					checked={ !! acc.companion_counts_event }
+					onChange={ ( value ) => setAcc( setCompanionCountsEvent( acc, value ) ) }
+				/>
+			) }
 		</div>
 	);
 }

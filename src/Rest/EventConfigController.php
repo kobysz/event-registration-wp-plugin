@@ -143,6 +143,13 @@ final class EventConfigController {
 	}
 
 	/**
+	 * Klucze bool-owe gałęzi noclegowej (`_evreg_accommodation`) — niezależnie
+	 * od tego, co przyśle klient (string "1"/"" itp.), zapisujemy je jako
+	 * rzeczywisty PHP bool.
+	 */
+	private const ACCOMMODATION_BOOL_KEYS = array( 'companion_enabled', 'companion_counts_event' );
+
+	/**
 	 * Rekurencyjnie sanityzuje łańcuchowe liście konfiguracji, zachowując
 	 * strukturę i typy nie-łańcuchowe. Config nie zawiera treści wieloliniowej
 	 * ani HTML — etykiety, klucze, daty, e-maile i liczby są jednoliniowe.
@@ -156,6 +163,8 @@ final class EventConfigController {
 		foreach ( $value as $k => $v ) {
 			if ( is_array( $v ) ) {
 				$clean[ $k ] = $this->sanitize( $v );
+			} elseif ( is_string( $k ) && in_array( $k, self::ACCOMMODATION_BOOL_KEYS, true ) ) {
+				$clean[ $k ] = (bool) $v;
 			} elseif ( is_string( $v ) ) {
 				$clean[ $k ] = sanitize_text_field( $v );
 			} else {

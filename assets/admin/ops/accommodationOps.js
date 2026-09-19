@@ -98,3 +98,15 @@ export function setAllowNone( acc, value ) {
 	next.allow_none = !! value;
 	return next;
 }
+
+export function setCompanionEnabled( acc, value ) {
+	const next = ensure( acc );
+	next.companion_enabled = !! value;
+	return next;
+}
+
+export function setCompanionCountsEvent( acc, value ) {
+	const next = ensure( acc );
+	next.companion_counts_event = !! value;
+	return next;
+}
