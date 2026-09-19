@@ -62,6 +62,38 @@ final class ContentTranslator {
 	}
 
 	/**
+	 * Zwraca konfigurację noclegu z nałożonymi tłumaczeniami labeli pakietów i pokojów.
+	 * Brak języka / brak lub pusty override → wartość bazowa. Klucze/ceny/pojemności nietknięte.
+	 *
+	 * @param array<string,mixed> $accommodation Surowa konfiguracja noclegu.
+	 * @param array<string,mixed> $overlay       Mapa lang → nadpisania.
+	 * @param string              $lang          Slug języka (pusty = baza).
+	 *
+	 * @return array<string,mixed>
+	 */
+	public function translateAccommodation( array $accommodation, array $overlay, string $lang ): array {
+		if ( '' === $lang || ! isset( $overlay[ $lang ]['accommodation'] ) || ! is_array( $overlay[ $lang ]['accommodation'] ) ) {
+			return $accommodation;
+		}
+
+		$over     = $overlay[ $lang ]['accommodation'];
+		$packages = isset( $over['packages'] ) && is_array( $over['packages'] ) ? $over['packages'] : array();
+		$rooms    = isset( $over['rooms'] ) && is_array( $over['rooms'] ) ? $over['rooms'] : array();
+
+		foreach ( $accommodation['packages'] ?? array() as $pi => $package ) {
+			$key                                       = (string) ( $package['key'] ?? '' );
+			$accommodation['packages'][ $pi ]['label'] = self::pick( $packages, $key, (string) ( $package['label'] ?? '' ) );
+		}
+
+		foreach ( $accommodation['rooms'] ?? array() as $ri => $room ) {
+			$key                                    = (string) ( $room['key'] ?? '' );
+			$accommodation['rooms'][ $ri ]['label'] = self::pick( $rooms, $key, (string) ( $room['label'] ?? '' ) );
+		}
+
+		return $accommodation;
+	}
+
+	/**
 	 * Zwraca niepuste tłumaczenie z mapy pod kluczem, inaczej wartość bazową.
 	 *
 	 * @param array<string,mixed> $map  Mapa tłumaczeń.

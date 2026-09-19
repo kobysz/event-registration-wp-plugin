@@ -40,6 +40,63 @@ final class ContentTranslatorTest extends TestCase {
 		);
 	}
 
+	private function accommodation(): array {
+		return array(
+			'packages'  => array(
+				array( 'key' => 'n12', 'label' => 'Noc 1–2' ),
+				array( 'key' => 'n23', 'label' => 'Noc 2–3' ),
+			),
+			'rooms'     => array(
+				array( 'key' => 'double', 'label' => 'Pokój 2-osobowy' ),
+				array( 'key' => 'single', 'label' => 'Pokój 1-osobowy' ),
+			),
+			'inventory' => array(
+				array( 'package' => 'n12', 'room' => 'double', 'capacity' => 5, 'price' => 180.0 ),
+			),
+		);
+	}
+
+	public function test_translate_accommodation_applies_package_and_room_labels(): void {
+		$overlay = array(
+			'en' => array(
+				'accommodation' => array(
+					'packages' => array( 'n12' => 'Night 1–2' ),
+					'rooms'    => array( 'double' => 'Double room' ),
+				),
+			),
+		);
+
+		$out = ( new ContentTranslator() )->translateAccommodation( $this->accommodation(), $overlay, 'en' );
+
+		$this->assertSame( 'Night 1–2', $out['packages'][0]['label'] );
+		$this->assertSame( 'Noc 2–3', $out['packages'][1]['label'] );      // brak override → baza
+		$this->assertSame( 'Double room', $out['rooms'][0]['label'] );
+		$this->assertSame( 'Pokój 1-osobowy', $out['rooms'][1]['label'] ); // brak override → baza
+		// Klucze/inwentarz nietknięte.
+		$this->assertSame( 'n12', $out['packages'][0]['key'] );
+		$this->assertSame( 5, $out['inventory'][0]['capacity'] );
+	}
+
+	public function test_translate_accommodation_falls_back_to_base(): void {
+		$empty   = ( new ContentTranslator() )->translateAccommodation( $this->accommodation(), array( 'en' => array( 'accommodation' => array( 'packages' => array( 'n12' => '' ) ) ) ), 'en' );
+		$noLang  = ( new ContentTranslator() )->translateAccommodation( $this->accommodation(), array(), '' );
+		$unknown = ( new ContentTranslator() )->translateAccommodation( $this->accommodation(), array( 'en' => array() ), 'de' );
+
+		$this->assertSame( 'Noc 1–2', $empty['packages'][0]['label'] );
+		$this->assertSame( 'Noc 1–2', $noLang['packages'][0]['label'] );
+		$this->assertSame( 'Noc 1–2', $unknown['packages'][0]['label'] );
+	}
+
+	public function test_translate_accommodation_does_not_mutate_input(): void {
+		$acc     = $this->accommodation();
+		$before  = json_encode( $acc );
+		$overlay = array( 'en' => array( 'accommodation' => array( 'packages' => array( 'n12' => 'Night 1–2' ) ) ) );
+
+		( new ContentTranslator() )->translateAccommodation( $acc, $overlay, 'en' );
+
+		$this->assertSame( $before, json_encode( $acc ) );
+	}
+
 	public function test_applies_overrides_for_language(): void {
 		$overlay = array(
 			'en' => array(
