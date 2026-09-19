@@ -95,4 +95,19 @@ final class AccommodationConfigTest extends TestCase {
 
 		AccommodationConfig::fromArray( $raw );
 	}
+
+	public function test_companion_flags(): void {
+		$c = AccommodationConfig::fromArray(
+			array(
+				'companion_enabled'      => true,
+				'companion_counts_event' => true,
+			)
+		);
+		$this->assertTrue( $c->companionEnabled() );
+		$this->assertTrue( $c->companionCountsEvent() );
+
+		$d = AccommodationConfig::fromArray( array() );
+		$this->assertFalse( $d->companionEnabled() );
+		$this->assertFalse( $d->companionCountsEvent() );
+	}
 }

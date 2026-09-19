@@ -24,11 +24,13 @@ final class PriceCalculator {
 	 * @param RegistrationType            $type      Wybrany typ zgłoszenia.
 	 * @param AccommodationConfig|null    $config    Konfiguracja zakwaterowania, jeśli dotyczy.
 	 * @param AccommodationSelection|null $selection Wybór zakwaterowania, jeśli dotyczy.
+	 * @param bool                        $companion Czy zgłoszenie zawiera osobę towarzyszącą (podwaja cenę noclegu).
 	 */
 	public function total(
 		RegistrationType $type,
 		?AccommodationConfig $config = null,
-		?AccommodationSelection $selection = null
+		?AccommodationSelection $selection = null,
+		bool $companion = false
 	): float {
 		$total = $type->price;
 
@@ -36,7 +38,7 @@ final class PriceCalculator {
 			$item = $config->item( $selection->packageKey, $selection->roomKey );
 
 			if ( null !== $item ) {
-				$total += $item->price;
+				$total += $item->price * ( $companion ? 2 : 1 );
 			}
 		}
 

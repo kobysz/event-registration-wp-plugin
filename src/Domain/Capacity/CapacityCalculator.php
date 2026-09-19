@@ -23,14 +23,19 @@ final class CapacityCalculator {
 	 * @param OccupancySnapshot      $taken     Aktualne obłożenie.
 	 * @param string                 $type_key  Klucz typu zgłoszenia.
 	 * @param AccommodationSelection $selection Wybór zakwaterowania, jeśli dotyczy.
+	 * @param bool                   $companion Czy zgłoszenie zawiera osobę towarzyszącą.
 	 */
 	public function decide(
 		CapacityLimits $limits,
 		OccupancySnapshot $taken,
 		string $type_key,
-		?AccommodationSelection $selection = null
+		?AccommodationSelection $selection = null,
+		bool $companion = false
 	): CapacityDecision {
-		if ( null !== $limits->globalLimit && $taken->global() >= $limits->globalLimit ) {
+		$event_seats  = 1 + ( $companion && $limits->companionCountsEvent ? 1 : 0 );
+		$global_taken = $taken->global() + ( $limits->companionCountsEvent ? $taken->companions() : 0 );
+
+		if ( null !== $limits->globalLimit && $global_taken + $event_seats > $limits->globalLimit ) {
 			return $this->full( $limits, 'event_full' );
 		}
 
@@ -46,8 +51,9 @@ final class CapacityCalculator {
 
 		$slot       = $selection->slotKey();
 		$slot_limit = $limits->forSlot( $slot );
+		$acc_seats  = $companion ? 2 : 1;
 
-		if ( null === $slot_limit || $taken->forSlot( $slot ) >= $slot_limit ) {
+		if ( null === $slot_limit || $taken->forSlot( $slot ) + $acc_seats > $slot_limit ) {
 			return new CapacityDecision( Outcome::Accepted, false, 'accommodation_full' );
 		}
 
