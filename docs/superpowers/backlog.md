@@ -161,7 +161,9 @@ przed budową; być może niepotrzebne.
 
 ---
 
-## B5 — Osoba towarzysząca (companion) + podwójne zajęcie noclegu
+## B5 — Osoba towarzysząca (companion) + podwójne zajęcie noclegu — ZROBIONE (2026-09-19)
+
+**Status:** scalone. Checkbox „Osoba towarzysząca" + pole imienia (public form + edycja admina), konfigurowalne w noclegu (`companion_enabled`, `companion_counts_event`). Companion + nocleg = 2 miejsca ze slotu (`seats` na bookingu, occupancy `SUM(seats)`), cena ×2 pozycji noclegu; opcjonalnie +1 do `global_cap` (nigdy do limitu typu). Kolumny `companion`/`companion_name` (db v5). Companion-aware we WSZYSTKICH ścieżkach: `reserve`, `editAnswers`, `promoteFromWaitlist` (ta ostatnia dodana w trakcie — plan pominął). Surfacing: detal, edycja, CSV, mail (`{osoba_towarzyszaca}` + podsumowanie), WP Privacy exporter + eraser (czyści imię, zostawia flagę). Spec/plan: `docs/superpowers/{specs,plans}/2026-09-19-companion-person*`. Szkic zakresu poniżej (zrealizowany).
 
 **Cel:** checkbox „osoba towarzysząca"; po zaznaczeniu pokazuje się pole
 tekstowe „imię i nazwisko osoby towarzyszącej". Jeśli osoba towarzysząca
@@ -230,3 +232,30 @@ rozszerzyć `ContentTranslator` o nakładkę na `AccommodationConfig` przed
 `TranslationsTab`), ops w `i18nOps.js` z immutable set/get. Tylko labele —
 klucze/ceny/pojemności nietknięte (data-safe, jak B3b). Zależność: może kolidować
 z B5 (jeśli B5 zmienia model noclegu) — zrobić po B5 albo skoordynować.
+
+---
+
+## B7 — Wycena noclegu bramkowana przyznaniem (pre-existing bug, ujawniony przez B5)
+
+**Cel:** cena zgłoszenia nie powinna zawierać opłaty za nocleg, którego NIE
+przyznano. Dziś `ReservationService::reserve` liczy `price_total` przez
+`PriceCalculator::total($type, $accommodation, $selection, $companion)` gdy
+`$selection` istnieje — **niezależnie od `accommodationGranted`**. Gdy slot
+pełny (`accommodation_full`, granted=false) zgłoszenie wchodzi bez bookingu,
+ale nadal jest obciążone ceną noclegu (a przy companionie **2×**, bo
+`accommodation_full` jest częsty — companion potrzebuje 2 miejsc). To
+pre-existing (dotyczy też nie-companion), ujawnione i zaznaczone w whole-branch
+review B5. `promoteFromWaitlist` i (nowo) tylko tam zostało już zbramkowane w
+B5; `reserve` (i sprawdzić `editAnswers`) — NIE.
+
+**Powiązany edge (config-drift):** `promoteFromWaitlist` z nieznanym/usuniętym
+`type_key` (typ skasowany z configu po zawaitlistowaniu) → `decide` traktuje
+brak typu jak brak limitu → Accepted → nowy kod zeruje `price_total`. Brak
+guardu nieznanego typu (jaki ma `editAnswers`). Nie-blokujące, wartość ceny.
+
+**Szkic:** w `reserve` (i `editAnswers` jeśli dotyczy) liczyć cenę noclegu z
+`$decision->accommodationGranted ? $selection : null` (jak zrobiono w
+`promoteFromWaitlist` w B5). Dodać guard nieznanego typu w `promoteFromWaitlist`.
+Testy: accommodation_full → `price_total` = tylko typ (bez noclegu, bez ×2).
+Mała zmiana, ale dotyka wyceny wszystkich zgłoszeń → własny mini-plan + testy
+regresji istniejących cen.
