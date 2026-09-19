@@ -133,6 +133,16 @@ final class PrivacyProvider {
 				),
 			);
 
+			// Osoba towarzysząca — jak historia maili niżej, tylko gdy obecna (puste pomijamy,
+			// nie eksportujemy pustego wiersza dla zgłoszeń bez companiona).
+			$companion_name = (string) ( $row['companion_name'] ?? '' );
+			if ( '' !== $companion_name ) {
+				$data[] = array(
+					'name'  => __( 'Osoba towarzysząca', 'event-registration' ),
+					'value' => $companion_name,
+				);
+			}
+
 			// Odpowiedzi (reuse mapper 5C).
 			if ( null !== $schema ) {
 				$answers = json_decode( (string) $row['data'], true );

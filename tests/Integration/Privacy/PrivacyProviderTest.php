@@ -138,6 +138,36 @@ final class PrivacyProviderTest extends WP_UnitTestCase {
 		$this->assertSame( 'a@b.pl', $values['E-mail: adresat'] );
 	}
 
+	public function test_export_includes_companion_name_when_present(): void {
+		$this->repository->insertRegistration(
+			$this->row(
+				array(
+					'companion'      => 1,
+					'companion_name' => 'Jan T.',
+				)
+			)
+		);
+
+		$result = ( new PrivacyProvider() )->export( 'a@b.pl', 1 );
+
+		$group  = $result['data'][0];
+		$values = wp_list_pluck( $group['data'], 'value', 'name' );
+
+		$this->assertArrayHasKey( 'Osoba towarzysząca', $values );
+		$this->assertSame( 'Jan T.', $values['Osoba towarzysząca'] );
+	}
+
+	public function test_export_omits_companion_name_when_absent(): void {
+		$this->repository->insertRegistration( $this->row() );
+
+		$result = ( new PrivacyProvider() )->export( 'a@b.pl', 1 );
+
+		$group  = $result['data'][0];
+		$values = wp_list_pluck( $group['data'], 'value', 'name' );
+
+		$this->assertArrayNotHasKey( 'Osoba towarzysząca', $values );
+	}
+
 	public function test_export_other_email_returns_empty_and_done(): void {
 		$this->repository->insertRegistration( $this->row() );
 
