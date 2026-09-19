@@ -158,3 +158,75 @@ przed budową; być może niepotrzebne.
 - Spójność z edycją admina (`editAnswers` dziś pomija duplikat-email — czy
   „unikalne" ma tam działać?).
 - Normalizacja porównania (trim, wielkość liter dla numerów/tekstu).
+
+---
+
+## B5 — Osoba towarzysząca (companion) + podwójne zajęcie noclegu
+
+**Cel:** checkbox „osoba towarzysząca"; po zaznaczeniu pokazuje się pole
+tekstowe „imię i nazwisko osoby towarzyszącej". Jeśli osoba towarzysząca
+występuje **i** wybrany jest nocleg → z puli noclegu (inventory pakiet+pokój)
+zdejmowane są **2 miejsca zamiast 1**.
+
+**Stan obecny (do potwierdzenia w spec):**
+- Warunkowa widoczność pól JEST (B1) — checkbox→pole tekstowe da się złożyć
+  istniejącym `Condition` (trigger = checkbox, operator `not_empty`/`equals`).
+  Więc UI „pokaż pole gdy zaznaczone" nie wymaga nowego silnika.
+- **Zajętość noclegu liczona 1:1.** Rezerwacja noclegu = jeden wiersz
+  `evreg_accommodation_bookings`; zajętość pakietu/pokoju liczona względem
+  `capacity` z `InventoryItem`. Domena: `src/Domain/Accommodation/`
+  (`AccommodationConfig`, `InventoryItem`, `AccommodationSelection`),
+  transakcyjne liczenie w `ReservationService::reserve` (lock→count→decide) i
+  `editAnswers` (`occupancyExcluding`). Nigdzie nie ma pojęcia „liczba osób na
+  jednym bookingu" — to jest sedno zmiany.
+
+**Trudna część (nie UI, lecz liczenie miejsc):**
+- Booking musi nieść **liczbę zajmowanych miejsc** (1 albo 2). Opcje:
+  (a) kolumna `seats`/`occupancy` na `evreg_accommodation_bookings` (migracja,
+  bump `Migrations` DB_VERSION), zajętość = `SUM(seats)` zamiast `COUNT(*)`;
+  (b) dwa wiersze bookingu na jedno zgłoszenie (prostsze liczenie, gorsze
+  modelowo — współlokator/anonimizacja/eksport muszą to ogarnąć). Rekomendacja
+  wstępna: (a) kolumna seats + `SUM`.
+- **Inwariant lock→count** (3A) bez zmian: nadal `lockEvent` przed liczeniem,
+  ale count = suma miejsc. Dotknąć zarówno `reserve` jak `editAnswers`
+  (`occupancy`/`occupancyExcluding` w `RegistrationRepository`).
+- Decyzja pojemności (`decide`) musi uwzględnić, że wniosek prosi o 2 miejsca —
+  odrzucić/na-waitlistę gdy zostało tylko 1 (dziś bramka zna tylko 1).
+- **Pojemność TYPU zgłoszenia** (`global_cap`/limit typu) — czy osoba
+  towarzysząca liczy się też do limitu miejsc na wydarzeniu/typie, czy tylko do
+  noclegu? Rozstrzygnąć w spec (wpływa na `reserve` occupancy zgłoszeń, nie
+  tylko noclegu).
+- Cena: czy osoba towarzysząca dopłaca (drugie miejsce noclegowe = druga cena
+  pokoju?) — `PriceCalculator`. Rozstrzygnąć w spec.
+
+**Powierzchnie do dotknięcia (szkic):** schema/builder (nowe pole checkbox +
+tekstowe, prawdopodobnie oznaczone semantycznie jako companion, nie zwykłe
+pola — inaczej silnik noclegu ich nie rozpozna), `SubmissionAssembler`
+(ekstrakcja flagi + imienia towarzysza), domena noclegu (seats), migracja,
+`ReservationService` (reserve+editAnswers), `PriceCalculator`,
+`RegistrationExportMapper`/`PlaceholderFactory` (pokazać towarzysza),
+Privacy eraser (anonimizacja imienia towarzysza).
+
+**Uwaga:** to NIE jest bounded — dotyka transakcyjnego rdzenia rezerwacji i
+modelu danych noclegu. Własny spec → plan → SDD.
+
+---
+
+## B6 — Tłumaczenie labeli noclegów (i18n, uzupełnienie B3b)
+
+**Cel:** labele pakietów, pokojów, opcji „Bez noclegu" i pola współlokatora
+tłumaczone per język (Polylang), jak reszta treści formularza.
+
+**Stan obecny:** overlay `_evreg_i18n` (B3b) NIE ma bucketu `accommodation`.
+`ContentTranslator` i `i18nOps.translatableItems` obejmują tylko
+sekcje/pola/opcje/typy (+ `mail` z B3c-1). Labele noclegu pochodzą z
+`AccommodationConfig` (osobne meta), scalane przez `SchemaAssembler` — zawsze
+język bazowy. Świadomie wykluczone w spec B3b.
+
+**Szkic zakresu:** dodać bucket `accommodation` do overlay
+(`{ packages:{key:label}, rooms:{key:label}, misc:{no_accommodation, roommate_label} }`),
+rozszerzyć `ContentTranslator` o nakładkę na `AccommodationConfig` przed
+`SchemaAssembler`, dodać pozycje noclegu do `translatableItems` (macierz w
+`TranslationsTab`), ops w `i18nOps.js` z immutable set/get. Tylko labele —
+klucze/ceny/pojemności nietknięte (data-safe, jak B3b). Zależność: może kolidować
+z B5 (jeśli B5 zmienia model noclegu) — zrobić po B5 albo skoordynować.
