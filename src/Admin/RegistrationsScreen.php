@@ -206,6 +206,9 @@ final class RegistrationsScreen {
 		self::detail_row( __( 'Zgłoszono', 'event-registration' ), (string) $row['created_at'] );
 		self::detail_row( __( 'Potwierdzono', 'event-registration' ), (string) ( $row['confirmed_at'] ?? '' ) );
 		self::detail_row( __( 'Wygasa', 'event-registration' ), (string) ( $row['expires_at'] ?? '' ) );
+		if ( ! empty( $row['companion'] ) ) {
+			self::detail_row( __( 'Osoba towarzysząca', 'event-registration' ), (string) ( $row['companion_name'] ?? '' ) );
+		}
 		echo '</tbody></table>';
 
 		self::render_answers( $event_id, (string) $row['data'] );
@@ -249,6 +252,11 @@ final class RegistrationsScreen {
 
 		$answers = json_decode( (string) $row['data'], true );
 		$answers = is_array( $answers ) ? $answers : array();
+		// Companion NIE jest w JSON odpowiedzi (osobne kolumny DB) — dokładamy pod tymi samymi
+		// kluczami evreg_companion/evreg_companion_name, których RegistrationEditForm/form.js
+		// (evreg-public) oczekują (spójnie z SubmissionAssembler przy re-renderze błędu).
+		$answers['evreg_companion']      = (bool) ( $row['companion'] ?? false );
+		$answers['evreg_companion_name'] = (string) ( $row['companion_name'] ?? '' );
 
 		echo RegistrationEditForm::render( $schema, $answers, $id ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- już escapowane w rendererze.
 		echo '</div>';

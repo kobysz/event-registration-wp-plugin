@@ -211,6 +211,24 @@ final class PrivacyProviderTest extends WP_UnitTestCase {
 		$this->assertSame( array(), $again['messages'] );
 	}
 
+	public function test_erase_clears_companion_name_but_keeps_companion_flag(): void {
+		$id = $this->repository->insertRegistration(
+			$this->row(
+				array(
+					'companion'      => 1,
+					'companion_name' => 'Jan T.',
+				)
+			)
+		);
+
+		( new PrivacyProvider() )->erase( 'a@b.pl', 1 );
+
+		$row = $this->repository->findById( $id );
+		$this->assertSame( '', (string) $row['companion_name'] );
+		$this->assertSame( 1, (int) $row['companion'] );
+		$this->assertSame( 'confirmed', (string) $row['status'] );
+	}
+
 	public function test_erase_leaves_other_email_untouched(): void {
 		$mine_id  = $this->repository->insertRegistration( $this->row() );
 		$other_id = $this->repository->insertRegistration(

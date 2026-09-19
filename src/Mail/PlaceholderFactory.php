@@ -46,9 +46,10 @@ final class PlaceholderFactory {
 	 * @param array<string,mixed> $registration Wiersz tabeli zgłoszeń.
 	 */
 	public function build( array $registration ): Placeholders {
-		$event_id      = (int) ( $registration['event_id'] ?? 0 );
-		$config        = $this->config->get( $event_id );
-		$accommodation = $this->accommodationLabel( $config, (int) ( $registration['id'] ?? 0 ) );
+		$event_id       = (int) ( $registration['event_id'] ?? 0 );
+		$config         = $this->config->get( $event_id );
+		$accommodation  = $this->accommodationLabel( $config, (int) ( $registration['id'] ?? 0 ) );
+		$companion_name = (string) ( $registration['companion_name'] ?? '' );
 
 		return new Placeholders(
 			array(
@@ -57,8 +58,9 @@ final class PlaceholderFactory {
 				'event'              => (string) get_the_title( $event_id ),
 				'typ'                => $this->typeLabel( $config, (string) ( $registration['type_key'] ?? '' ) ),
 				'nocleg'             => $accommodation,
+				'osoba_towarzyszaca' => $companion_name,
 				'link_potwierdzenia' => $this->confirmationUrl( $config, $event_id, (string) ( $registration['token'] ?? '' ), (string) ( $registration['lang'] ?? '' ) ),
-				'podsumowanie'       => $this->summary( $event_id, $registration, $accommodation ),
+				'podsumowanie'       => $this->summary( $event_id, $registration, $accommodation, $companion_name ),
 			)
 		);
 	}
@@ -162,13 +164,14 @@ final class PlaceholderFactory {
 	}
 
 	/**
-	 * Buduje podsumowanie odpowiedzi, dopisując linię noclegu.
+	 * Buduje podsumowanie odpowiedzi, dopisując linie noclegu i osoby towarzyszącej.
 	 *
-	 * @param int                 $event_id      ID eventu.
-	 * @param array<string,mixed> $registration  Wiersz zgłoszenia.
-	 * @param string              $accommodation Opis noclegu albo pusty łańcuch.
+	 * @param int                 $event_id       ID eventu.
+	 * @param array<string,mixed> $registration   Wiersz zgłoszenia.
+	 * @param string              $accommodation  Opis noclegu albo pusty łańcuch.
+	 * @param string              $companion_name Imię i nazwisko osoby towarzyszącej albo pusty łańcuch.
 	 */
-	private function summary( int $event_id, array $registration, string $accommodation ): string {
+	private function summary( int $event_id, array $registration, string $accommodation, string $companion_name ): string {
 		$schema = $this->loader->load( $event_id );
 
 		if ( null === $schema ) {
@@ -184,13 +187,22 @@ final class PlaceholderFactory {
 
 		$summary = $builder->build( $schema, $answers );
 
-		if ( '' === $accommodation ) {
+		$lines = array();
+		if ( '' !== $accommodation ) {
+			/* translators: %s: opis rezerwacji noclegowej. */
+			$lines[] = sprintf( __( 'Nocleg: %s', 'event-registration' ), $accommodation );
+		}
+		if ( '' !== $companion_name ) {
+			/* translators: %s: imię i nazwisko osoby towarzyszącej. */
+			$lines[] = sprintf( __( 'Osoba towarzysząca: %s', 'event-registration' ), $companion_name );
+		}
+
+		if ( array() === $lines ) {
 			return $summary;
 		}
 
-		/* translators: %s: opis rezerwacji noclegowej. */
-		$line = sprintf( __( 'Nocleg: %s', 'event-registration' ), $accommodation );
+		$suffix = implode( "\n", $lines );
 
-		return '' === $summary ? $line : $summary . "\n" . $line;
+		return '' === $summary ? $suffix : $summary . "\n" . $suffix;
 	}
 }

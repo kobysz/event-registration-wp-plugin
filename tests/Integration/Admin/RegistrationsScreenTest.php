@@ -138,6 +138,53 @@ final class RegistrationsScreenTest extends WP_UnitTestCase {
 		$this->assertSame( 'Notatka testowa', $this->repository->findById( $id )['note'] );
 	}
 
+	public function test_detail_shows_companion_row_when_present(): void {
+		wp_set_current_user( $this->admin_id );
+		$id = $this->repository->insertRegistration(
+			array(
+				'event_id'       => self::factory()->post->create( array( 'post_type' => 'evreg_event' ) ),
+				'type_key'       => 'uczestnik',
+				'status'         => 'confirmed',
+				'email'          => 'jan@example.com',
+				'name'           => 'Jan',
+				'token'          => str_repeat( 'b', 32 ),
+				'data'           => '{}',
+				'price_total'    => 0.0,
+				'expires_at'     => '2099-01-01 00:00:00',
+				'companion'      => 1,
+				'companion_name' => 'Jan T.',
+			)
+		);
+
+		$_GET['action'] = 'view';
+		$_GET['id']     = $id;
+
+		ob_start();
+		RegistrationsScreen::render();
+		$html = ob_get_clean();
+
+		unset( $_GET['action'] );
+
+		$this->assertStringContainsString( 'Osoba towarzysząca', (string) $html );
+		$this->assertStringContainsString( 'Jan T.', (string) $html );
+	}
+
+	public function test_detail_hides_companion_row_when_absent(): void {
+		wp_set_current_user( $this->admin_id );
+		$id = $this->seed( 'confirmed' );
+
+		$_GET['action'] = 'view';
+		$_GET['id']     = $id;
+
+		ob_start();
+		RegistrationsScreen::render();
+		$html = ob_get_clean();
+
+		unset( $_GET['action'] );
+
+		$this->assertStringNotContainsString( 'Osoba towarzysząca', (string) $html );
+	}
+
 	public function test_confirm_without_cap_dies(): void {
 		$subscriber = self::factory()->user->create( array( 'role' => 'subscriber' ) );
 		wp_set_current_user( $subscriber );

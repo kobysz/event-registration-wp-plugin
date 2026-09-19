@@ -622,6 +622,7 @@ final class RegistrationRepository {
 
 	/**
 	 * Anonimizuje pola PII zgłoszenia (bez zmiany statusu/typu/ceny/dat) — WP Privacy eraser.
+	 * Czyści też imię osoby towarzyszącej; flaga companion ZOSTAJE (zajętość/liczniki spójne).
 	 *
 	 * @param int $id ID zgłoszenia.
 	 */
@@ -630,15 +631,16 @@ final class RegistrationRepository {
 		$wpdb->update(
 			$this->registrations(),
 			array(
-				'email'      => 'deleted-' . $id . '@example.invalid',
-				'name'       => '',
-				'data'       => '{}',
-				'note'       => '',
-				'token'      => '',
-				'updated_at' => current_time( 'mysql', true ),
+				'email'          => 'deleted-' . $id . '@example.invalid',
+				'name'           => '',
+				'data'           => '{}',
+				'note'           => '',
+				'token'          => '',
+				'companion_name' => '',
+				'updated_at'     => current_time( 'mysql', true ),
 			),
 			array( 'id' => $id ),
-			array( '%s', '%s', '%s', '%s', '%s', '%s' ),
+			array( '%s', '%s', '%s', '%s', '%s', '%s', '%s' ),
 			array( '%d' )
 		); // phpcs:ignore WordPress.DB.DirectDatabaseQuery
 	}
