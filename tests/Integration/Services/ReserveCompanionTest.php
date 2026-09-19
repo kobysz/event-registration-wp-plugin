@@ -392,5 +392,75 @@ final class ReserveCompanionTest extends WP_UnitTestCase {
 		$booking = $this->repository->findAccommodationBooking( $waitlisted );
 		$this->assertSame( 2, (int) $booking['seats'] );
 		$this->assertSame( '360.00', $booking['price'] );
+		// price_total synced on promotion: 100 (type) + 360 (2×180 accommodation, granted).
+		$this->assertSame( '460.00', $row['price_total'] );
+	}
+
+	public function test_promote_from_waitlist_deletes_stale_booking_and_syncs_price_when_room_not_granted(): void {
+		$this->configure(
+			array(
+				'types'         => array(
+					array(
+						'key'   => 'uczestnik',
+						'label' => 'Uczestnik',
+						'price' => 100.0,
+					),
+				),
+				'accommodation' => array(
+					'packages'               => array(
+						array(
+							'key'   => 'n12',
+							'label' => 'Noc 1–2',
+						),
+					),
+					'rooms'                  => array(
+						array(
+							'key'   => 'double',
+							'label' => '2-os.',
+						),
+					),
+					'inventory'              => array(
+						array(
+							'package'  => 'n12',
+							'room'     => 'double',
+							'capacity' => 2,
+							'price'    => 180.0,
+						),
+					),
+					'companion_enabled'      => true,
+					// Isolate from the global-cap gate: only the slot itself is scarce here.
+					'companion_counts_event' => false,
+				),
+				'settings'      => array( 'waitlist_enabled' => true ),
+			)
+		);
+
+		// Takes 1 of the 2 seats in n12|double, leaving only 1 free.
+		$this->service->reserve(
+			$this->event_id,
+			$this->request( 'x@example.com', false, '', new AccommodationSelection( 'n12', 'double' ) )
+		);
+
+		$waitlisted = $this->seed_waitlisted( 'b@example.com', true, 'Ktoś' );
+		// Stale booking left over from an earlier waitlist-stage edit, claiming both seats —
+		// as if it had been written back when the room still had 2 free. Only 1 is free now.
+		$this->repository->insertAccommodationBooking( $waitlisted, new AccommodationSelection( 'n12', 'double' ), 360.0, 2 );
+
+		$result = $this->service->promoteFromWaitlist( $waitlisted );
+
+		// Only the slot is full (type/global are fine) -> Outcome::Accepted, accommodationGranted=false.
+		$this->assertSame( 'promoted', $result->code );
+		$row = $this->repository->findById( $waitlisted );
+		$this->assertSame( 'pending', $row['status'] );
+
+		// The stale 2-seat booking must be gone — otherwise the slot would be oversold
+		// (1 already occupied + 2 phantom = 3 seats claimed in a 2-seat room).
+		$this->assertNull( $this->repository->findAccommodationBooking( $waitlisted ) );
+
+		$occupancy = $this->repository->occupancy( $this->event_id );
+		$this->assertSame( 1, $occupancy->forSlot( 'n12|double' ) ); // only x@example.com's seat — no oversell.
+
+		// price_total synced to reflect no accommodation granted: 100 (type) + 0.
+		$this->assertSame( '100.00', $row['price_total'] );
 	}
 }

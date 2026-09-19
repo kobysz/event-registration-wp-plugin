@@ -287,6 +287,12 @@ final class ReservationService {
 	 * decide() dostaje ją jako 5. arg, a przyznany booking jest przebudowywany z
 	 * seats=2/cena×2 (rozjazd z bookingiem zapisanym wcześniej przez editAnswers na
 	 * liście rezerwowej — np. inne companion_counts_event — jest naprawiany przy promocji).
+	 * Gdy nocleg NIE zostanie przyznany na promocji (accommodation_full — companion czyni
+	 * to prawdopodobnym, bo żąda 2 miejsc), istniejący booking sprzed listy rezerwowej jest
+	 * kasowany PRZED markPending() — inaczej zgłoszenie wchodzi w status zajmujący miejsce
+	 * z "widmowym" bookingiem i slot zostaje przesprzedany (jak reserve(), które po prostu
+	 * nie wstawia bookingu przy braku grantu). price_total jest przeliczane na promocji tak
+	 * samo jak w reserve(): typ + (nocleg przyznany ? cena pozycji×seats : 0).
 	 *
 	 * @param int $id ID zgłoszenia.
 	 *
@@ -344,13 +350,25 @@ final class ReservationService {
 				return AdminActionResult::rejected( null === $decision->reason ? null : (string) $decision->reason );
 			}
 
-			if ( $decision->accommodationGranted && null !== $selection ) {
-				$item      = $accommodation->item( $selection->packageKey, $selection->roomKey );
-				$seats     = $companion ? 2 : 1;
-				$acc_price = ( null === $item ? 0.0 : $item->price ) * $seats;
-				$this->repository->deleteAccommodationBooking( $id );
-				$this->repository->insertAccommodationBooking( $id, $selection, $acc_price, $seats );
+			if ( null !== $selection ) {
+				if ( $decision->accommodationGranted ) {
+					$item      = $accommodation->item( $selection->packageKey, $selection->roomKey );
+					$seats     = $companion ? 2 : 1;
+					$acc_price = ( null === $item ? 0.0 : $item->price ) * $seats;
+					$this->repository->deleteAccommodationBooking( $id );
+					$this->repository->insertAccommodationBooking( $id, $selection, $acc_price, $seats );
+				} else {
+					// Brak grantu na promocji (np. companion żąda 2 miejsc, zostało 1) —
+					// skasuj nieaktualny booking sprzed listy rezerwowej. Bez tego markPending()
+					// poniżej przeniesie zgłoszenie w status zajmujący miejsce z widmowym
+					// bookingiem i slot zostanie przesprzedany.
+					$this->repository->deleteAccommodationBooking( $id );
+				}
 			}
+
+			$type  = $types->get( (string) $row['type_key'] );
+			$price = null === $type ? 0.0 : $this->pricing->total( $type, $accommodation, $decision->accommodationGranted ? $selection : null, $companion );
+			$this->repository->updatePrice( $id, $price );
 
 			$expires_at = gmdate( 'Y-m-d H:i:s', strtotime( self::PENDING_TTL, time() ) );
 			$this->repository->markPending( $id, $expires_at );

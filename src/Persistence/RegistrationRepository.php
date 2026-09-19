@@ -564,6 +564,27 @@ final class RegistrationRepository {
 	}
 
 	/**
+	 * Zapisuje przeliczoną cenę łączną zgłoszenia (bez zmiany innych pól).
+	 *
+	 * @param int   $id    ID zgłoszenia.
+	 * @param float $price Nowa cena łączna.
+	 */
+	public function updatePrice( int $id, float $price ): void {
+		global $wpdb;
+
+		$wpdb->update(
+			$this->registrations(),
+			array(
+				'price_total' => $price,
+				'updated_at'  => current_time( 'mysql', true ),
+			),
+			array( 'id' => $id ),
+			array( '%f', '%s' ),
+			array( '%d' )
+		); // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+	}
+
+	/**
 	 * Nadpisuje edytowalne pola zgłoszenia (bez zmiany statusu/tokenu/dat cyklu życia).
 	 *
 	 * @param int    $id             ID zgłoszenia.
