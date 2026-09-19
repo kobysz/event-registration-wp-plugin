@@ -28,10 +28,10 @@ final class PlaceholderFactoryTest extends WP_UnitTestCase {
 			$wpdb->query( 'TRUNCATE TABLE ' . Migrations::table( $table ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery
 		}
 
-		$config              = new EventConfigRepository();
-		$this->registrations = new RegistrationRepository();
+		$config                   = new EventConfigRepository();
+		$this->registrations      = new RegistrationRepository();
 		$this->placeholderFactory = new PlaceholderFactory( $config, $this->registrations, new EventFormLoader( $config ) );
-		$this->event_id      = self::factory()->post->create(
+		$this->event_id           = self::factory()->post->create(
 			array(
 				'post_type'   => 'evreg_event',
 				'post_title'  => 'Zjazd 2026',
@@ -49,18 +49,54 @@ final class PlaceholderFactoryTest extends WP_UnitTestCase {
 							'key'    => 'dane',
 							'title'  => 'Dane',
 							'fields' => array(
-								array( 'key' => '__type', 'type' => 'radio', 'label' => 'Typ zgłoszenia' ),
-								array( 'key' => 'imie', 'type' => 'text', 'label' => 'Imię i nazwisko' ),
-								array( 'key' => 'email', 'type' => 'email', 'label' => 'E-mail' ),
+								array(
+									'key'   => '__type',
+									'type'  => 'radio',
+									'label' => 'Typ zgłoszenia',
+								),
+								array(
+									'key'   => 'imie',
+									'type'  => 'text',
+									'label' => 'Imię i nazwisko',
+								),
+								array(
+									'key'   => 'email',
+									'type'  => 'email',
+									'label' => 'E-mail',
+								),
 							),
 						),
 					),
 				),
-				'types'         => array( array( 'key' => 'uczestnik', 'label' => 'Uczestnik', 'price' => 450.0 ) ),
+				'types'         => array(
+					array(
+						'key'   => 'uczestnik',
+						'label' => 'Uczestnik',
+						'price' => 450.0,
+					),
+				),
 				'accommodation' => array(
-					'packages'  => array( array( 'key' => 'n12', 'label' => 'Noc 1–2' ) ),
-					'rooms'     => array( array( 'key' => 'double', 'label' => 'Pokój 2-osobowy', 'roommate_field' => true ) ),
-					'inventory' => array( array( 'package' => 'n12', 'room' => 'double', 'capacity' => 5, 'price' => 180.0 ) ),
+					'packages'  => array(
+						array(
+							'key'   => 'n12',
+							'label' => 'Noc 1–2',
+						),
+					),
+					'rooms'     => array(
+						array(
+							'key'            => 'double',
+							'label'          => 'Pokój 2-osobowy',
+							'roommate_field' => true,
+						),
+					),
+					'inventory' => array(
+						array(
+							'package'  => 'n12',
+							'room'     => 'double',
+							'capacity' => 5,
+							'price'    => 180.0,
+						),
+					),
 				),
 				'settings'      => array( 'global_cap' => 100 ),
 			)
@@ -127,12 +163,72 @@ final class PlaceholderFactoryTest extends WP_UnitTestCase {
 	}
 
 	public function test_confirmation_link_uses_form_page_when_configured(): void {
-		$page_id = self::factory()->post->create( array( 'post_type' => 'page', 'post_status' => 'publish' ) );
+		$page_id = self::factory()->post->create(
+			array(
+				'post_type'   => 'page',
+				'post_status' => 'publish',
+			)
+		);
 		( new EventConfigRepository() )->save( $this->event_id, array( 'settings' => array( 'form_page_id' => $page_id ) ) );
 
 		$link = $this->placeholderFactory->build( $this->registration() )->get( 'link_potwierdzenia' );
 
 		$this->assertStringContainsString( (string) get_permalink( $page_id ), $link );
+	}
+
+	public function test_confirmation_link_uses_localized_page_for_registration_language(): void {
+		$base_page = self::factory()->post->create(
+			array(
+				'post_type'   => 'page',
+				'post_status' => 'publish',
+			)
+		);
+		$en_page   = self::factory()->post->create(
+			array(
+				'post_type'   => 'page',
+				'post_status' => 'publish',
+			)
+		);
+		( new EventConfigRepository() )->save( $this->event_id, array( 'settings' => array( 'form_page_id' => $base_page ) ) );
+
+		$captured = array();
+		$filter   = static function ( int $post_id, string $lang ) use ( $en_page, &$captured ) {
+			$captured[] = $lang;
+			return 'en' === $lang ? $en_page : $post_id;
+		};
+		add_filter( 'evreg_confirmation_page_id', $filter, 10, 2 );
+
+		$link = $this->placeholderFactory->build( $this->registration( array( 'lang' => 'en' ) ) )->get( 'link_potwierdzenia' );
+
+		remove_filter( 'evreg_confirmation_page_id', $filter, 10 );
+
+		$this->assertContains( 'en', $captured );
+		$this->assertStringContainsString( (string) get_permalink( $en_page ), $link );
+		$this->assertStringNotContainsString( (string) get_permalink( $base_page ), $link );
+	}
+
+	public function test_confirmation_link_passes_empty_language_for_base_registration(): void {
+		$base_page = self::factory()->post->create(
+			array(
+				'post_type'   => 'page',
+				'post_status' => 'publish',
+			)
+		);
+		( new EventConfigRepository() )->save( $this->event_id, array( 'settings' => array( 'form_page_id' => $base_page ) ) );
+
+		$captured = array();
+		$filter   = static function ( int $post_id, string $lang ) use ( &$captured ) {
+			$captured[] = $lang;
+			return $post_id;
+		};
+		add_filter( 'evreg_confirmation_page_id', $filter, 10, 2 );
+
+		$link = $this->placeholderFactory->build( $this->registration() )->get( 'link_potwierdzenia' );
+
+		remove_filter( 'evreg_confirmation_page_id', $filter, 10 );
+
+		$this->assertSame( array( '' ), $captured );
+		$this->assertStringContainsString( (string) get_permalink( $base_page ), $link );
 	}
 
 	public function test_summary_lists_answers(): void {
@@ -164,8 +260,20 @@ final class PlaceholderFactoryTest extends WP_UnitTestCase {
 	}
 
 	public function test_summary_is_empty_when_schema_missing(): void {
-		$other  = self::factory()->post->create( array( 'post_type' => 'evreg_event', 'post_title' => 'Bez schemy' ) );
-		$values = $this->placeholderFactory->build( $this->registration( array( 'event_id' => $other, 'email' => 'inny@example.com' ) ) );
+		$other  = self::factory()->post->create(
+			array(
+				'post_type'  => 'evreg_event',
+				'post_title' => 'Bez schemy',
+			)
+		);
+		$values = $this->placeholderFactory->build(
+			$this->registration(
+				array(
+					'event_id' => $other,
+					'email'    => 'inny@example.com',
+				)
+			)
+		);
 
 		$this->assertSame( '', $values->get( 'podsumowanie' ) );
 		$this->assertSame( 'Bez schemy', $values->get( 'event' ) );
