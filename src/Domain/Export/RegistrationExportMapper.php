@@ -36,7 +36,7 @@ final class RegistrationExportMapper {
 			}
 			$cols[] = array(
 				'key'   => $field->key,
-				'label' => $field->label,
+				'label' => '' !== $field->shortLabel ? $field->shortLabel : $field->label,
 			);
 		}
 		return $cols;

@@ -3,6 +3,7 @@ function langBucket( overlay, lang ) {
 	return {
 		sections: base.sections || {},
 		fields: base.fields || {},
+		shortLabels: base.shortLabels || {},
 		types: base.types || {},
 		options: base.options || {},
 		mail: base.mail || {},
@@ -18,6 +19,9 @@ export function translatableItems( schema, types, accommodation ) {
 		items.push( { kind: 'section', key: section.key, base: section.title || section.key } );
 		( section.fields || [] ).forEach( ( field ) => {
 			items.push( { kind: 'field', key: field.key, base: field.label || field.key } );
+			if ( field.short_label ) {
+				items.push( { kind: 'shortLabel', key: field.key, base: field.short_label } );
+			}
 		} );
 		( section.fields || [] ).forEach( ( field ) => {
 			if ( field.key === '__type' ) {
@@ -79,6 +83,22 @@ export function setOptionTranslation( overlay, lang, fieldKey, optionValue, valu
 				...current.options,
 				[ fieldKey ]: { ...( current.options[ fieldKey ] || {} ), [ optionValue ]: value },
 			},
+		},
+	};
+}
+
+export function getShortLabelTranslation( overlay, lang, key ) {
+	const bucket = ( overlay[ lang ] || {} ).shortLabels || {};
+	return bucket[ key ] ? String( bucket[ key ] ) : '';
+}
+
+export function setShortLabelTranslation( overlay, lang, key, value ) {
+	const current = langBucket( overlay, lang );
+	return {
+		...overlay,
+		[ lang ]: {
+			...current,
+			shortLabels: { ...current.shortLabels, [ key ]: value },
 		},
 	};
 }

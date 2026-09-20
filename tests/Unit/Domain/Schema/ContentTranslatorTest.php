@@ -97,6 +97,45 @@ final class ContentTranslatorTest extends TestCase {
 		$this->assertSame( $before, json_encode( $acc ) );
 	}
 
+	public function test_translates_short_label_when_present(): void {
+		$schema = array(
+			'version'  => 1,
+			'sections' => array(
+				array(
+					'key'    => 'dane',
+					'title'  => 'Dane',
+					'fields' => array(
+						array( 'key' => 'rodo', 'type' => 'checkbox', 'label' => 'Długa zgoda RODO...', 'short_label' => 'Zgoda RODO' ),
+						array( 'key' => 'imie', 'type' => 'text', 'label' => 'Imię' ),
+					),
+				),
+			),
+		);
+		$overlay = array( 'en' => array( 'shortLabels' => array( 'rodo' => 'GDPR consent' ) ) );
+
+		[ $out ] = ( new ContentTranslator() )->apply( $schema, array(), $overlay, 'en' );
+
+		$this->assertSame( 'GDPR consent', $out['sections'][0]['fields'][0]['short_label'] );
+		// Pole bez short_label nie dostaje klucza.
+		$this->assertArrayNotHasKey( 'short_label', $out['sections'][0]['fields'][1] );
+	}
+
+	public function test_short_label_falls_back_to_base_without_override(): void {
+		$schema = array(
+			'version'  => 1,
+			'sections' => array(
+				array(
+					'key'    => 'dane',
+					'title'  => 'Dane',
+					'fields' => array( array( 'key' => 'rodo', 'type' => 'checkbox', 'label' => 'X', 'short_label' => 'Zgoda RODO' ) ),
+				),
+			),
+		);
+		[ $out ] = ( new ContentTranslator() )->apply( $schema, array(), array( 'en' => array( 'fields' => array( 'rodo' => 'Y' ) ) ), 'en' );
+
+		$this->assertSame( 'Zgoda RODO', $out['sections'][0]['fields'][0]['short_label'] );
+	}
+
 	public function test_applies_overrides_for_language(): void {
 		$overlay = array(
 			'en' => array(

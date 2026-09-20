@@ -86,6 +86,13 @@ const FieldRow = forwardRef( function FieldRow(
 					onChange={ ( label ) => onChange( { label } ) }
 				/>
 
+				<TextControl
+					label={ __( 'Krótka etykieta (nagłówek eksportu)', 'event-registration' ) }
+					help={ __( 'Opcjonalna. Używana jako nagłówek kolumny w eksporcie zamiast pełnej etykiety — przydatne przy długich zgodach.', 'event-registration' ) }
+					value={ field.short_label || '' }
+					onChange={ ( shortLabel ) => onChange( { short_label: shortLabel } ) }
+				/>
+
 				{ showRequired && (
 					<ToggleControl
 						label={ __( 'Wymagane', 'event-registration' ) }

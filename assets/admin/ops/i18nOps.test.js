@@ -8,6 +8,8 @@ import {
 	setMailTranslation,
 	getAccommodationTranslation,
 	setAccommodationTranslation,
+	getShortLabelTranslation,
+	setShortLabelTranslation,
 } from './i18nOps';
 
 const schema = {
@@ -114,6 +116,54 @@ describe( 'i18nOps mail bucket', () => {
 		expect( overlay.en.fields.imie ).toBe( 'Name' );
 		expect( overlay.en.options.rozmiar.s ).toBe( 'Small' );
 		expect( overlay.en.mail.optin.subject ).toBe( 'Hello' );
+	} );
+} );
+
+describe( 'i18nOps shortLabels bucket', () => {
+	const schemaWithShort = {
+		version: 1,
+		sections: [
+			{
+				key: 'dane',
+				title: 'Dane',
+				fields: [
+					{ key: 'rodo', type: 'checkbox', label: 'Długa zgoda RODO...', short_label: 'Zgoda RODO' },
+					{ key: 'imie', type: 'text', label: 'Imię' },
+				],
+			},
+		],
+	};
+
+	it( 'translatableItems dopisuje wiersz krótkiej etykiety tylko gdy pole ją ma', () => {
+		const items = translatableItems( schemaWithShort, [] );
+		expect( items ).toContainEqual( { kind: 'shortLabel', key: 'rodo', base: 'Zgoda RODO' } );
+		expect( items.filter( ( i ) => i.kind === 'shortLabel' ) ).toHaveLength( 1 );
+	} );
+
+	it( 'set/getShortLabelTranslation', () => {
+		let overlay = {};
+		overlay = setShortLabelTranslation( overlay, 'en', 'rodo', 'GDPR consent' );
+		expect( getShortLabelTranslation( overlay, 'en', 'rodo' ) ).toBe( 'GDPR consent' );
+		expect( overlay.en.shortLabels.rodo ).toBe( 'GDPR consent' );
+	} );
+
+	it( 'getShortLabelTranslation zwraca pusty string gdy brak', () => {
+		expect( getShortLabelTranslation( {}, 'en', 'x' ) ).toBe( '' );
+	} );
+
+	it( 'shortLabel ops nie mutują wejścia', () => {
+		const overlay = { en: { shortLabels: { rodo: 'X' } } };
+		const before = JSON.stringify( overlay );
+		setShortLabelTranslation( overlay, 'en', 'imie', 'Y' );
+		expect( JSON.stringify( overlay ) ).toBe( before );
+	} );
+
+	it( 'setTranslation po setShortLabelTranslation zachowuje bucket shortLabels', () => {
+		let overlay = {};
+		overlay = setShortLabelTranslation( overlay, 'en', 'rodo', 'GDPR consent' );
+		overlay = setTranslation( overlay, 'en', 'field', 'imie', 'Name' );
+		expect( overlay.en.shortLabels.rodo ).toBe( 'GDPR consent' );
+		expect( overlay.en.fields.imie ).toBe( 'Name' );
 	} );
 } );
 

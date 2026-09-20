@@ -11,6 +11,9 @@ so keep entries user-facing and concise.
 
 ## [Unreleased]
 
+### Added
+- Optional short label per form field, used as the column header in the CSV export instead of the full label (handy for long consent/legal fields). Translatable per language.
+
 ## [0.1.8] - 2026-09-20
 
 ### Changed
