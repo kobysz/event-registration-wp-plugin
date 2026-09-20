@@ -36,7 +36,7 @@
   "scripts": {
     "test:unit": "phpunit --testsuite unit",
     "test:integration": "phpunit -c phpunit-integration.xml.dist",
-    "analyse": "phpstan analyse --memory-limit=512M",
+    "analyse": "phpstan analyse --memory-limit=2G",
     "lint": "phpcs",
     "lint:fix": "phpcbf"
   }

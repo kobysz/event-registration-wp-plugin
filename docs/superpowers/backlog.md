@@ -263,3 +263,29 @@ guardu nieznanego typu (jaki ma `editAnswers`). Nie-blokujące, wartość ceny.
 Testy: accommodation_full → `price_total` = tylko typ (bez noclegu, bez ×2).
 Mała zmiana, ale dotyka wyceny wszystkich zgłoszeń → własny mini-plan + testy
 regresji istniejących cen.
+
+---
+
+## B8 — Eksport zgłoszeń do XLSX obok CSV — MAŁO ISTOTNE (2026-09-20)
+
+**Priorytet:** niski (na teraz). CSV wystarcza; XLSX to wygoda.
+
+**Cel:** drugi format eksportu (XLSX) obok istniejącego CSV, per event.
+
+**Stan obecny:** `RegistrationsExporter::buildCsv` składa nagłówki
+(tożsamość + labele pól + Nocleg×3) i wiersze przez `fputcsv` do `php://temp`,
+zwraca BOM+string. `RegistrationExportMapper` (domena) już daje kolumny/komórki.
+
+**Szkic zakresu:**
+- Wydzielić budowanie wierszy (`headers + rows[]`) z `buildCsv` → wspólne dla
+  CSV i XLSX (dziś zaszyte w `fputcsv`).
+- Dodać `XlsxExporter` na lekkiej bibliotece **openspout/openspout** (MIT,
+  streaming, mało zależności; PhpSpreadsheet za ciężki).
+- Wpiąć `format=xlsx` w `RegistrationsScreen::handle_export` + drugi
+  przycisk/dropdown formatu.
+- Testy: wspólny test wierszy + smoke XLSX.
+
+**Koszt/uwagi:** główny koszt = nowa zależność composer i wzrost commitowanego
+`vendor/` (--no-dev) w zipie. openspout pisze komórki jako string (nie formuła)
+→ mniejsze ryzyko injection; neutralizację można zachować dla spójności.
+Świadomie pominięte w 5C z powodu biblioteki+vendor; technicznie proste.

@@ -1,9 +1,14 @@
 name: CI
 
+# Na push (master) lecą tylko szybkie, pewne joby: js-unit + static-analysis.
+# integration i e2e stoją na wp-env (Docker) — ciężkie i flaky w GH Actions —
+# więc odpalają się tylko na pull_request i ręcznie (workflow_dispatch).
+# Źródłem prawdy dla integration/e2e są testy lokalne (wp-env) przed pushem.
 on:
   push:
     branches: [main, master]
   pull_request:
+  workflow_dispatch:
 
 jobs:
   js-unit:
@@ -13,7 +18,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
 
       - run: npm ci
 
@@ -42,13 +47,14 @@ jobs:
         run: composer test:unit
 
   integration:
+    if: github.event_name != 'push'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
 
       - run: npm ci
 
@@ -60,12 +66,13 @@ jobs:
         run: node scripts/wp-env.cjs run tests-cli --env-cwd=wp-content/plugins/event-registration -- vendor/bin/phpunit -c phpunit-integration.xml.dist
 
   e2e:
+    if: github.event_name != 'push'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
       - run: npm ci
       - run: npm run build
       - run: npx playwright install --with-deps chromium
