@@ -10,6 +10,8 @@ import {
 	setAccommodationTranslation,
 	getShortLabelTranslation,
 	setShortLabelTranslation,
+	getDescriptionTranslation,
+	setDescriptionTranslation,
 } from './i18nOps';
 
 const schema = {
@@ -164,6 +166,46 @@ describe( 'i18nOps shortLabels bucket', () => {
 		overlay = setTranslation( overlay, 'en', 'field', 'imie', 'Name' );
 		expect( overlay.en.shortLabels.rodo ).toBe( 'GDPR consent' );
 		expect( overlay.en.fields.imie ).toBe( 'Name' );
+	} );
+} );
+
+describe( 'i18nOps descriptions bucket', () => {
+	const schemaWithDesc = {
+		version: 1,
+		sections: [
+			{
+				key: 'dane',
+				title: 'Dane',
+				fields: [
+					{ key: 'pesel', type: 'text', label: 'PESEL', description: 'Podaj 11 cyfr' },
+					{ key: 'imie', type: 'text', label: 'Imię' },
+				],
+			},
+		],
+	};
+
+	it( 'translatableItems dopisuje wiersz opisu tylko gdy pole go ma', () => {
+		const items = translatableItems( schemaWithDesc, [] );
+		expect( items ).toContainEqual( { kind: 'description', key: 'pesel', base: 'Podaj 11 cyfr' } );
+		expect( items.filter( ( i ) => i.kind === 'description' ) ).toHaveLength( 1 );
+	} );
+
+	it( 'set/getDescriptionTranslation', () => {
+		let overlay = {};
+		overlay = setDescriptionTranslation( overlay, 'en', 'pesel', 'Enter 11 digits' );
+		expect( getDescriptionTranslation( overlay, 'en', 'pesel' ) ).toBe( 'Enter 11 digits' );
+		expect( overlay.en.descriptions.pesel ).toBe( 'Enter 11 digits' );
+	} );
+
+	it( 'descriptions ops nie mutują wejścia i zachowują inne bukety', () => {
+		let overlay = setDescriptionTranslation( {}, 'en', 'pesel', 'Enter 11 digits' );
+		const snapshot = JSON.stringify( overlay );
+		overlay = setTranslation( overlay, 'en', 'field', 'imie', 'Name' );
+		expect( overlay.en.descriptions.pesel ).toBe( 'Enter 11 digits' );
+		expect( overlay.en.fields.imie ).toBe( 'Name' );
+		// pierwotny obiekt niezmutowany
+		const first = setDescriptionTranslation( {}, 'en', 'pesel', 'Enter 11 digits' );
+		expect( JSON.stringify( first ) ).toBe( snapshot );
 	} );
 } );
 

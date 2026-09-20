@@ -74,6 +74,30 @@ final class FormRendererTest extends WP_UnitTestCase {
 		);
 	}
 
+	public function test_field_description_rendered_as_help_text(): void {
+		$schema = FormSchema::fromArray(
+			array(
+				'version'  => 1,
+				'sections' => array(
+					array(
+						'key'    => 'dane',
+						'title'  => 'Dane',
+						'fields' => array(
+							array( 'key' => 'pesel', 'type' => 'text', 'label' => 'PESEL', 'description' => 'Podaj 11 cyfr' ),
+							array( 'key' => 'imie', 'type' => 'text', 'label' => 'Imię' ),
+						),
+					),
+				),
+			)
+		);
+
+		$html = $this->renderer->render( $schema, 1 );
+
+		$this->assertStringContainsString( '<p class="evreg-field-desc form-text">Podaj 11 cyfr</p>', $html );
+		// Pole bez opisu nie dostaje pustego help-textu.
+		$this->assertSame( 1, substr_count( $html, 'evreg-field-desc' ) );
+	}
+
 	public function test_roommate_input_absent_when_no_room_allows_it(): void {
 		$html = $this->renderer->render( $this->accommodationSchema( false ), 1 );
 

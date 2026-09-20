@@ -13,6 +13,7 @@ so keep entries user-facing and concise.
 
 ### Added
 - Optional short label per form field, used as the column header in the CSV export instead of the full label (handy for long consent/legal fields). Translatable per language.
+- Optional help text per form field, shown to the user below the field on the public form (and in the admin edit screen). Translatable per language.
 
 ## [0.1.8] - 2026-09-20
 

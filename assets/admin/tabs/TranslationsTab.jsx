@@ -10,6 +10,8 @@ import {
 	setAccommodationTranslation,
 	getShortLabelTranslation,
 	setShortLabelTranslation,
+	getDescriptionTranslation,
+	setDescriptionTranslation,
 } from '../ops/i18nOps';
 
 export default function TranslationsTab( { config, update } ) {
@@ -50,6 +52,8 @@ export default function TranslationsTab( { config, update } ) {
 									value = getAccommodationTranslation( overlay, lang.value, item.accKind, item.key );
 								} else if ( 'shortLabel' === item.kind ) {
 									value = getShortLabelTranslation( overlay, lang.value, item.key );
+								} else if ( 'description' === item.kind ) {
+									value = getDescriptionTranslation( overlay, lang.value, item.key );
 								} else {
 									value = getTranslation( overlay, lang.value, item.kind, item.key );
 								}
@@ -82,6 +86,12 @@ export default function TranslationsTab( { config, update } ) {
 									if ( 'shortLabel' === item.kind ) {
 										setOverlay(
 											setShortLabelTranslation( overlay, lang.value, item.key, next )
+										);
+										return;
+									}
+									if ( 'description' === item.kind ) {
+										setOverlay(
+											setDescriptionTranslation( overlay, lang.value, item.key, next )
 										);
 										return;
 									}

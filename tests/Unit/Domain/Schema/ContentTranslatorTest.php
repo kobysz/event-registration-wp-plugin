@@ -120,6 +120,28 @@ final class ContentTranslatorTest extends TestCase {
 		$this->assertArrayNotHasKey( 'short_label', $out['sections'][0]['fields'][1] );
 	}
 
+	public function test_translates_field_description_when_present(): void {
+		$schema = array(
+			'version'  => 1,
+			'sections' => array(
+				array(
+					'key'    => 'dane',
+					'title'  => 'Dane',
+					'fields' => array(
+						array( 'key' => 'pesel', 'type' => 'text', 'label' => 'PESEL', 'description' => 'Podaj 11 cyfr' ),
+						array( 'key' => 'imie', 'type' => 'text', 'label' => 'Imię' ),
+					),
+				),
+			),
+		);
+		$overlay = array( 'en' => array( 'descriptions' => array( 'pesel' => 'Enter 11 digits' ) ) );
+
+		[ $out ] = ( new ContentTranslator() )->apply( $schema, array(), $overlay, 'en' );
+
+		$this->assertSame( 'Enter 11 digits', $out['sections'][0]['fields'][0]['description'] );
+		$this->assertArrayNotHasKey( 'description', $out['sections'][0]['fields'][1] );
+	}
+
 	public function test_short_label_falls_back_to_base_without_override(): void {
 		$schema = array(
 			'version'  => 1,

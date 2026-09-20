@@ -121,7 +121,8 @@ final class RegistrationEditForm {
 	 */
 	private static function renderRow( Field $field, $value ): string {
 		$label   = '<th scope="row"><label>' . esc_html( $field->label ) . '</label></th>';
-		$control = '<td>' . self::renderControl( $field, $value ) . '</td>';
+		$desc    = '' !== $field->description ? '<p class="description">' . esc_html( $field->description ) . '</p>' : '';
+		$control = '<td>' . self::renderControl( $field, $value ) . $desc . '</td>';
 		return '<tr>' . $label . $control . '</tr>';
 	}
 

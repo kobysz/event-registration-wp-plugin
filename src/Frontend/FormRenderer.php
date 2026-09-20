@@ -147,6 +147,10 @@ final class FormRenderer {
 			$out .= $this->renderControl( $field, $value, $invalid );
 		}
 
+		if ( '' !== $field->description ) {
+			$out .= '<p class="evreg-field-desc form-text">' . esc_html( $field->description ) . '</p>';
+		}
+
 		if ( $invalid ) {
 			$out .= '<div class="evreg-error-msg invalid-feedback d-block">' . esc_html( $this->errorMessage( (string) $error ) ) . '</div>';
 		}

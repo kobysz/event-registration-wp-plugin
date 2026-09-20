@@ -1,5 +1,5 @@
 import { forwardRef } from '@wordpress/element';
-import { Button, TextControl, ToggleControl } from '@wordpress/components';
+import { Button, TextControl, TextareaControl, ToggleControl } from '@wordpress/components';
 import { __ } from '@wordpress/i18n';
 import { isSpecial, isAccommodation, isChoice, FIELD_TYPES } from '../ops/fieldTypes';
 import { addOption, updateOption, removeOption } from '../ops/schemaOps';
@@ -91,6 +91,13 @@ const FieldRow = forwardRef( function FieldRow(
 					help={ __( 'Opcjonalna. Używana jako nagłówek kolumny w eksporcie zamiast pełnej etykiety — przydatne przy długich zgodach.', 'event-registration' ) }
 					value={ field.short_label || '' }
 					onChange={ ( shortLabel ) => onChange( { short_label: shortLabel } ) }
+				/>
+
+				<TextareaControl
+					label={ __( 'Opis pomocniczy (pod polem)', 'event-registration' ) }
+					help={ __( 'Opcjonalny. Tekst wyświetlany użytkownikowi pod polem na formularzu.', 'event-registration' ) }
+					value={ field.description || '' }
+					onChange={ ( description ) => onChange( { description } ) }
 				/>
 
 				{ showRequired && (
