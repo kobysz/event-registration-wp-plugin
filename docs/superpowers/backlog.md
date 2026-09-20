@@ -289,3 +289,31 @@ zwraca BOM+string. `RegistrationExportMapper` (domena) już daje kolumny/komórk
 `vendor/` (--no-dev) w zipie. openspout pisze komórki jako string (nie formuła)
 → mniejsze ryzyko injection; neutralizację można zachować dla spójności.
 Świadomie pominięte w 5C z powodu biblioteki+vendor; technicznie proste.
+
+---
+
+## B9 — Tłumaczenie opisu sekcji (i18n, drobna luka)
+
+**Priorytet:** niski. Analogiczna luka do B6/short-label/description pola.
+
+**Stan:** `Section->description` renderuje się na formularzu
+(`FormRenderer:72`), ale `ContentTranslator::apply` tłumaczy tylko **tytuł**
+sekcji, nie opis. Overlay nie ma dla opisu sekcji miejsca.
+
+**Szkic:** dodać bucket/klucz `sectionDescriptions` do overlay (jak
+`descriptions` dla pól), nakładać na `section['description']` w `ContentTranslator`,
+dopisać wiersze do `translatableItems` + get/set w `i18nOps` + routing w
+`TranslationsTab`. Tylko labele/teksty (data-safe). Mały, mechaniczny mirror.
+
+## B10 — aria-describedby dla help textu pola (a11y)
+
+**Priorytet:** niski. Drobiazg dostępnościowy.
+
+**Stan:** help text pola renderuje się jako `<p class="evreg-field-desc form-text">`
+pod kontrolką (`FormRenderer::renderField`), ale nie jest powiązany z kontrolką
+przez `aria-describedby`, więc czytniki ekranu nie łączą opisu z polem.
+
+**Szkic:** nadać `<p>` `id="evreg-<key>-desc"` i dodać `aria-describedby` do
+kontrolki w `renderControl` (gdy pole ma opis). Uwaga: przy błędzie walidacji
+warto też wskazać komunikat błędu (`aria-describedby` może mieć wiele id).
+Analogicznie rozważyć w `RegistrationEditForm`.
