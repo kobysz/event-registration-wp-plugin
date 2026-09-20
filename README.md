@@ -101,10 +101,13 @@ Rejestr odłożonych funkcji: `docs/superpowers/backlog.md`.
 
 ## Wydawanie
 
-1. Podbij `Version:` w nagłówku `event-registration.php` (to jedyne źródło wersji — `Plugin::version()` je czyta).
-2. Commit, potem `git tag vX.Y.Z && git push --tags` (tag MUSI == wersja nagłówka, inaczej release-workflow padnie).
-3. `release.yml` zbuduje zip (runtime bez plików dev, wg `.distignore`) i opublikuje go jako asset `event-registration.zip` w GitHub Release.
-4. Instalacje z aktywnym auto-update dostaną aktualizację w ≤12h (cache), albo od razu po „Sprawdź aktualizacje" na ekranie wtyczek.
+1. Przenieś wpisy z `## [Unreleased]` w `CHANGELOG.md` do nowej sekcji `## [X.Y.Z] - RRRR-MM-DD` (ta sekcja staje się treścią GitHub Release i „Szczegółów" wtyczki w panelu WP; brak sekcji dla tagu = release-workflow padnie).
+2. Podbij `Version:` w nagłówku `event-registration.php` (to jedyne źródło wersji — `Plugin::version()` je czyta).
+3. Commit, potem `git tag vX.Y.Z && git push origin vX.Y.Z` (tag MUSI == wersja nagłówka, inaczej release-workflow padnie).
+4. `release.yml` zbuduje zip (runtime bez plików dev, wg `.distignore`), wyciągnie sekcję changelog dla wersji i opublikuje go jako asset `event-registration.zip` w GitHub Release.
+5. Instalacje z aktywnym auto-update dostaną aktualizację w ≤12h (cache), albo od razu po „Sprawdź aktualizacje" na ekranie wtyczek.
+
+Bieżące zmiany dopisuj do `## [Unreleased]` w `CHANGELOG.md` na bieżąco (format [Keep a Changelog], angielski, wpisy user-facing).
 
 ## Licencja
 

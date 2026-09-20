@@ -30,6 +30,20 @@ jobs:
           echo "header=$HEADER tag=$TAG"
           test "$HEADER" = "$TAG" || { echo "::error::Wersja nagłówka ($HEADER) != tag ($TAG)"; exit 1; }
 
+      - name: Wyciągnij sekcję CHANGELOG dla tagu (treść release body)
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          awk -v tag="$TAG" '
+            BEGIN { needle = "## [" tag "]" }
+            index($0, needle) == 1 { flag=1; next }
+            /^## \[/ && flag { flag=0 }
+            flag { print }
+          ' CHANGELOG.md | sed '/./,$!d' > RELEASE_BODY.md
+          if [ ! -s RELEASE_BODY.md ]; then
+            echo "::error::Brak sekcji ## [$TAG] w CHANGELOG.md — dopisz wpis przed tagowaniem."; exit 1
+          fi
+          echo "---- release body ----"; cat RELEASE_BODY.md
+
       - run: composer install --no-dev --optimize-autoloader --prefer-dist --no-progress
 
       - run: npm ci
@@ -48,4 +62,4 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: event-registration.zip
-          generate_release_notes: true
+          body_path: RELEASE_BODY.md
