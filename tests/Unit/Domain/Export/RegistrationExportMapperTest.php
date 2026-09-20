@@ -42,6 +42,39 @@ final class RegistrationExportMapperTest extends TestCase {
 		);
 	}
 
+	public function test_answerColumns_uses_short_label_when_present(): void {
+		$schema = FormSchema::fromArray(
+			array(
+				'version'  => 1,
+				'sections' => array(
+					array(
+						'key'    => 'main',
+						'title'  => 'Main',
+						'fields' => array(
+							array(
+								'key'         => 'rodo',
+								'type'        => 'checkbox',
+								'label'       => 'Wyrażam zgodę na przetwarzanie moich danych osobowych zgodnie z art. 6 ust. 1 lit. a RODO...',
+								'short_label' => 'Zgoda RODO',
+							),
+							array( 'key' => 'imie', 'type' => 'text', 'label' => 'Imię' ),
+						),
+					),
+				),
+			)
+		);
+
+		$cols = ( new RegistrationExportMapper() )->answerColumns( $schema );
+
+		$this->assertSame(
+			array(
+				array( 'key' => 'rodo', 'label' => 'Zgoda RODO' ),      // krótka etykieta
+				array( 'key' => 'imie', 'label' => 'Imię' ),            // brak short_label → pełny label
+			),
+			$cols
+		);
+	}
+
 	public function test_answerCells_converts_values_to_strings(): void {
 		$schema = FormSchema::fromArray(
 			array(

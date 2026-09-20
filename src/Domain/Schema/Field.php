@@ -27,6 +27,7 @@ final class Field {
 	 * @param array<string,mixed> $config      Dodatkowa konfiguracja pola.
 	 * @param string              $description Opis pomocniczy pola.
 	 * @param Condition|null      $condition   Warunek widoczności pola.
+	 * @param string              $shortLabel  Krótka etykieta (nagłówek eksportu); pusta = pełny label.
 	 */
 	public function __construct(
 		public readonly string $key,
@@ -36,7 +37,8 @@ final class Field {
 		public readonly array $options = array(),
 		public readonly array $config = array(),
 		public readonly string $description = '',
-		public readonly ?Condition $condition = null
+		public readonly ?Condition $condition = null,
+		public readonly string $shortLabel = ''
 	) {
 	}
 
@@ -82,7 +84,8 @@ final class Field {
 			(string) ( $data['description'] ?? '' ),
 			isset( $data['condition'] ) && is_array( $data['condition'] )
 				? Condition::fromArray( $data['condition'] )
-				: null
+				: null,
+			(string) ( $data['short_label'] ?? '' )
 		);
 	}
 
@@ -115,6 +118,10 @@ final class Field {
 
 		if ( '' !== $this->description ) {
 			$data['description'] = $this->description;
+		}
+
+		if ( '' !== $this->shortLabel ) {
+			$data['short_label'] = $this->shortLabel;
 		}
 
 		if ( null !== $this->condition ) {

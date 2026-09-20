@@ -8,6 +8,10 @@ import {
 	setMailTranslation,
 	getAccommodationTranslation,
 	setAccommodationTranslation,
+	getShortLabelTranslation,
+	setShortLabelTranslation,
+	getDescriptionTranslation,
+	setDescriptionTranslation,
 } from './i18nOps';
 
 const schema = {
@@ -114,6 +118,94 @@ describe( 'i18nOps mail bucket', () => {
 		expect( overlay.en.fields.imie ).toBe( 'Name' );
 		expect( overlay.en.options.rozmiar.s ).toBe( 'Small' );
 		expect( overlay.en.mail.optin.subject ).toBe( 'Hello' );
+	} );
+} );
+
+describe( 'i18nOps shortLabels bucket', () => {
+	const schemaWithShort = {
+		version: 1,
+		sections: [
+			{
+				key: 'dane',
+				title: 'Dane',
+				fields: [
+					{ key: 'rodo', type: 'checkbox', label: 'Długa zgoda RODO...', short_label: 'Zgoda RODO' },
+					{ key: 'imie', type: 'text', label: 'Imię' },
+				],
+			},
+		],
+	};
+
+	it( 'translatableItems dopisuje wiersz krótkiej etykiety tylko gdy pole ją ma', () => {
+		const items = translatableItems( schemaWithShort, [] );
+		expect( items ).toContainEqual( { kind: 'shortLabel', key: 'rodo', base: 'Zgoda RODO' } );
+		expect( items.filter( ( i ) => i.kind === 'shortLabel' ) ).toHaveLength( 1 );
+	} );
+
+	it( 'set/getShortLabelTranslation', () => {
+		let overlay = {};
+		overlay = setShortLabelTranslation( overlay, 'en', 'rodo', 'GDPR consent' );
+		expect( getShortLabelTranslation( overlay, 'en', 'rodo' ) ).toBe( 'GDPR consent' );
+		expect( overlay.en.shortLabels.rodo ).toBe( 'GDPR consent' );
+	} );
+
+	it( 'getShortLabelTranslation zwraca pusty string gdy brak', () => {
+		expect( getShortLabelTranslation( {}, 'en', 'x' ) ).toBe( '' );
+	} );
+
+	it( 'shortLabel ops nie mutują wejścia', () => {
+		const overlay = { en: { shortLabels: { rodo: 'X' } } };
+		const before = JSON.stringify( overlay );
+		setShortLabelTranslation( overlay, 'en', 'imie', 'Y' );
+		expect( JSON.stringify( overlay ) ).toBe( before );
+	} );
+
+	it( 'setTranslation po setShortLabelTranslation zachowuje bucket shortLabels', () => {
+		let overlay = {};
+		overlay = setShortLabelTranslation( overlay, 'en', 'rodo', 'GDPR consent' );
+		overlay = setTranslation( overlay, 'en', 'field', 'imie', 'Name' );
+		expect( overlay.en.shortLabels.rodo ).toBe( 'GDPR consent' );
+		expect( overlay.en.fields.imie ).toBe( 'Name' );
+	} );
+} );
+
+describe( 'i18nOps descriptions bucket', () => {
+	const schemaWithDesc = {
+		version: 1,
+		sections: [
+			{
+				key: 'dane',
+				title: 'Dane',
+				fields: [
+					{ key: 'pesel', type: 'text', label: 'PESEL', description: 'Podaj 11 cyfr' },
+					{ key: 'imie', type: 'text', label: 'Imię' },
+				],
+			},
+		],
+	};
+
+	it( 'translatableItems dopisuje wiersz opisu tylko gdy pole go ma', () => {
+		const items = translatableItems( schemaWithDesc, [] );
+		expect( items ).toContainEqual( { kind: 'description', key: 'pesel', base: 'Podaj 11 cyfr' } );
+		expect( items.filter( ( i ) => i.kind === 'description' ) ).toHaveLength( 1 );
+	} );
+
+	it( 'set/getDescriptionTranslation', () => {
+		let overlay = {};
+		overlay = setDescriptionTranslation( overlay, 'en', 'pesel', 'Enter 11 digits' );
+		expect( getDescriptionTranslation( overlay, 'en', 'pesel' ) ).toBe( 'Enter 11 digits' );
+		expect( overlay.en.descriptions.pesel ).toBe( 'Enter 11 digits' );
+	} );
+
+	it( 'descriptions ops nie mutują wejścia i zachowują inne bukety', () => {
+		let overlay = setDescriptionTranslation( {}, 'en', 'pesel', 'Enter 11 digits' );
+		const snapshot = JSON.stringify( overlay );
+		overlay = setTranslation( overlay, 'en', 'field', 'imie', 'Name' );
+		expect( overlay.en.descriptions.pesel ).toBe( 'Enter 11 digits' );
+		expect( overlay.en.fields.imie ).toBe( 'Name' );
+		// pierwotny obiekt niezmutowany
+		const first = setDescriptionTranslation( {}, 'en', 'pesel', 'Enter 11 digits' );
+		expect( JSON.stringify( first ) ).toBe( snapshot );
 	} );
 } );
 

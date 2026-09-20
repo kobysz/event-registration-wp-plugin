@@ -31,11 +31,13 @@ final class ContentTranslator {
 			return array( $schema, $types );
 		}
 
-		$over     = $overlay[ $lang ];
-		$sections = isset( $over['sections'] ) && is_array( $over['sections'] ) ? $over['sections'] : array();
-		$fields   = isset( $over['fields'] ) && is_array( $over['fields'] ) ? $over['fields'] : array();
-		$options  = isset( $over['options'] ) && is_array( $over['options'] ) ? $over['options'] : array();
-		$type_map = isset( $over['types'] ) && is_array( $over['types'] ) ? $over['types'] : array();
+		$over         = $overlay[ $lang ];
+		$sections     = isset( $over['sections'] ) && is_array( $over['sections'] ) ? $over['sections'] : array();
+		$fields       = isset( $over['fields'] ) && is_array( $over['fields'] ) ? $over['fields'] : array();
+		$short_labels = isset( $over['shortLabels'] ) && is_array( $over['shortLabels'] ) ? $over['shortLabels'] : array();
+		$descriptions = isset( $over['descriptions'] ) && is_array( $over['descriptions'] ) ? $over['descriptions'] : array();
+		$options      = isset( $over['options'] ) && is_array( $over['options'] ) ? $over['options'] : array();
+		$type_map     = isset( $over['types'] ) && is_array( $over['types'] ) ? $over['types'] : array();
 
 		foreach ( $schema['sections'] ?? array() as $si => $section ) {
 			$section_key                        = (string) ( $section['key'] ?? '' );
@@ -44,6 +46,16 @@ final class ContentTranslator {
 			foreach ( $section['fields'] ?? array() as $fi => $field ) {
 				$field_key = (string) ( $field['key'] ?? '' );
 				$schema['sections'][ $si ]['fields'][ $fi ]['label'] = self::pick( $fields, $field_key, (string) ( $field['label'] ?? '' ) );
+
+				// Krótka etykieta (nagłówek eksportu) — tłumaczona tylko gdy pole ją ma; inaczej nietknięta.
+				if ( '' !== (string) ( $field['short_label'] ?? '' ) || isset( $short_labels[ $field_key ] ) ) {
+					$schema['sections'][ $si ]['fields'][ $fi ]['short_label'] = self::pick( $short_labels, $field_key, (string) ( $field['short_label'] ?? '' ) );
+				}
+
+				// Opis pomocniczy (help text) — jak wyżej.
+				if ( '' !== (string) ( $field['description'] ?? '' ) || isset( $descriptions[ $field_key ] ) ) {
+					$schema['sections'][ $si ]['fields'][ $fi ]['description'] = self::pick( $descriptions, $field_key, (string) ( $field['description'] ?? '' ) );
+				}
 
 				$field_opts = isset( $options[ $field_key ] ) && is_array( $options[ $field_key ] ) ? $options[ $field_key ] : array();
 				foreach ( $field['options'] ?? array() as $oi => $option ) {
