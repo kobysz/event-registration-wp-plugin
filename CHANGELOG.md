@@ -11,6 +11,11 @@ so keep entries user-facing and concise.
 
 ## [Unreleased]
 
+## [0.1.8] - 2026-09-20
+
+### Changed
+- Update details shown on the WordPress plugins screen now come from the changelog instead of a raw commit list.
+
 ## [0.1.7] - 2026-09-19
 
 - No functional changes; release used to verify the GitHub auto-update flow end to end.
@@ -55,6 +60,7 @@ so keep entries user-facing and concise.
 ### Added
 - Initial internal release covering the full roadmap: event configuration (custom post type, REST API, React admin), public registration form with transactional seat reservation and double opt-in, transactional mail queue with templates and an admin queue screen, submissions panel with lifecycle actions, answer editing and CSV export, data-lifecycle/compliance tooling (gated uninstall, WordPress privacy export/erase), and self-hosted auto-update from GitHub Releases.
 
-[Unreleased]: https://github.com/kobysz/event-registration-wp-plugin/compare/v0.1.7...HEAD
+[Unreleased]: https://github.com/kobysz/event-registration-wp-plugin/compare/v0.1.8...HEAD
+[0.1.8]: https://github.com/kobysz/event-registration-wp-plugin/releases/tag/v0.1.8
 [0.1.7]: https://github.com/kobysz/event-registration-wp-plugin/releases/tag/v0.1.7
 [0.1.6]: https://github.com/kobysz/event-registration-wp-plugin/releases/tag/v0.1.6
