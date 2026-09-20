@@ -94,10 +94,11 @@ docs/superpowers/  Specyfikacje i plany implementacji
 
 - ✅ Warunkowa widoczność pól/sekcji (builder + render + JS)
 - ✅ Render formularza w Bootstrap 5 (opt-in)
-- ✅ Wielojęzyczność (Polylang): tłumaczenia treści per event, mail i link potwierdzenia w języku zgłoszenia
+- ✅ Wielojęzyczność (Polylang): tłumaczenia treści per event (pola, opcje, typy, noclegi, krótkie etykiety, opisy), mail i link potwierdzenia w języku zgłoszenia
 - ✅ Osoba towarzysząca (podwójne zajęcie noclegu, wycena, konfiguracja)
+- ✅ Krótka etykieta pola (nagłówek eksportu) + opis pomocniczy pola (help text pod polem)
 
-Rejestr odłożonych funkcji: `docs/superpowers/backlog.md`.
+Zmiany wydań: `CHANGELOG.md`. Rejestr odłożonych funkcji: `docs/superpowers/backlog.md`.
 
 ## Wydawanie
 
