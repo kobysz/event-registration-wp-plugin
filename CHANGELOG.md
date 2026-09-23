@@ -11,6 +11,9 @@ so keep entries user-facing and concise.
 
 ## [Unreleased]
 
+### Added
+- Registration overview on the Submissions screen: pick an event in the filter to see, at a glance, how many registrations occupy a seat against the event limit, the per-type and per-room occupancy, waitlisted and cancelled counts, companions, and the total amount.
+
 ## [0.1.9] - 2026-09-20
 
 ### Added

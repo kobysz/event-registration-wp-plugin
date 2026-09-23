@@ -358,6 +358,22 @@ final class RegistrationRepository {
 	}
 
 	/**
+	 * Sumuje kwoty zgłoszeń zajmujących miejsce (pending+confirmed) w evencie.
+	 *
+	 * @param int $event_id ID eventu.
+	 */
+	public function sumPriceTotal( int $event_id ): float {
+		global $wpdb;
+
+		$statuses = RegistrationStatus::occupyingValues();
+		$in       = implode( ',', array_fill( 0, count( $statuses ), '%s' ) );
+		$args     = array_merge( array( $event_id ), $statuses );
+
+		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.DirectDatabaseQuery
+		return (float) $wpdb->get_var( $wpdb->prepare( "SELECT COALESCE(SUM(price_total),0) FROM {$this->registrations()} WHERE event_id = %d AND status IN ($in)", $args ) );
+	}
+
+	/**
 	 * Zwraca unikalne klucze typów zgłoszeń obecne w evencie.
 	 *
 	 * @param int $event_id ID eventu.

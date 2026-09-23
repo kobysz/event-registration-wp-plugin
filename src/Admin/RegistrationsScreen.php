@@ -98,6 +98,8 @@ final class RegistrationsScreen {
 		echo '<h1>' . esc_html__( 'Zgłoszenia', 'event-registration' ) . '</h1>';
 
 		self::render_notice();
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- odczyt bieżącego filtra listy, widok read-only.
+		RegistrationsOverview::render( isset( $_GET['event_id'] ) ? (int) $_GET['event_id'] : 0 );
 		self::render_export_button();
 
 		echo '<form method="get">';
