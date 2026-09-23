@@ -11,6 +11,10 @@ so keep entries user-facing and concise.
 
 ## [Unreleased]
 
+### Fixed
+- The plugins screen now offers "Enable auto-updates" for this plugin. The update check reports the plugin as up to date instead of reporting nothing, which WordPress treated as "this plugin does not support updates".
+- A stale "update available" entry is now cleared on the next update check, and the installed version is re-read from disk when comparing it against the latest release.
+
 ## [0.1.10] - 2026-09-23
 
 ### Added

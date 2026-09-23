@@ -55,7 +55,13 @@ final class GitHubUpdater {
 	}
 
 	/**
-	 * Wstrzykuje najnowsze wydanie do transienta aktualizacji wtyczek, jeśli jest nowsze.
+	 * Zgłasza wtyczkę do transienta aktualizacji: jako dostępną aktualizację albo
+	 * jako aktualną.
+	 *
+	 * Wpis w `no_update` jest obowiązkowy dla wtyczek spoza wordpress.org: bez
+	 * obecności w `response` LUB `no_update` rdzeń WordPressa uznaje wtyczkę za
+	 * nieobsługującą aktualizacji (`update-supported = false`) i ukrywa przełącznik
+	 * „Włącz automatyczne aktualizacje".
 	 *
 	 * @param mixed $transient Transient `update_plugins` (obiekt) lub inna wartość.
 	 * @return mixed Zmodyfikowany transient lub wartość wejściowa bez zmian.
@@ -66,21 +72,37 @@ final class GitHubUpdater {
 		}
 		$latest = $this->fetch_latest();
 		if ( null === $latest || '' === $latest['version'] || '' === $latest['package'] ) {
+			// Brak wiarygodnej odpowiedzi z GitHuba — nie zgadujemy stanu wtyczki.
 			return $transient;
 		}
-		if ( ! version_compare( $latest['version'], Plugin::version(), '>' ) ) {
-			return $transient;
-		}
-		if ( ! isset( $transient->response ) || ! is_array( $transient->response ) ) {
-			$transient->response = array();
-		}
-		$transient->response[ $this->basename ] = (object) array(
+
+		// Świeży odczyt: w żądaniu aktualizacji pliki na dysku mogą być już nowe,
+		// a wersja zapamiętana w pamięci procesu — stara.
+		$installed = Plugin::version( true );
+		$newer     = version_compare( $latest['version'], $installed, '>' );
+
+		$entry = (object) array(
 			'slug'        => $this->slug,
 			'plugin'      => $this->basename,
-			'new_version' => $latest['version'],
+			'new_version' => $newer ? $latest['version'] : $installed,
 			'package'     => $latest['package'],
 			'url'         => $latest['url'],
 		);
+
+		$target = $newer ? 'response' : 'no_update';
+		$stale  = $newer ? 'no_update' : 'response';
+
+		if ( ! isset( $transient->{$target} ) || ! is_array( $transient->{$target} ) ) {
+			$transient->{$target} = array();
+		}
+		$transient->{$target}[ $this->basename ] = $entry;
+
+		// Sprzątanie po poprzednim stanie — inaczej nieaktualny wpis o dostępnej
+		// aktualizacji potrafi przeżyć w transiencie po udanej aktualizacji.
+		if ( isset( $transient->{$stale} ) && is_array( $transient->{$stale} ) ) {
+			unset( $transient->{$stale}[ $this->basename ] );
+		}
+
 		return $transient;
 	}
 

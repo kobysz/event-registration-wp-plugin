@@ -50,9 +50,15 @@ final class Plugin {
 
 	/**
 	 * Zwraca wersję wtyczki odczytaną z nagłówka głównego pliku (jedno źródło prawdy).
+	 *
+	 * Wynik jest cache'owany na całe żądanie. Aktualizator czyta z `$refresh = true`,
+	 * bo w żądaniu, w którym WordPress podmienia pliki wtyczki, zapamiętana wartość
+	 * jest już nieaktualna — porównanie z wydaniem musi patrzeć na plik, nie na pamięć.
+	 *
+	 * @param bool $refresh Wymusza ponowny odczyt nagłówka z dysku.
 	 */
-	public static function version(): string {
-		if ( '' === self::$version ) {
+	public static function version( bool $refresh = false ): string {
+		if ( $refresh || '' === self::$version ) {
 			$data          = get_file_data( self::$plugin_file, array( 'Version' => 'Version' ) );
 			self::$version = (string) ( $data['Version'] ?? '' );
 		}
