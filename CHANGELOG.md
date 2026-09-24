@@ -11,6 +11,11 @@ so keep entries user-facing and concise.
 
 ## [Unreleased]
 
+## [0.1.12] - 2026-09-24
+
+### Fixed
+- Updating the plugin no longer leaves a phantom "update available" notice behind. WordPress re-checks for updates in the same request that swaps the plugin files, while the previous version's code is still in memory; the comparison now reads the version from disk. The fix shipped in 0.1.11 but could only take effect from this update onwards.
+
 ## [0.1.11] - 2026-09-23
 
 ### Fixed
@@ -77,7 +82,8 @@ so keep entries user-facing and concise.
 ### Added
 - Initial internal release covering the full roadmap: event configuration (custom post type, REST API, React admin), public registration form with transactional seat reservation and double opt-in, transactional mail queue with templates and an admin queue screen, submissions panel with lifecycle actions, answer editing and CSV export, data-lifecycle/compliance tooling (gated uninstall, WordPress privacy export/erase), and self-hosted auto-update from GitHub Releases.
 
-[Unreleased]: https://github.com/kobysz/event-registration-wp-plugin/compare/v0.1.11...HEAD
+[Unreleased]: https://github.com/kobysz/event-registration-wp-plugin/compare/v0.1.12...HEAD
+[0.1.12]: https://github.com/kobysz/event-registration-wp-plugin/releases/tag/v0.1.12
 [0.1.11]: https://github.com/kobysz/event-registration-wp-plugin/releases/tag/v0.1.11
 [0.1.10]: https://github.com/kobysz/event-registration-wp-plugin/releases/tag/v0.1.10
 [0.1.9]: https://github.com/kobysz/event-registration-wp-plugin/releases/tag/v0.1.9

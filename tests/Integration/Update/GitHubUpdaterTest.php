@@ -184,6 +184,42 @@ final class GitHubUpdaterTest extends WP_UnitTestCase {
 		$this->assertFalse( isset( $result->no_update[ $basename ] ) );
 	}
 
+	public function test_no_phantom_update_when_files_were_swapped_mid_request(): void {
+		// Odtwarza realny scenariusz: WordPress podmienia pliki wtyczki, a potem —
+		// jeszcze w TYM SAMYM żądaniu — `upgrader_process_complete` wywołuje
+		// wp_update_plugins() (timeout 0), więc nasz filtr biegnie, gdy wersja
+		// zapamiętana w pamięci procesu jest już nieaktualna wobec dysku.
+		$real = Plugin::plugin_file();
+
+		try {
+			Plugin::version();            // zapamiętuje wersję "sprzed aktualizacji"
+			$stale = Plugin::version();
+
+			$swapped = get_temp_dir() . 'evreg-swapped.php';
+			file_put_contents( $swapped, "<?php\n/*\nPlugin Name: Swapped\nVersion: 9.9.9\n*/\n" );
+			Plugin::boot( $swapped );     // "pliki na dysku są już nowe"
+
+			$this->assertNotSame( '9.9.9', $stale, 'Test wymaga, by cache różnił się od dysku.' );
+
+			add_filter( 'pre_http_request', $this->mk_release( 'v9.9.9' ), 10, 3 );
+
+			$updater  = new GitHubUpdater();
+			$result   = $updater->inject_update( new \stdClass() );
+			$basename = plugin_basename( $swapped );
+
+			$this->assertFalse(
+				isset( $result->response[ $basename ] ),
+				'Wersja z dysku równa wydaniu — nie wolno zgłaszać aktualizacji.'
+			);
+			$this->assertTrue( isset( $result->no_update[ $basename ] ) );
+
+			unlink( $swapped );
+		} finally {
+			Plugin::boot( $real );
+			Plugin::version( true );
+		}
+	}
+
 	public function test_no_entries_when_github_unavailable(): void {
 		add_filter( 'pre_http_request', $this->mk_wp_error(), 10, 3 );
 
