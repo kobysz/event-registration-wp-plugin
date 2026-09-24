@@ -28,6 +28,7 @@ export default function AccommodationTab( { config, update } ) {
 				<div className="evreg-pkg-row" key={ pkg.key }>
 					<TextControl
 						label={ __( 'Klucz', 'event-registration' ) }
+						help={ __( 'Zmiana klucza rozłączy istniejące rezerwacje — w historii zgłoszeń zostanie zapisana nazwa z chwili rezerwacji.', 'event-registration' ) }
 						value={ pkg.key }
 						onChange={ ( key ) => setAcc( updatePackage( acc, pkg.key, { key } ) ) }
 					/>
@@ -50,6 +51,7 @@ export default function AccommodationTab( { config, update } ) {
 				<div className="evreg-room-row" key={ room.key }>
 					<TextControl
 						label={ __( 'Klucz', 'event-registration' ) }
+						help={ __( 'Zmiana klucza rozłączy istniejące rezerwacje — w historii zgłoszeń zostanie zapisana nazwa z chwili rezerwacji.', 'event-registration' ) }
 						value={ room.key }
 						onChange={ ( key ) => setAcc( updateRoom( acc, room.key, { key } ) ) }
 					/>

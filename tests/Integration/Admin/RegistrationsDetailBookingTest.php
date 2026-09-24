@@ -160,6 +160,47 @@ final class RegistrationsDetailBookingTest extends WP_UnitTestCase {
 		$this->assertStringContainsString( 'Piotr N.', $html );
 	}
 
+	public function test_detail_uses_label_snapshot_when_room_removed_from_config(): void {
+		// Dokładnie przypadek z produkcji: pokój `room_usuniety` zniknął z konfiguracji
+		// po rezerwacji. Snapshot z chwili zapisu utrzymuje czytelność historii.
+		$id = $this->repository->insertRegistration(
+			array(
+				'event_id'    => $this->event_id,
+				'type_key'    => 'uczestnik',
+				'status'      => 'confirmed',
+				'email'       => 'ola@example.com',
+				'name'        => 'Ola',
+				'token'       => str_repeat( 'f', 32 ),
+				'data'        => (string) wp_json_encode(
+					array(
+						'__type' => 'uczestnik',
+						'nocleg' => array(
+							'package'  => 'pkg_1',
+							'room'     => 'room_usuniety',
+							'roommate' => '',
+						),
+					)
+				),
+				'price_total' => 180.0,
+				'expires_at'  => null,
+			)
+		);
+
+		$this->repository->insertAccommodationBooking(
+			$id,
+			new AccommodationSelection( 'pkg_1', 'room_usuniety' ),
+			180.0,
+			1,
+			'Nocleg 18-19 grudnia',
+			'Pokój 1-osobowy (zlikwidowany)'
+		);
+
+		$html = $this->renderDetail( $id );
+
+		$this->assertStringContainsString( 'Pokój 1-osobowy (zlikwidowany)', $html );
+		$this->assertStringNotContainsString( 'room_usuniety', $html );
+	}
+
 	public function test_detail_falls_back_to_raw_key_when_unknown(): void {
 		// Pakiet usunięty z konfiguracji po zgłoszeniu — lepiej pokazać klucz niż pustkę.
 		$id = $this->seed(

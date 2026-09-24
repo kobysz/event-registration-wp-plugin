@@ -201,8 +201,10 @@ final class RegistrationRepository {
 	 * @param AccommodationSelection $selection       Wybór pakietu/pokoju.
 	 * @param float                  $price           Cena rezerwacji.
 	 * @param int                    $seats           Liczba zajmowanych miejsc w slocie (1 + towarzysz).
+	 * @param string                 $package_label   Etykieta pakietu w chwili rezerwacji (snapshot).
+	 * @param string                 $room_label      Etykieta pokoju w chwili rezerwacji (snapshot).
 	 */
-	public function insertAccommodationBooking( int $registration_id, AccommodationSelection $selection, float $price, int $seats = 1 ): void {
+	public function insertAccommodationBooking( int $registration_id, AccommodationSelection $selection, float $price, int $seats = 1, string $package_label = '', string $room_label = '' ): void {
 		global $wpdb;
 
 		$wpdb->insert(
@@ -211,11 +213,13 @@ final class RegistrationRepository {
 				'registration_id' => $registration_id,
 				'package_key'     => $selection->packageKey,
 				'room_type_key'   => $selection->roomKey,
+				'package_label'   => $package_label,
+				'room_label'      => $room_label,
 				'roommate_pref'   => '' === $selection->roommatePref ? null : $selection->roommatePref,
 				'price'           => $price,
 				'seats'           => $seats,
 			),
-			array( '%d', '%s', '%s', '%s', '%f', '%d' )
+			array( '%d', '%s', '%s', '%s', '%s', '%s', '%f', '%d' )
 		);
 	}
 

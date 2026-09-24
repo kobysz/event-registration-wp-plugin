@@ -132,7 +132,33 @@ final class AccommodationConfig {
 	}
 
 	/**
-	 * Znajduje typ pokoju po kluczu.
+	 * Zwraca etykietę pakietu albo surowy klucz, gdy pakiet zniknął z konfiguracji.
+	 *
+	 * @param string $key Klucz pakietu.
+	 */
+	public function packageLabel( string $key ): string {
+		foreach ( $this->packages as $package ) {
+			if ( $package->key === $key ) {
+				return $package->label;
+			}
+		}
+
+		return $key;
+	}
+
+	/**
+	 * Zwraca etykietę pokoju albo surowy klucz, gdy pokój zniknął z konfiguracji.
+	 *
+	 * @param string $key Klucz pokoju.
+	 */
+	public function roomLabel( string $key ): string {
+		$room = $this->room( $key );
+
+		return null === $room ? $key : $room->label;
+	}
+
+	/**
+	 * Zwraca typ pokoju o danym kluczu albo null.
 	 *
 	 * @param string $key Klucz typu pokoju.
 	 */
