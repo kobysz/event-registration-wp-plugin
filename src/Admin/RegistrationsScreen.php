@@ -10,7 +10,9 @@ declare( strict_types=1 );
 namespace EvReg\Admin;
 
 use EvReg\Domain\Accommodation\AccommodationConfig;
+use EvReg\Domain\Export\RegistrationExportMapper;
 use EvReg\Domain\Registration\RegistrationTypeCollection;
+use EvReg\Domain\Schema\FieldType;
 use EvReg\Frontend\EventFormLoader;
 use EvReg\Frontend\SubmissionAssembler;
 use EvReg\Persistence\EventConfigRepository;
@@ -214,7 +216,7 @@ final class RegistrationsScreen {
 		echo '</tbody></table>';
 
 		self::render_answers( $event_id, (string) $row['data'] );
-		self::render_booking( $repository->findAccommodationBooking( $id ) );
+		self::render_booking( $repository->findAccommodationBooking( $id ), $event_id );
 		self::render_note_form( $id, (string) ( $row['note'] ?? '' ) );
 		self::render_actions( $id, (string) $row['status'] );
 
@@ -307,7 +309,19 @@ final class RegistrationsScreen {
 			}
 
 			$value = $answers[ $field->key ] ?? '';
-			$text  = is_array( $value ) ? implode( ', ', array_map( 'strval', $value ) ) : (string) $value;
+
+			if ( FieldType::Accommodation === $field->type && is_array( $value ) ) {
+				// Surowa odpowiedź to klucze (package/room) — bez etykiet jest nieczytelna.
+				$text = self::accommodation_text(
+					AccommodationConfig::fromArray( $field->config ),
+					(string) ( $value['package'] ?? '' ),
+					(string) ( $value['room'] ?? '' ),
+					(string) ( $value['roommate'] ?? '' )
+				);
+			} else {
+				$text = is_array( $value ) ? implode( ', ', array_map( 'strval', $value ) ) : (string) $value;
+			}
+
 			self::detail_row( $field->label, $text );
 		}
 
@@ -317,19 +331,55 @@ final class RegistrationsScreen {
 	/**
 	 * Renderuje rezerwację noclegową, jeśli istnieje.
 	 *
-	 * @param array<string,mixed>|null $booking Wiersz bookingu albo null.
+	 * @param array<string,mixed>|null $booking  Wiersz bookingu albo null.
+	 * @param int                      $event_id ID eventu (źródło etykiet pakietu/pokoju).
 	 */
-	private static function render_booking( ?array $booking ): void {
+	private static function render_booking( ?array $booking, int $event_id ): void {
 		if ( null === $booking ) {
 			return;
 		}
 
+		$config = ( new EventConfigRepository() )->get( $event_id );
+		$cells  = ( new RegistrationExportMapper() )->accommodationCells(
+			$booking,
+			AccommodationConfig::fromArray( is_array( $config['accommodation'] ) ? $config['accommodation'] : array() )
+		);
+
 		echo '<h2>' . esc_html__( 'Nocleg', 'event-registration' ) . '</h2>';
 		echo '<table class="widefat striped"><tbody>';
-		self::detail_row( __( 'Pakiet', 'event-registration' ), (string) $booking['package_key'] );
-		self::detail_row( __( 'Pokój', 'event-registration' ), (string) $booking['room_type_key'] );
-		self::detail_row( __( 'Współlokator', 'event-registration' ), (string) ( $booking['roommate_pref'] ?? '' ) );
+		self::detail_row( __( 'Pakiet', 'event-registration' ), $cells['package'] );
+		self::detail_row( __( 'Pokój', 'event-registration' ), $cells['room'] );
+		self::detail_row( __( 'Współlokator', 'event-registration' ), $cells['roommate'] );
 		echo '</tbody></table>';
+	}
+
+	/**
+	 * Składa czytelny opis noclegu: „Pakiet — Pokój" plus współlokator, gdy podany.
+	 * Nieznany klucz zostaje pokazany surowy (lepsze niż pustka), tak jak w eksporcie.
+	 *
+	 * @param AccommodationConfig $config      Konfiguracja noclegów eventu.
+	 * @param string              $package_key Klucz pakietu z odpowiedzi.
+	 * @param string              $room_key    Klucz pokoju z odpowiedzi.
+	 * @param string              $roommate    Preferowany współlokator.
+	 */
+	private static function accommodation_text( AccommodationConfig $config, string $package_key, string $room_key, string $roommate ): string {
+		$cells = ( new RegistrationExportMapper() )->accommodationCells(
+			array(
+				'package_key'   => $package_key,
+				'room_type_key' => $room_key,
+				'roommate_pref' => $roommate,
+			),
+			$config
+		);
+
+		$label = trim( $cells['package'] . ' — ' . $cells['room'], " \t\n\r\0\x0B—" );
+
+		if ( '' === $cells['roommate'] ) {
+			return $label;
+		}
+
+		/* translators: 1: opis noclegu, 2: preferowany współlokator. */
+		return sprintf( __( '%1$s (współlokator: %2$s)', 'event-registration' ), $label, $cells['roommate'] );
 	}
 
 	/**

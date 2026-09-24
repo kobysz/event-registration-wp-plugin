@@ -11,6 +11,9 @@ so keep entries user-facing and concise.
 
 ## [Unreleased]
 
+### Fixed
+- The submission detail screen now shows the accommodation package and room by name instead of their internal keys (for example "Noc 1–2 — Pokój 2-osobowy" instead of "pkg_1, room_1,"), both in the answers table and in the accommodation section. An unknown key still falls back to the raw key rather than showing nothing.
+
 ## [0.1.12] - 2026-09-24
 
 ### Fixed
