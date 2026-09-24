@@ -215,8 +215,10 @@ final class RegistrationsScreen {
 		}
 		echo '</tbody></table>';
 
-		self::render_answers( $event_id, (string) $row['data'] );
-		self::render_booking( $repository->findAccommodationBooking( $id ), $event_id );
+		$booking = $repository->findAccommodationBooking( $id );
+
+		self::render_answers( $event_id, (string) $row['data'], $booking );
+		self::render_booking( $booking, $event_id );
 		self::render_note_form( $id, (string) ( $row['note'] ?? '' ) );
 		self::render_actions( $id, (string) $row['status'] );
 
@@ -287,10 +289,11 @@ final class RegistrationsScreen {
 	/**
 	 * Renderuje odpowiedzi uczestnika ze złożonej schemy.
 	 *
-	 * @param int    $event_id ID eventu.
-	 * @param string $data     JSON odpowiedzi.
+	 * @param int                      $event_id ID eventu.
+	 * @param string                   $data     JSON odpowiedzi.
+	 * @param array<string,mixed>|null $booking  Rezerwacja noclegu (nośnik snapshotu etykiet) albo null.
 	 */
-	private static function render_answers( int $event_id, string $data ): void {
+	private static function render_answers( int $event_id, string $data, ?array $booking = null ): void {
 		$schema = ( new EventFormLoader( new EventConfigRepository() ) )->load( $event_id );
 
 		if ( null === $schema ) {
@@ -312,11 +315,14 @@ final class RegistrationsScreen {
 
 			if ( FieldType::Accommodation === $field->type && is_array( $value ) ) {
 				// Surowa odpowiedź to klucze (package/room) — bez etykiet jest nieczytelna.
+				// Rezerwacja niesie snapshot etykiet, więc jest lepszym źródłem niż same klucze.
 				$text = self::accommodation_text(
 					AccommodationConfig::fromArray( $field->config ),
-					(string) ( $value['package'] ?? '' ),
-					(string) ( $value['room'] ?? '' ),
-					(string) ( $value['roommate'] ?? '' )
+					$booking ?? array(
+						'package_key'   => (string) ( $value['package'] ?? '' ),
+						'room_type_key' => (string) ( $value['room'] ?? '' ),
+						'roommate_pref' => (string) ( $value['roommate'] ?? '' ),
+					)
 				);
 			} else {
 				$text = is_array( $value ) ? implode( ', ', array_map( 'strval', $value ) ) : (string) $value;
@@ -357,20 +363,11 @@ final class RegistrationsScreen {
 	 * Składa czytelny opis noclegu: „Pakiet — Pokój" plus współlokator, gdy podany.
 	 * Nieznany klucz zostaje pokazany surowy (lepsze niż pustka), tak jak w eksporcie.
 	 *
-	 * @param AccommodationConfig $config      Konfiguracja noclegów eventu.
-	 * @param string              $package_key Klucz pakietu z odpowiedzi.
-	 * @param string              $room_key    Klucz pokoju z odpowiedzi.
-	 * @param string              $roommate    Preferowany współlokator.
+	 * @param AccommodationConfig $config  Konfiguracja noclegów eventu.
+	 * @param array<string,mixed> $booking Wiersz rezerwacji albo jego odpowiednik z odpowiedzi.
 	 */
-	private static function accommodation_text( AccommodationConfig $config, string $package_key, string $room_key, string $roommate ): string {
-		$cells = ( new RegistrationExportMapper() )->accommodationCells(
-			array(
-				'package_key'   => $package_key,
-				'room_type_key' => $room_key,
-				'roommate_pref' => $roommate,
-			),
-			$config
-		);
+	private static function accommodation_text( AccommodationConfig $config, array $booking ): string {
+		$cells = ( new RegistrationExportMapper() )->accommodationCells( $booking, $config );
 
 		$label = trim( $cells['package'] . ' — ' . $cells['room'], " \t\n\r\0\x0B—" );
 

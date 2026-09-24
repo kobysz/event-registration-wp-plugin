@@ -21,6 +21,6 @@ final class MigrationsCompanionColumnTest extends WP_UnitTestCase {
 	}
 
 	public function test_db_version_is_five(): void {
-		$this->assertSame( 5, Migrations::DB_VERSION );
+		$this->assertSame( 6, Migrations::DB_VERSION );
 	}
 }

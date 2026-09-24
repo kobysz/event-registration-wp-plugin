@@ -11,6 +11,7 @@ namespace EvReg\Mail;
 
 use EvReg\Domain\Accommodation\AccommodationConfig;
 use EvReg\Domain\Conditions\ConditionEngine;
+use EvReg\Domain\Export\RegistrationExportMapper;
 use EvReg\Domain\Mail\Placeholders;
 use EvReg\Domain\Mail\SummaryBuilder;
 use EvReg\Domain\Registration\RegistrationTypeCollection;
@@ -92,21 +93,10 @@ final class PlaceholderFactory {
 		}
 
 		$accommodation = AccommodationConfig::fromArray( is_array( $config['accommodation'] ) ? $config['accommodation'] : array() );
-		$package_key   = (string) ( $booking['package_key'] ?? '' );
-		$room_key      = (string) ( $booking['room_type_key'] ?? '' );
-		$package_label = $package_key;
-
-		foreach ( $accommodation->packages() as $package ) {
-			if ( $package->key === $package_key ) {
-				$package_label = $package->label;
-				break;
-			}
-		}
-
-		$room       = $accommodation->room( $room_key );
-		$room_label = null === $room ? $room_key : $room->label;
-		$label      = trim( $package_label . ' / ' . $room_label, ' /' );
-		$roommate   = trim( (string) ( $booking['roommate_pref'] ?? '' ) );
+		// Snapshot etykiet z chwili rezerwacji → aktualna konfiguracja → surowy klucz.
+		$cells    = ( new RegistrationExportMapper() )->accommodationCells( $booking, $accommodation );
+		$label    = trim( $cells['package'] . ' / ' . $cells['room'], ' /' );
+		$roommate = trim( $cells['roommate'] );
 
 		if ( '' === $roommate ) {
 			return $label;

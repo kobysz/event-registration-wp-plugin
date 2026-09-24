@@ -149,7 +149,14 @@ final class ReservationService {
 				$item      = $accommodation->item( $request->selection->packageKey, $request->selection->roomKey );
 				$seats     = $request->companion ? 2 : 1;
 				$acc_price = ( null === $item ? 0.0 : $item->price ) * $seats;
-				$this->repository->insertAccommodationBooking( $id, $request->selection, $acc_price, $seats );
+				$this->repository->insertAccommodationBooking(
+					$id,
+					$request->selection,
+					$acc_price,
+					$seats,
+					$accommodation->packageLabel( $request->selection->packageKey ),
+					$accommodation->roomLabel( $request->selection->roomKey )
+				);
 			}
 
 			$wpdb->query( 'COMMIT' );
@@ -364,7 +371,14 @@ final class ReservationService {
 					$seats     = $companion ? 2 : 1;
 					$acc_price = ( null === $item ? 0.0 : $item->price ) * $seats;
 					$this->repository->deleteAccommodationBooking( $id );
-					$this->repository->insertAccommodationBooking( $id, $selection, $acc_price, $seats );
+					$this->repository->insertAccommodationBooking(
+						$id,
+						$selection,
+						$acc_price,
+						$seats,
+						$accommodation->packageLabel( $selection->packageKey ),
+						$accommodation->roomLabel( $selection->roomKey )
+					);
 				} else {
 					// Brak grantu na promocji (np. companion żąda 2 miejsc, zostało 1) —
 					// skasuj nieaktualny booking sprzed listy rezerwowej. Bez tego markPending()
@@ -483,7 +497,14 @@ final class ReservationService {
 				$item      = $accommodation->item( $request->selection->packageKey, $request->selection->roomKey );
 				$seats     = $request->companion ? 2 : 1;
 				$acc_price = ( null === $item ? 0.0 : $item->price ) * $seats;
-				$this->repository->insertAccommodationBooking( $id, $request->selection, $acc_price, $seats );
+				$this->repository->insertAccommodationBooking(
+					$id,
+					$request->selection,
+					$acc_price,
+					$seats,
+					$accommodation->packageLabel( $request->selection->packageKey ),
+					$accommodation->roomLabel( $request->selection->roomKey )
+				);
 			}
 
 			$wpdb->query( 'COMMIT' );

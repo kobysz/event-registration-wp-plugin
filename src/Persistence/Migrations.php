@@ -16,7 +16,7 @@ defined( 'ABSPATH' ) || exit;
  */
 final class Migrations {
 
-	public const DB_VERSION = 5;
+	public const DB_VERSION = 6;
 
 	public const VERSION_OPTION = 'evreg_db_version';
 
@@ -105,6 +105,8 @@ final class Migrations {
 				registration_id bigint(20) unsigned NOT NULL,
 				package_key varchar(64) NOT NULL,
 				room_type_key varchar(64) NOT NULL,
+				package_label varchar(191) NOT NULL DEFAULT '',
+				room_label varchar(191) NOT NULL DEFAULT '',
 				roommate_pref varchar(191) NULL,
 				seats tinyint unsigned NOT NULL DEFAULT 1,
 				price decimal(10,2) NOT NULL DEFAULT 0,

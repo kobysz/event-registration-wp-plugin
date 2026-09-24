@@ -228,6 +228,69 @@ final class RegistrationExportMapperTest extends TestCase {
 		);
 	}
 
+	public function test_accommodationCells_prefers_label_snapshot_from_booking(): void {
+		// Pokój usunięty z konfiguracji po rezerwacji — snapshot ratuje czytelność historii.
+		$config = AccommodationConfig::fromArray(
+			array(
+				'packages'  => array( array( 'key' => 'pkg_1', 'label' => 'Nocleg 18-19 grudnia' ) ),
+				'rooms'     => array( array( 'key' => 'room_9', 'label' => 'Pokój 1-osobowy' ) ),
+				'inventory' => array(
+					array(
+						'package'  => 'pkg_1',
+						'room'     => 'room_9',
+						'capacity' => 3,
+						'price'    => 100.0,
+					),
+				),
+			)
+		);
+
+		$cells = ( new RegistrationExportMapper() )->accommodationCells(
+			array(
+				'package_key'   => 'pkg_1',
+				'room_type_key' => 'room_1',
+				'package_label' => 'Nocleg 18-19 grudnia',
+				'room_label'    => 'Pokój 2-osobowy',
+				'roommate_pref' => '',
+			),
+			$config
+		);
+
+		$this->assertSame( 'Nocleg 18-19 grudnia', $cells['package'] );
+		$this->assertSame( 'Pokój 2-osobowy', $cells['room'] );
+	}
+
+	public function test_accommodationCells_uses_config_when_snapshot_empty(): void {
+		$config = AccommodationConfig::fromArray(
+			array(
+				'packages'  => array( array( 'key' => 'pkg_1', 'label' => 'Pakiet z configu' ) ),
+				'rooms'     => array( array( 'key' => 'room_1', 'label' => 'Pokój z configu' ) ),
+				'inventory' => array(
+					array(
+						'package'  => 'pkg_1',
+						'room'     => 'room_1',
+						'capacity' => 3,
+						'price'    => 100.0,
+					),
+				),
+			)
+		);
+
+		$cells = ( new RegistrationExportMapper() )->accommodationCells(
+			array(
+				'package_key'   => 'pkg_1',
+				'room_type_key' => 'room_1',
+				'package_label' => '',
+				'room_label'    => '',
+				'roommate_pref' => '',
+			),
+			$config
+		);
+
+		$this->assertSame( 'Pakiet z configu', $cells['package'] );
+		$this->assertSame( 'Pokój z configu', $cells['room'] );
+	}
+
 	public function test_accommodationCells_fallback_unknown_package_key(): void {
 		$config = AccommodationConfig::fromArray(
 			array(

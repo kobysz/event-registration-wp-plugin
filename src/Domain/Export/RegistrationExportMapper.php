@@ -79,40 +79,17 @@ final class RegistrationExportMapper {
 				'roommate' => '',
 			);
 		}
-		$package_key = (string) ( $booking['package_key'] ?? '' );
-		$room_key    = (string) ( $booking['room_type_key'] ?? '' );
+		$package_key   = (string) ( $booking['package_key'] ?? '' );
+		$room_key      = (string) ( $booking['room_type_key'] ?? '' );
+		$package_label = (string) ( $booking['package_label'] ?? '' );
+		$room_label    = (string) ( $booking['room_label'] ?? '' );
+
+		// Kolejność: snapshot z chwili rezerwacji → aktualna konfiguracja → surowy klucz.
+		// Snapshot utrzymuje czytelność historii, gdy pakiet/pokój zmieni klucz albo zniknie.
 		return array(
-			'package'  => $this->packageLabel( $config, $package_key ),
-			'room'     => $this->roomLabel( $config, $room_key ),
+			'package'  => '' !== $package_label ? $package_label : $config->packageLabel( $package_key ),
+			'room'     => '' !== $room_label ? $room_label : $config->roomLabel( $room_key ),
 			'roommate' => (string) ( $booking['roommate_pref'] ?? '' ),
 		);
-	}
-
-	/**
-	 * Zwraca etykietę pakietu lub surowy klucz gdy nieznany.
-	 *
-	 * @param AccommodationConfig $config Konfiguracja zakwaterowania.
-	 * @param string              $key    Klucz pakietu.
-	 * @return string
-	 */
-	private function packageLabel( AccommodationConfig $config, string $key ): string {
-		foreach ( $config->packages() as $package ) {
-			if ( $package->key === $key ) {
-				return $package->label;
-			}
-		}
-		return $key;
-	}
-
-	/**
-	 * Zwraca etykietę pokoju lub surowy klucz gdy nieznany.
-	 *
-	 * @param AccommodationConfig $config Konfiguracja zakwaterowania.
-	 * @param string              $key    Klucz pokoju.
-	 * @return string
-	 */
-	private function roomLabel( AccommodationConfig $config, string $key ): string {
-		$room = $config->room( $key );
-		return null === $room ? $key : $room->label;
 	}
 }

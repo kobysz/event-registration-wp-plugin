@@ -11,7 +11,11 @@ so keep entries user-facing and concise.
 
 ## [Unreleased]
 
-## [0.1.13] - 2026-09-24
+### Fixed
+- A booking now stores the package and room names it was made under, so a submission keeps showing readable accommodation even after that room or package is renamed or removed from the event configuration. Previously such a submission fell back to the internal key (for example "room_1"). Applies to the submission detail, CSV export, confirmation mail and the privacy export; older bookings keep falling back to the current configuration.
+
+### Changed
+- The accommodation editor now warns that changing a package or room key disconnects existing bookings.
 
 ### Fixed
 - The submission detail screen now shows the accommodation package and room by name instead of their internal keys (for example "Noc 1–2 — Pokój 2-osobowy" instead of "pkg_1, room_1,"), both in the answers table and in the accommodation section. An unknown key still falls back to the raw key rather than showing nothing.
