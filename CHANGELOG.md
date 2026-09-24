@@ -11,6 +11,8 @@ so keep entries user-facing and concise.
 
 ## [Unreleased]
 
+## [0.1.13] - 2026-09-24
+
 ### Fixed
 - The submission detail screen now shows the accommodation package and room by name instead of their internal keys (for example "Noc 1–2 — Pokój 2-osobowy" instead of "pkg_1, room_1,"), both in the answers table and in the accommodation section. An unknown key still falls back to the raw key rather than showing nothing.
 
@@ -85,7 +87,8 @@ so keep entries user-facing and concise.
 ### Added
 - Initial internal release covering the full roadmap: event configuration (custom post type, REST API, React admin), public registration form with transactional seat reservation and double opt-in, transactional mail queue with templates and an admin queue screen, submissions panel with lifecycle actions, answer editing and CSV export, data-lifecycle/compliance tooling (gated uninstall, WordPress privacy export/erase), and self-hosted auto-update from GitHub Releases.
 
-[Unreleased]: https://github.com/kobysz/event-registration-wp-plugin/compare/v0.1.12...HEAD
+[Unreleased]: https://github.com/kobysz/event-registration-wp-plugin/compare/v0.1.13...HEAD
+[0.1.13]: https://github.com/kobysz/event-registration-wp-plugin/releases/tag/v0.1.13
 [0.1.12]: https://github.com/kobysz/event-registration-wp-plugin/releases/tag/v0.1.12
 [0.1.11]: https://github.com/kobysz/event-registration-wp-plugin/releases/tag/v0.1.11
 [0.1.10]: https://github.com/kobysz/event-registration-wp-plugin/releases/tag/v0.1.10
