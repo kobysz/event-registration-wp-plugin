@@ -127,4 +127,20 @@ describe( 'accommodationOps', () => {
 		expect( setCompanionCountsEvent( emptyAccommodation(), 1 ).companion_counts_event ).toBe( true );
 		expect( setCompanionCountsEvent( emptyAccommodation(), 0 ).companion_counts_event ).toBe( false );
 	} );
+
+	it( 'addRoom daje pokój bez ustawionej liczby osób', () => {
+		const acc = addRoom( { packages: [], rooms: [], inventory: [] } );
+
+		expect( acc.rooms[ 0 ].occupancy ).toBe( 0 );
+	} );
+
+	it( 'updateRoom ustawia liczbę osób', () => {
+		const acc = updateRoom(
+			{ packages: [], rooms: [ { key: 'double', label: '2-os.', occupancy: 0 } ], inventory: [] },
+			'double',
+			{ occupancy: 2 }
+		);
+
+		expect( acc.rooms[ 0 ].occupancy ).toBe( 2 );
+	} );
 } );
