@@ -114,7 +114,8 @@ const FieldRow = forwardRef( function FieldRow(
 							{ __( 'Opcje', 'event-registration' ) }
 						</span>
 						{ options.map( ( opt, i ) => (
-							<div className="evreg-field-options__row" key={ i }>
+							<div className="evreg-field-option" key={ i }>
+							<div className="evreg-field-options__row">
 								<TextControl
 									label={ __( 'Wartość', 'event-registration' ) }
 									value={ opt.value || '' }
@@ -137,6 +138,16 @@ const FieldRow = forwardRef( function FieldRow(
 								>
 									{ __( 'Usuń', 'event-registration' ) }
 								</Button>
+							</div>
+							<TextareaControl
+								label={ __( 'Opis (widoczny po wybraniu)', 'event-registration' ) }
+								help={ __( 'Opcjonalny. Pokazuje się pod tą opcją dopiero po jej zaznaczeniu. Można użyć prostego HTML, np. linku.', 'event-registration' ) }
+								rows={ 2 }
+								value={ opt.description || '' }
+								onChange={ ( description ) =>
+									onChange( { options: updateOption( options, i, { description } ) } )
+								}
+							/>
 							</div>
 						) ) }
 						<Button

@@ -17,12 +17,14 @@ final class Option {
 	/**
 	 * Tworzy opcję z wartości i etykiety.
 	 *
-	 * @param string $value Wartość zapisywana w odpowiedzi.
-	 * @param string $label Etykieta prezentowana użytkownikowi.
+	 * @param string $value       Wartość zapisywana w odpowiedzi.
+	 * @param string $label       Etykieta prezentowana użytkownikowi.
+	 * @param string $description Opis pokazywany po wybraniu tej opcji (dozwolony prosty HTML).
 	 */
 	public function __construct(
 		public readonly string $value,
-		public readonly string $label
+		public readonly string $label,
+		public readonly string $description = ''
 	) {
 	}
 
@@ -38,7 +40,11 @@ final class Option {
 			throw new SchemaException( 'Opcja wymaga niepustej wartości.' );
 		}
 
-		return new self( (string) $data['value'], (string) ( $data['label'] ?? $data['value'] ) );
+		return new self(
+			(string) $data['value'],
+			(string) ( $data['label'] ?? $data['value'] ),
+			(string) ( $data['description'] ?? '' )
+		);
 	}
 
 	/**
@@ -47,9 +53,15 @@ final class Option {
 	 * @return array<string,string>
 	 */
 	public function toArray(): array {
-		return array(
+		$data = array(
 			'value' => $this->value,
 			'label' => $this->label,
 		);
+
+		if ( '' !== $this->description ) {
+			$data['description'] = $this->description;
+		}
+
+		return $data;
 	}
 }

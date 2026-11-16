@@ -150,6 +150,15 @@ final class EventConfigController {
 	private const ACCOMMODATION_BOOL_KEYS = array( 'companion_enabled', 'companion_counts_event' );
 
 	/**
+	 * Klucze z treścią formatowaną — sanitize_text_field wycina tam tagi i zjada
+	 * znaki nowej linii, więc opisy (pola i opcji) przepuszczamy przez
+	 * wp_kses_post(): link i pogrubienie zostają, skrypty i atrybuty zdarzeń nie.
+	 * Autorem treści jest admin z capem edycji wydarzeń — ten sam poziom zaufania
+	 * co dla treści wpisu.
+	 */
+	private const RICH_TEXT_KEYS = array( 'description' );
+
+	/**
 	 * Rekurencyjnie sanityzuje łańcuchowe liście konfiguracji, zachowując
 	 * strukturę i typy nie-łańcuchowe. Config nie zawiera treści wieloliniowej
 	 * ani HTML — etykiety, klucze, daty, e-maile i liczby są jednoliniowe.
@@ -165,6 +174,8 @@ final class EventConfigController {
 				$clean[ $k ] = $this->sanitize( $v );
 			} elseif ( is_string( $k ) && in_array( $k, self::ACCOMMODATION_BOOL_KEYS, true ) ) {
 				$clean[ $k ] = (bool) $v;
+			} elseif ( is_string( $v ) && is_string( $k ) && in_array( $k, self::RICH_TEXT_KEYS, true ) ) {
+				$clean[ $k ] = wp_kses_post( $v );
 			} elseif ( is_string( $v ) ) {
 				$clean[ $k ] = sanitize_text_field( $v );
 			} else {

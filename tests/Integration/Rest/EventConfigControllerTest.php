@@ -160,6 +160,68 @@ final class EventConfigControllerTest extends WP_UnitTestCase {
 		$this->assertSame( false, $get_data['accommodation']['companion_counts_event'] );
 	}
 
+	public function test_put_keeps_html_and_newlines_in_descriptions(): void {
+		wp_set_current_user( $this->admin_id );
+
+		$rich = "Program wyjazdu:
+<a href=\"https://example.com/program\">zobacz szczegóły</a>";
+
+		$body = $this->valid_body();
+		$body['schema']['sections'][0]['fields'][] = array(
+			'key'         => 'wariant',
+			'type'        => 'radio',
+			'label'       => 'Wariant',
+			'description' => $rich,
+			'options'     => array(
+				array(
+					'value'       => 'warsztat',
+					'label'       => 'Warsztat',
+					'description' => $rich,
+				),
+			),
+		);
+
+		$request = new WP_REST_Request( 'PUT', "/evreg/v1/events/{$this->event_id}/config" );
+		$request->set_body_params( $body );
+		rest_do_request( $request );
+
+		$get      = new WP_REST_Request( 'GET', "/evreg/v1/events/{$this->event_id}/config" );
+		$get_data = rest_do_request( $get )->get_data();
+		$field    = $get_data['schema']['sections'][0]['fields'][2];
+
+		$this->assertSame( $rich, $field['options'][0]['description'] );
+		$this->assertSame( $rich, $field['description'] );
+	}
+
+	public function test_put_strips_scripts_from_descriptions(): void {
+		wp_set_current_user( $this->admin_id );
+
+		$body = $this->valid_body();
+		$body['schema']['sections'][0]['fields'][] = array(
+			'key'         => 'wariant',
+			'type'        => 'radio',
+			'label'       => 'Wariant',
+			'options'     => array(
+				array(
+					'value'       => 'warsztat',
+					'label'       => 'Warsztat',
+					'description' => '<a href="https://example.com">ok</a><script>alert(1)</script>',
+				),
+			),
+		);
+
+		$request = new WP_REST_Request( 'PUT', "/evreg/v1/events/{$this->event_id}/config" );
+		$request->set_body_params( $body );
+		rest_do_request( $request );
+
+		$get      = new WP_REST_Request( 'GET', "/evreg/v1/events/{$this->event_id}/config" );
+		$get_data = rest_do_request( $get )->get_data();
+		$stored   = $get_data['schema']['sections'][0]['fields'][2]['options'][0]['description'];
+
+		$this->assertStringContainsString( '<a href="https://example.com">ok</a>', $stored );
+		$this->assertStringNotContainsString( '<script>', $stored );
+	}
+
 	public function test_put_casts_stringy_companion_flags_to_bool(): void {
 		wp_set_current_user( $this->admin_id );
 

@@ -121,7 +121,7 @@ final class RegistrationEditForm {
 	 */
 	private static function renderRow( Field $field, $value ): string {
 		$label   = '<th scope="row"><label>' . esc_html( $field->label ) . '</label></th>';
-		$desc    = '' !== $field->description ? '<p class="description">' . esc_html( $field->description ) . '</p>' : '';
+		$desc    = '' !== $field->description ? '<p class="description">' . wp_kses_post( $field->description ) . '</p>' : '';
 		$control = '<td>' . self::renderControl( $field, $value ) . $desc . '</td>';
 		return '<tr>' . $label . $control . '</tr>';
 	}

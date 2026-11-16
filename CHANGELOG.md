@@ -11,6 +11,9 @@ so keep entries user-facing and concise.
 
 ## [Unreleased]
 
+### Added
+- Each choice option (single choice, multiple choice, dropdown) can carry its own description, shown under that option only once it is selected — useful for a note or a link to an external page that is relevant to one answer. Option and field descriptions now accept simple HTML such as links and bold text; scripts are stripped.
+
 ## [0.1.14] - 2026-09-24
 
 ### Fixed
