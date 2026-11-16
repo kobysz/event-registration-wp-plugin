@@ -362,3 +362,26 @@ którego nie ma.
 schemy wewnątrz transakcyjnego serwisu (dziś nic o schemach nie wie) oraz decyzji
 produktowej, której nikt nie podjął: czy promocja ma zajmować łóżko wybrane tygodnie
 wcześniej, być może po zmienionej od tego czasu cenie?
+
+---
+
+## B13 — Stringi panelu React nie są tłumaczalne w ogóle
+
+**Priorytet:** niski, dopóki obowiązuje założenie „panel admina tylko po polsku" (B3c-3).
+
+**Stan:** komponenty w `assets/admin/` konsekwentnie owijają literały w `__()` z
+`@wordpress/i18n` i inwariant z CLAUDE.md („wszystkie stringi UI, PHP i JS, przez i18n")
+jest formalnie spełniony. Ale **brakuje całej maszynerii po stronie WordPressa**:
+`wp_set_script_translations()` nie jest wołane nigdzie w `src/` ani w bootstrapie wtyczki,
+a `npm run i18n:pot` wyklucza `assets/admin` (i `build`), więc żaden string JS nie trafia
+do katalogu. Bez wczytanego katalogu JS `__()` zwraca literał bez zmian — niezależnie od
+tego, czy w `.pot` cokolwiek by było.
+
+**Skutek:** dziś żaden. Założenie jest, że admin jest polski, a polski to język źródłowy,
+więc literał = tłumaczenie. Pułapka polega na tym, że owinięcie w `__()` wygląda jak
+gotowość do tłumaczenia, której nie ma — ktoś może uznać, że wystarczy dorzucić `.po`.
+
+**Szkic:** `wp_set_script_translations( 'evreg-admin', 'event-registration', plugin_dir_path(...) . 'languages' )`
+przy enqueue bundla, zdjęcie `assets/admin` z `--exclude` w `i18n:pot` (albo skanowanie
+`build/` zamiast źródeł), plus `wp i18n make-json` w ścieżce budowania `.mo`. Dopiero wtedy
+`.po` dla panelu ma sens.
