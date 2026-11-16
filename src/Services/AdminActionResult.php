@@ -19,7 +19,7 @@ final class AdminActionResult {
 	/**
 	 * Tworzy wynik.
 	 *
-	 * @param string      $code   Kod: confirmed|cancelled|promoted|promoted_no_accommodation|deleted|rejected|invalid_status|not_found|edited|capacity_full|accommodation_full.
+	 * @param string      $code   Kod: confirmed|cancelled|promoted|promoted_no_accommodation|deleted|rejected|invalid_status|not_found|edited|capacity_full|accommodation_full|occupancy_mismatch.
 	 * @param string|null $reason Kod powodu (np. przy rejected), jeśli dotyczy.
 	 */
 	private function __construct(

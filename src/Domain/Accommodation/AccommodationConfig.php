@@ -111,6 +111,9 @@ final class AccommodationConfig {
 	/**
 	 * Serializuje konfigurację do tablicy.
 	 *
+	 * Uwaga: zwracane `occupancy` jest wyzerowane, gdy `companion_enabled` jest wyłączone,
+	 * więc wyniku NIE wolno zapisywać z powrotem jako konfiguracji.
+	 *
 	 * @return array<string,mixed>
 	 */
 	public function toArray(): array {

@@ -9,7 +9,7 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-11-16T12:29:06+00:00\n"
+"POT-Creation-Date: 2026-11-16T13:45:40+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.12.0\n"
 "X-Domain: event-registration\n"
@@ -58,7 +58,7 @@ msgstr ""
 #: src/Admin/MailQueueScreen.php:116
 #: src/Admin/RegistrationsExporter.php:44
 #: src/Admin/RegistrationsListTable.php:86
-#: src/Admin/RegistrationsScreen.php:206
+#: src/Admin/RegistrationsScreen.php:209
 #: src/Privacy/PrivacyProvider.php:103
 msgid "Status"
 msgstr ""
@@ -137,10 +137,10 @@ msgstr ""
 
 #: src/Admin/MailQueueScreen.php:51
 #: src/Admin/MailQueueScreen.php:165
-#: src/Admin/RegistrationsScreen.php:71
-#: src/Admin/RegistrationsScreen.php:490
-#: src/Admin/RegistrationsScreen.php:577
-#: src/Admin/RegistrationsScreen.php:644
+#: src/Admin/RegistrationsScreen.php:73
+#: src/Admin/RegistrationsScreen.php:493
+#: src/Admin/RegistrationsScreen.php:580
+#: src/Admin/RegistrationsScreen.php:702
 msgid "Brak uprawnień."
 msgstr ""
 
@@ -185,85 +185,95 @@ msgid "Zapisz zmiany"
 msgstr ""
 
 #: src/Admin/RegistrationEditForm.php:79
-#: src/Admin/RegistrationEditForm.php:290
+#: src/Admin/RegistrationEditForm.php:292
 #: src/Admin/RegistrationsExporter.php:52
-#: src/Admin/RegistrationsScreen.php:215
-#: src/Frontend/FormRenderer.php:207
+#: src/Admin/RegistrationsScreen.php:218
+#: src/Frontend/FormRenderer.php:208
 #: src/Privacy/PrivacyProvider.php:141
 msgid "Osoba towarzysząca"
 msgstr ""
 
 #: src/Admin/RegistrationEditForm.php:101
-#: src/Frontend/FormRenderer.php:518
+#: src/Frontend/FormRenderer.php:547
 msgid "To pole jest wymagane."
 msgstr ""
 
 #: src/Admin/RegistrationEditForm.php:102
-#: src/Frontend/FormRenderer.php:519
+#: src/Frontend/FormRenderer.php:548
 msgid "Nieprawidłowy adres e-mail."
 msgstr ""
 
 #: src/Admin/RegistrationEditForm.php:103
-#: src/Frontend/FormRenderer.php:520
+#: src/Frontend/FormRenderer.php:549
 msgid "Nieprawidłowy numer telefonu."
 msgstr ""
 
 #: src/Admin/RegistrationEditForm.php:104
-#: src/Frontend/FormRenderer.php:521
+#: src/Frontend/FormRenderer.php:550
 msgid "Nieprawidłowa liczba."
 msgstr ""
 
 #: src/Admin/RegistrationEditForm.php:105
-#: src/Frontend/FormRenderer.php:522
+#: src/Frontend/FormRenderer.php:551
 msgid "Nieprawidłowa data."
 msgstr ""
 
 #: src/Admin/RegistrationEditForm.php:106
-#: src/Frontend/FormRenderer.php:523
+#: src/Frontend/FormRenderer.php:552
 msgid "Wybór spoza dostępnych opcji."
 msgstr ""
 
 #: src/Admin/RegistrationEditForm.php:107
-#: src/Frontend/FormRenderer.php:524
+#: src/Frontend/FormRenderer.php:553
 msgid "Wpis jest za długi."
 msgstr ""
 
 #: src/Admin/RegistrationEditForm.php:108
-#: src/Frontend/FormRenderer.php:525
+#: src/Frontend/FormRenderer.php:554
 msgid "Nieprawidłowy wybór noclegu."
 msgstr ""
 
 #: src/Admin/RegistrationEditForm.php:109
-#: src/Frontend/FormRenderer.php:526
+#: src/Frontend/FormRenderer.php:555
 msgid "Współlokator niedozwolony dla tego pokoju."
 msgstr ""
 
 #: src/Admin/RegistrationEditForm.php:110
-#: src/Frontend/FormRenderer.php:527
+#: src/Frontend/FormRenderer.php:556
 msgid "Podaj imię i nazwisko osoby towarzyszącej."
 msgstr ""
 
-#: src/Admin/RegistrationEditForm.php:113
-#: src/Frontend/FormRenderer.php:531
+#: src/Admin/RegistrationEditForm.php:111
+#: src/Frontend/FormRenderer.php:557
+msgid "Ten pokój jest dwuosobowy. Zaznacz osobę towarzyszącą albo wybierz pokój jednoosobowy."
+msgstr ""
+
+#: src/Admin/RegistrationEditForm.php:112
+#: src/Frontend/FormRenderer.php:558
+msgid "Ten pokój jest jednoosobowy. Odznacz osobę towarzyszącą albo wybierz pokój dwuosobowy."
+msgstr ""
+
+#: src/Admin/RegistrationEditForm.php:115
+#: src/Frontend/FormRenderer.php:562
 msgid "Nieprawidłowa wartość."
 msgstr ""
 
-#: src/Admin/RegistrationEditForm.php:174
+#: src/Admin/RegistrationEditForm.php:176
 msgid "— brak —"
 msgstr ""
 
-#: src/Admin/RegistrationEditForm.php:227
-#: src/Frontend/FormRenderer.php:457
+#: src/Admin/RegistrationEditForm.php:229
+#: src/Frontend/FormRenderer.php:476
 msgid "Bez noclegu"
 msgstr ""
 
-#: src/Admin/RegistrationEditForm.php:250
-#: src/Admin/RegistrationsScreen.php:359
+#: src/Admin/RegistrationEditForm.php:252
+#: src/Admin/RegistrationsScreen.php:362
 msgid "Współlokator"
 msgstr ""
 
-#: src/Admin/RegistrationEditForm.php:286
-#: src/Frontend/FormRenderer.php:212
+#: src/Admin/RegistrationEditForm.php:288
+#: src/Frontend/FormRenderer.php:213
 msgid "Imię i nazwisko osoby towarzyszącej"
 msgstr ""
 
@@ -273,21 +283,21 @@ msgstr ""
 
 #: src/Admin/RegistrationsExporter.php:45
 #: src/Admin/RegistrationsListTable.php:85
-#: src/Admin/RegistrationsScreen.php:209
+#: src/Admin/RegistrationsScreen.php:212
 #: src/Privacy/PrivacyProvider.php:107
 msgid "Typ"
 msgstr ""
 
 #: src/Admin/RegistrationsExporter.php:46
 #: src/Admin/RegistrationsListTable.php:84
-#: src/Admin/RegistrationsScreen.php:208
+#: src/Admin/RegistrationsScreen.php:211
 #: src/Privacy/PrivacyProvider.php:111
 msgid "E-mail"
 msgstr ""
 
 #: src/Admin/RegistrationsExporter.php:47
 #: src/Admin/RegistrationsListTable.php:83
-#: src/Admin/RegistrationsScreen.php:207
+#: src/Admin/RegistrationsScreen.php:210
 #: src/Privacy/PrivacyProvider.php:115
 msgid "Imię i nazwisko"
 msgstr ""
@@ -303,7 +313,7 @@ msgid "Utworzono"
 msgstr ""
 
 #: src/Admin/RegistrationsExporter.php:50
-#: src/Admin/RegistrationsScreen.php:212
+#: src/Admin/RegistrationsScreen.php:215
 #: src/Privacy/PrivacyProvider.php:127
 msgid "Potwierdzono"
 msgstr ""
@@ -342,32 +352,32 @@ msgid "Anulowane"
 msgstr ""
 
 #: src/Admin/RegistrationsListTable.php:88
-#: src/Admin/RegistrationsScreen.php:210
+#: src/Admin/RegistrationsScreen.php:213
 msgid "Kwota"
 msgstr ""
 
 #: src/Admin/RegistrationsListTable.php:89
-#: src/Admin/RegistrationsScreen.php:211
+#: src/Admin/RegistrationsScreen.php:214
 msgid "Zgłoszono"
 msgstr ""
 
 #: src/Admin/RegistrationsListTable.php:173
-#: src/Admin/RegistrationsScreen.php:411
+#: src/Admin/RegistrationsScreen.php:414
 msgid "Potwierdź"
 msgstr ""
 
 #: src/Admin/RegistrationsListTable.php:177
-#: src/Admin/RegistrationsScreen.php:414
+#: src/Admin/RegistrationsScreen.php:417
 msgid "Promuj"
 msgstr ""
 
 #: src/Admin/RegistrationsListTable.php:181
-#: src/Admin/RegistrationsScreen.php:418
+#: src/Admin/RegistrationsScreen.php:421
 msgid "Anuluj"
 msgstr ""
 
 #: src/Admin/RegistrationsListTable.php:185
-#: src/Admin/RegistrationsScreen.php:421
+#: src/Admin/RegistrationsScreen.php:424
 msgid "Usuń trwale"
 msgstr ""
 
@@ -430,132 +440,137 @@ msgstr ""
 msgid "%1$s z %2$s (wolne: %3$s)"
 msgstr ""
 
-#: src/Admin/RegistrationsScreen.php:58
-#: src/Admin/RegistrationsScreen.php:59
-#: src/Admin/RegistrationsScreen.php:100
+#: src/Admin/RegistrationsScreen.php:60
+#: src/Admin/RegistrationsScreen.php:61
+#: src/Admin/RegistrationsScreen.php:102
 msgid "Zgłoszenia"
 msgstr ""
 
-#: src/Admin/RegistrationsScreen.php:134
+#: src/Admin/RegistrationsScreen.php:136
 msgid "Eksportuj CSV"
 msgstr ""
 
-#: src/Admin/RegistrationsScreen.php:150
+#: src/Admin/RegistrationsScreen.php:152
 msgid "Zgłoszenie potwierdzone."
 msgstr ""
 
-#: src/Admin/RegistrationsScreen.php:151
+#: src/Admin/RegistrationsScreen.php:153
 msgid "Zgłoszenie anulowane, miejsce zwolnione."
 msgstr ""
 
-#: src/Admin/RegistrationsScreen.php:152
+#: src/Admin/RegistrationsScreen.php:154
 msgid "Awansowano z listy rezerwowej — wysłano prośbę o potwierdzenie."
 msgstr ""
 
-#: src/Admin/RegistrationsScreen.php:153
+#: src/Admin/RegistrationsScreen.php:155
 msgid "Awansowano z listy rezerwowej, ale wybrany nocleg był już pełny — zgłoszenie nie ma przyznanego noclegu."
 msgstr ""
 
-#: src/Admin/RegistrationsScreen.php:154
-msgid "Zgłoszenie trwale usunięte."
-msgstr ""
-
-#: src/Admin/RegistrationsScreen.php:155
-msgid "Notatka zapisana."
-msgstr ""
-
 #: src/Admin/RegistrationsScreen.php:156
-msgid "Odpowiedzi zgłoszenia zaktualizowane."
+msgid "Nie można awansować: wybrany pokój ma dziś inną liczbę osób niż zapisano w zgłoszeniu. Popraw nocleg albo osobę towarzyszącą w edycji odpowiedzi."
 msgstr ""
 
 #: src/Admin/RegistrationsScreen.php:157
-msgid "Brak wolnych miejsc — nie można awansować."
+msgid "Zgłoszenie trwale usunięte."
 msgstr ""
 
 #: src/Admin/RegistrationsScreen.php:158
-msgid "Akcja niedozwolona dla tego statusu."
+msgid "Notatka zapisana."
 msgstr ""
 
 #: src/Admin/RegistrationsScreen.php:159
-#: src/Admin/RegistrationsScreen.php:197
-#: src/Admin/RegistrationsScreen.php:242
-msgid "Nie znaleziono zgłoszenia."
+msgid "Odpowiedzi zgłoszenia zaktualizowane."
 msgstr ""
 
 #: src/Admin/RegistrationsScreen.php:160
-msgid "Brak wolnych miejsc dla wybranego typu zgłoszenia."
+msgid "Brak wolnych miejsc — nie można awansować."
 msgstr ""
 
 #: src/Admin/RegistrationsScreen.php:161
-msgid "Brak wolnych miejsc dla wybranego noclegu."
+msgid "Akcja niedozwolona dla tego statusu."
 msgstr ""
 
 #: src/Admin/RegistrationsScreen.php:162
+#: src/Admin/RegistrationsScreen.php:200
+#: src/Admin/RegistrationsScreen.php:245
+msgid "Nie znaleziono zgłoszenia."
+msgstr ""
+
+#: src/Admin/RegistrationsScreen.php:163
+msgid "Brak wolnych miejsc dla wybranego typu zgłoszenia."
+msgstr ""
+
+#: src/Admin/RegistrationsScreen.php:164
+msgid "Brak wolnych miejsc dla wybranego noclegu."
+msgstr ""
+
+#: src/Admin/RegistrationsScreen.php:165
 msgid "Wybierz event, aby wyeksportować zgłoszenia."
 msgstr ""
 
-#: src/Admin/RegistrationsScreen.php:193
+#: src/Admin/RegistrationsScreen.php:196
 msgid "Szczegóły zgłoszenia"
 msgstr ""
 
-#: src/Admin/RegistrationsScreen.php:194
+#: src/Admin/RegistrationsScreen.php:197
 msgid "← wróć do listy"
 msgstr ""
 
-#: src/Admin/RegistrationsScreen.php:213
+#: src/Admin/RegistrationsScreen.php:216
 msgid "Wygasa"
 msgstr ""
 
-#: src/Admin/RegistrationsScreen.php:239
-#: src/Admin/RegistrationsScreen.php:600
+#: src/Admin/RegistrationsScreen.php:242
+#: src/Admin/RegistrationsScreen.php:603
+#: src/Admin/RegistrationsScreen.php:635
 msgid "Edytuj zgłoszenie"
 msgstr ""
 
-#: src/Admin/RegistrationsScreen.php:247
+#: src/Admin/RegistrationsScreen.php:250
 msgid "Nie można edytować anulowanego zgłoszenia."
 msgstr ""
 
-#: src/Admin/RegistrationsScreen.php:254
+#: src/Admin/RegistrationsScreen.php:257
 msgid "Nie udało się załadować formularza tego wydarzenia."
 msgstr ""
 
-#: src/Admin/RegistrationsScreen.php:307
+#: src/Admin/RegistrationsScreen.php:310
 msgid "Odpowiedzi"
 msgstr ""
 
-#: src/Admin/RegistrationsScreen.php:355
+#: src/Admin/RegistrationsScreen.php:358
 #: src/Privacy/PrivacyProvider.php:159
 msgid "Nocleg"
 msgstr ""
 
-#: src/Admin/RegistrationsScreen.php:357
+#: src/Admin/RegistrationsScreen.php:360
 msgid "Pakiet"
 msgstr ""
 
-#: src/Admin/RegistrationsScreen.php:358
+#: src/Admin/RegistrationsScreen.php:361
 msgid "Pokój"
 msgstr ""
 
 #. translators: 1: opis noclegu, 2: preferowany współlokator.
-#: src/Admin/RegistrationsScreen.php:380
+#: src/Admin/RegistrationsScreen.php:383
 #: src/Mail/PlaceholderFactory.php:106
 #, php-format
 msgid "%1$s (współlokator: %2$s)"
 msgstr ""
 
-#: src/Admin/RegistrationsScreen.php:390
+#: src/Admin/RegistrationsScreen.php:393
 msgid "Notatka organizatora"
 msgstr ""
 
-#: src/Admin/RegistrationsScreen.php:397
+#: src/Admin/RegistrationsScreen.php:400
 msgid "Zapisz notatkę"
 msgstr ""
 
-#: src/Admin/RegistrationsScreen.php:428
+#: src/Admin/RegistrationsScreen.php:431
 msgid "Akcje"
 msgstr ""
 
-#: src/Admin/RegistrationsScreen.php:466
+#: src/Admin/RegistrationsScreen.php:469
 msgid "Edytuj"
 msgstr ""
 
@@ -628,35 +643,39 @@ msgstr ""
 msgid "Nieznany status potwierdzenia."
 msgstr ""
 
-#: src/Frontend/FormRenderer.php:67
+#: src/Frontend/FormRenderer.php:68
 msgid "Zostaw puste"
 msgstr ""
 
-#: src/Frontend/FormRenderer.php:73
+#: src/Frontend/FormRenderer.php:74
 msgid "Wyślij zgłoszenie"
 msgstr ""
 
-#: src/Frontend/FormRenderer.php:466
+#: src/Frontend/FormRenderer.php:485
 msgid "(brak miejsc)"
 msgstr ""
 
-#: src/Frontend/FormRenderer.php:467
+#: src/Frontend/FormRenderer.php:486
 msgid "(za mało miejsc)"
 msgstr ""
 
-#: src/Frontend/FormRenderer.php:489
+#: src/Frontend/FormRenderer.php:512
 msgid "Preferowana osoba w pokoju"
 msgstr ""
 
-#: src/Frontend/FormRenderer.php:494
+#: src/Frontend/FormRenderer.php:517
 msgid "Twój wcześniejszy wybór noclegu jest już niedostępny."
 msgstr ""
 
-#: src/Frontend/FormRenderer.php:502
+#: src/Frontend/FormRenderer.php:523
+msgid "Dla tego wyboru nie ma pasujących pokojów — zmień zaznaczenie osoby towarzyszącej."
+msgstr ""
+
+#: src/Frontend/FormRenderer.php:531
 msgid "Brak wolnych miejsc noclegowych."
 msgstr ""
 
-#: src/Frontend/FormRenderer.php:528
+#: src/Frontend/FormRenderer.php:559
 msgid "Wybrany nocleg nie ma już wolnych miejsc dla Twojego zgłoszenia. Wybierz inny albo „Bez noclegu\"."
 msgstr ""
 
