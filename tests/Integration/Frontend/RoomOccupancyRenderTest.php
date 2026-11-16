@@ -136,6 +136,19 @@ final class RoomOccupancyRenderTest extends WP_UnitTestCase {
 		$this->assertStringContainsString( 'nie ma pasujących pokojów', $html );
 	}
 
+	public function test_contradictory_config_reads_as_unset_and_offers_the_room(): void {
+		// Room marked double while the event has the companion option OFF: the domain
+		// zeroes occupancy, so the renderer must not hide or disable the room.
+		$config                      = $this->accommodationConfig( true );
+		$config['companion_enabled'] = false;
+
+		$html = ( new FormRenderer() )->render( $this->schema( $config ), 1 );
+
+		$this->assertDoesNotMatchRegularExpression( '/value="n18\|double"[^>]*hidden/', $html );
+		$this->assertDoesNotMatchRegularExpression( '/value="n18\|double"[^>]*disabled/', $html );
+		$this->assertStringContainsString( 'data-evreg-roommate-input', $html );
+	}
+
 	public function test_css_hides_hidden_choices(): void {
 		// `hidden` samo nie chowa wiersza: .evreg-choice { display: block; } bije
 		// regułę przeglądarki dla [hidden]. Bez tej reguły atrybut jest ozdobą.

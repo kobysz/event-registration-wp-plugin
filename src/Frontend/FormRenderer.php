@@ -367,11 +367,16 @@ final class FormRenderer {
 	 * @param bool  $companion Czy odtwarzana submisja ma osobę towarzyszącą.
 	 */
 	private function renderAccommodation( Field $field, mixed $value, bool $companion = false ): string {
-		$config    = $field->config;
-		$packages  = is_array( $config['packages'] ?? null ) ? $config['packages'] : array();
-		$rooms     = is_array( $config['rooms'] ?? null ) ? $config['rooms'] : array();
-		$inventory = is_array( $config['inventory'] ?? null ) ? $config['inventory'] : array();
-		$available = array();
+		$config = $field->config;
+		// Liczbę osób w pokoju czytamy przez AccommodationConfig, nie z surowej tablicy:
+		// fromArray() zeruje occupancy, gdy event ma wyłączoną osobę towarzyszącą, więc
+		// tylko tak renderer widzi to samo co pojemność, cena i walidacja. Surowy odczyt
+		// chowałby pokój, który cała reszta systemu uznaje za dostępny.
+		$accommodation = AccommodationConfig::fromArray( $field->config );
+		$packages      = is_array( $config['packages'] ?? null ) ? $config['packages'] : array();
+		$rooms         = is_array( $config['rooms'] ?? null ) ? $config['rooms'] : array();
+		$inventory     = is_array( $config['inventory'] ?? null ) ? $config['inventory'] : array();
+		$available     = array();
 		foreach ( $inventory as $item ) {
 			$available[ (string) ( $item['package'] ?? '' ) . '|' . (string) ( $item['room'] ?? '' ) ] = $item;
 		}
@@ -398,7 +403,8 @@ final class FormRenderer {
 		// wskazana osoba towarzysząca.
 		$roommateRooms = array();
 		foreach ( $rooms as $room ) {
-			if ( ! empty( $room['roommate_field'] ) && 2 !== (int) ( $room['occupancy'] ?? 0 ) ) {
+			$room_type = $accommodation->room( (string) ( $room['key'] ?? '' ) );
+			if ( ! empty( $room['roommate_field'] ) && 2 !== ( null === $room_type ? 0 : $room_type->occupancy ) ) {
 				$roommateRooms[ (string) ( $room['key'] ?? '' ) ] = true;
 			}
 		}
@@ -412,7 +418,8 @@ final class FormRenderer {
 				if ( ! isset( $available[ $slot ] ) ) {
 					continue;
 				}
-				$occupancy = (int) ( $room['occupancy'] ?? 0 );
+				$room_type = $accommodation->room( (string) ( $room['key'] ?? '' ) );
+				$occupancy = null === $room_type ? 0 : $room_type->occupancy;
 				$rowSeats  = RoomOccupancy::seats( $occupancy, $companion );
 				$rows[]    = array(
 					'slot'      => $slot,
@@ -421,7 +428,7 @@ final class FormRenderer {
 					'occupancy' => $occupancy,
 					'left'      => null === $this->availability ? null : $this->availability->left( $slot ),
 					'closed'    => null !== $this->availability && $this->availability->isFull( $slot, $rowSeats ),
-					'mismatch'  => 0 !== $occupancy && ( $companion ? 2 : 1 ) !== $occupancy,
+					'mismatch'  => null !== $room_type && null !== $room_type->companionMismatch( $companion ),
 				);
 			}
 		}
