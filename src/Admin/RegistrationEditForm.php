@@ -286,10 +286,13 @@ final class RegistrationEditForm {
 		$checkbox = '<input type="checkbox" id="evreg_companion" name="evreg_companion" value="1"'
 			. checked( $companion_on, true, false ) . ' data-evreg-companion />';
 
+		// `required` tylko razem z widocznością — ukrytej kontrolki przeglądarka nie
+		// sfokusuje i blokuje zapis bez komunikatu (jak w FormRenderer::renderCompanion).
 		$hidden     = $companion_on ? '' : ' hidden';
+		$required   = $companion_on ? ' required' : '';
 		$name_class = 'regular-text' . ( null !== $error ? ' evreg-field-error' : '' );
 		$name_input = '<br /><input type="text" class="' . $name_class . '" data-evreg-companion-input name="evreg_companion_name" placeholder="'
-			. esc_attr__( 'Imię i nazwisko osoby towarzyszącej', 'event-registration' ) . '" value="' . esc_attr( $companion_name ) . '"' . $hidden . ' />';
+			. esc_attr__( 'Imię i nazwisko osoby towarzyszącej', 'event-registration' ) . '" value="' . esc_attr( $companion_name ) . '"' . $required . $hidden . ' />';
 
 		$error_html = null !== $error ? '<p class="description">' . esc_html( self::errorMessage( (string) $error ) ) . '</p>' : '';
 

@@ -74,11 +74,19 @@
 		input.hidden = ! selectedSlotAllowsRoommate( container );
 	}
 
+	// Pole imienia towarzyszącej jest wymagane, ale tylko gdy checkbox zaznaczony.
+	// `required` musi chodzić W PARZE z widocznością: ukrytej kontrolki przeglądarka
+	// nie potrafi sfokusować, więc ukryte-i-wymagane pole blokuje submit bez
+	// komunikatu. Lustro warunku w FormRenderer::renderCompanion (render serwerowy).
 	function applyCompanion( form ) {
 		var checkbox = form.querySelector( 'input[name="evreg_companion"]' );
 		var input = form.querySelector( '[data-evreg-companion-input]' );
 		if ( ! checkbox || ! input ) { return; }
-		input.hidden = ! checkbox.checked;
+		var on = checkbox.checked;
+		input.hidden = ! on;
+		input.required = on;
+		var label = form.querySelector( '[data-evreg-companion-label]' );
+		if ( label ) { label.hidden = ! on; }
 	}
 
 	// Lustro EvReg\Domain\Accommodation\RoomOccupancy::seats.

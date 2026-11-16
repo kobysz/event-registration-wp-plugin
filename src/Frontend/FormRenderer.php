@@ -203,20 +203,28 @@ final class FormRenderer {
 		$companion_name = null === $result ? '' : $this->scalarValue( $result->submittedValue( 'evreg_companion_name' ) );
 		$error          = null === $result ? null : ( $result->errors()['evreg_companion'] ?? null );
 
-		$out = '<div class="evreg-companion form-check mt-2">'
+		$out = '<div class="evreg-companion-block mt-2 mb-3">'
+			. '<div class="evreg-companion form-check">'
 			. '<input class="form-check-input" type="checkbox" id="evreg_companion" name="evreg_companion" value="1"' . checked( $companion_on, true, false ) . ' data-evreg-companion>'
 			. ' <label class="form-check-label" for="evreg_companion">' . esc_html__( 'Osoba towarzysząca', 'event-registration' ) . '</label>'
 			. '</div>';
 
+		// `required` TYLKO razem z widocznością (serwer tu, form.js przy przełączeniu
+		// checkboxa): przeglądarka nie potrafi sfokusować ukrytej kontrolki, więc
+		// ukryte-i-wymagane pole blokuje wysyłkę bez żadnego komunikatu dla człowieka.
 		$hidden     = $companion_on ? '' : ' hidden';
-		$name_class = 'form-control mt-2' . ( null !== $error ? ' is-invalid' : '' );
-		$out       .= '<input class="' . $name_class . '" type="text" data-evreg-companion-input name="evreg_companion_name" placeholder="' . esc_attr__( 'Imię i nazwisko osoby towarzyszącej', 'event-registration' ) . '" value="' . esc_attr( $companion_name ) . '"' . $hidden . '>';
+		$required   = $companion_on ? ' required' : '';
+		$name_class = 'form-control' . ( null !== $error ? ' is-invalid' : '' );
+		$out       .= '<label class="evreg-label form-label mt-2" for="evreg_companion_name" data-evreg-companion-label' . $hidden . '>'
+			. esc_html__( 'Imię i nazwisko osoby towarzyszącej', 'event-registration' )
+			. ' <span class="evreg-required">*</span></label>';
+		$out       .= '<input class="' . $name_class . '" type="text" id="evreg_companion_name" data-evreg-companion-input name="evreg_companion_name" value="' . esc_attr( $companion_name ) . '"' . $required . $hidden . '>';
 
 		if ( null !== $error ) {
 			$out .= '<div class="evreg-error-msg invalid-feedback d-block">' . esc_html( $this->errorMessage( (string) $error ) ) . '</div>';
 		}
 
-		return $out;
+		return $out . '</div>';
 	}
 
 	/**

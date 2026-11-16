@@ -152,6 +152,46 @@ final class FormRendererTest extends WP_UnitTestCase {
 		$this->assertStringContainsString( 'Podaj imię i nazwisko osoby towarzyszącej.', $html );
 	}
 
+	public function test_companion_name_is_not_required_while_the_checkbox_is_off(): void {
+		$html = $this->renderer->render( $this->accommodationSchema( false, true ), 1 );
+
+		$this->assertSame( 1, preg_match( '/<input[^>]*name="evreg_companion_name"[^>]*>/', $html, $input ) );
+		// Ukryte pole z `required` blokuje wysyłkę całego formularza: przeglądarka nie
+		// potrafi sfokusować ukrytej kontrolki, więc nie pokaże nawet komunikatu.
+		$this->assertStringContainsString( 'hidden', $input[0] );
+		$this->assertStringNotContainsString( 'required', $input[0] );
+		$this->assertStringContainsString( 'data-evreg-companion-label hidden>', $html );
+	}
+
+	public function test_companion_name_is_required_and_marked_when_the_checkbox_is_on(): void {
+		$result = SubmitResult::invalid(
+			array( 'nocleg' => 'required' ),
+			array(
+				'evreg_companion'      => true,
+				'evreg_companion_name' => 'Anna Kowalska',
+			)
+		);
+
+		$html = $this->renderer->render( $this->accommodationSchema( false, true ), 1, $result );
+
+		$this->assertSame( 1, preg_match( '/<input[^>]*name="evreg_companion_name"[^>]*>/', $html, $input ) );
+		$this->assertStringContainsString( ' required', $input[0] );
+		$this->assertStringNotContainsString( 'hidden', $input[0] );
+		$this->assertMatchesRegularExpression(
+			'/<label[^>]*for="evreg_companion_name"[^>]*>[^<]*<span class="evreg-required">\*<\/span>/',
+			$html
+		);
+	}
+
+	public function test_companion_block_wraps_both_controls_for_spacing(): void {
+		$html = $this->renderer->render( $this->accommodationSchema( false, true ), 1 );
+
+		$this->assertMatchesRegularExpression(
+			'/<div class="evreg-companion-block mt-2 mb-3">.*name="evreg_companion".*name="evreg_companion_name"[^>]*>\s*<\/div>/s',
+			$html
+		);
+	}
+
 	public function test_single_checkbox_renders_as_bootstrap_form_check_with_label_beside_box(): void {
 		$schema = FormSchema::fromArray(
 			array(

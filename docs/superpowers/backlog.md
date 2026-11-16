@@ -385,3 +385,29 @@ gotowość do tłumaczenia, której nie ma — ktoś może uznać, że wystarczy
 przy enqueue bundla, zdjęcie `assets/admin` z `--exclude` w `i18n:pot` (albo skanowanie
 `build/` zamiast źródeł), plus `wp i18n make-json` w ścieżce budowania `.mo`. Dopiero wtedy
 `.po` dla panelu ma sens.
+
+---
+
+## B14 — Ukryte warunkowo pole `required` blokuje wysyłkę bez komunikatu
+
+**Priorytet:** średni (pułapka cicha — formularz po prostu nie wysyła się).
+
+**Stan:** `FormRenderer::renderControl` dokłada atrybut `required` każdemu polu z
+`$field->required`, niezależnie od tego, czy pole leży w sekcji/polu schowanym przez
+warunkową widoczność (B1). `assets/public/form.js::apply()` przełącza tylko
+`el.hidden` na kontenerze `[data-evreg-when-field]` — **nie zdejmuje `required`** z
+kontrolek w środku. Kontrolka ukryta przez `display:none` nadal podlega walidacji
+HTML, więc przeglądarka nie może jej sfokusować: Chrome loguje „An invalid form
+control with name='…' is not focusable" i **po cichu przerywa submit**. Człowiek
+klika „Wyślij" i nic się nie dzieje.
+
+**Nie dotyczy** pola imienia osoby towarzyszącej — tam `required` chodzi w parze z
+widocznością (serwer renderuje warunkowo, `applyCompanion` przełącza), i to jest
+wzór do powtórzenia.
+
+**Szkic:** w `apply()` po ustawieniu `el.hidden` przelecieć
+`el.querySelectorAll('[required], [data-evreg-required]')` i przenosić `required`
+na/z atrybutu zapasowego (`data-evreg-required`), żeby stan dał się odtworzyć przy
+ponownym pokazaniu. Serwer i tak jest arbitrem i już jest świadomy warunków
+(`SubmissionAssembler` buduje `Validator` z `VisibilityResolver`, więc pole schowane
+warunkowo nie jest wymagane po stronie serwera), czyli zmiana jest czysto kliencka.

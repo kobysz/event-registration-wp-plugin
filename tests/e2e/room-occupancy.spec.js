@@ -15,9 +15,17 @@ test( 'companion checkbox filters the room list by occupancy', async ( { page } 
 	const double = page.locator( 'input[name="evreg_field[nocleg][slot]"][value="n18|double"]' );
 	const none = page.locator( 'input[name="evreg_field[nocleg][slot]"][value=""]' );
 	const companion = page.locator( 'input[name="evreg_companion"]' );
+	const companionName = page.locator( 'input[name="evreg_companion_name"]' );
+	const companionLabel = page.locator( '[data-evreg-companion-label]' );
 
 	// Checkbox towarzyszącej musi być nad listą.
 	await expect( companion ).toBeVisible();
+
+	// Pole imienia pojawia się dopiero z zaznaczonym checkboxem i tylko wtedy jest
+	// wymagane: ukryte-i-wymagane blokuje submit bez komunikatu dla człowieka.
+	await expect( companionName ).toBeHidden();
+	await expect( companionLabel ).toBeHidden();
+	await expect( companionName ).toHaveJSProperty( 'required', false );
 
 	// Bez towarzyszącej: tylko jednoosobowy.
 	await expect( single ).toBeVisible();
@@ -34,12 +42,17 @@ test( 'companion checkbox filters the room list by occupancy', async ( { page } 
 	await expect( single ).toBeHidden();
 	await expect( single ).not.toBeChecked();
 	await expect( none ).toBeChecked();
+	await expect( companionName ).toBeVisible();
+	await expect( companionLabel ).toBeVisible();
+	await expect( companionName ).toHaveJSProperty( 'required', true );
 
 	// Odznaczenie wraca do stanu wyjściowego.
 	await companion.uncheck();
 	await expect( single ).toBeVisible();
 	await expect( double ).toBeHidden();
 	await expect( single ).toBeEnabled();
+	await expect( companionName ).toBeHidden();
+	await expect( companionName ).toHaveJSProperty( 'required', false );
 
 	// Każdy pokój pasuje do którejś strony filtra — komunikatu o braku dopasowań nie ma.
 	await expect( page.locator( '.evreg-accommodation-mismatch' ) ).toBeHidden();

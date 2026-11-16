@@ -11,6 +11,10 @@ so keep entries user-facing and concise.
 
 ## [Unreleased]
 
+### Changed
+- The companion name is now marked as required, with the browser asking for it before the form is sent, as soon as the "companion" box is ticked. It is only required while that box is ticked, and it now has a visible label instead of placeholder text only.
+- The companion block has room above and below it, so the checkbox no longer sits against the accommodation list.
+
 ## [0.1.16] - 2026-11-16
 
 ### Added

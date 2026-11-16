@@ -40,3 +40,11 @@
 .evreg-section[hidden] { display: none; }
 .evreg-choice.is-full > label { opacity: .55; }
 .evreg-choice[hidden] { display: none; }
+/* Blok osoby towarzyszącej: odstęp nad i pod, żeby checkbox nie kleił się do
+   listy noclegów. Baseline bez Bootstrapa (klasy mt-2/mb-3 działają tylko przy
+   włączonym evreg_load_bootstrap). */
+.evreg-companion-block { margin: .5rem 0 1rem; }
+.evreg-companion-block .evreg-label { margin-top: .5rem; }
+/* OBOWIĄZKOWE: .evreg-label ma display:block, który bije regułę [hidden]
+   przeglądarki — bez tego ukryta etykieta pola towarzyszącej zostaje widoczna. */
+.evreg-label[hidden] { display: none; }
