@@ -38,3 +38,4 @@
    ten styl nadal działa. */
 :where( .evreg-success, .evreg-notice, .evreg-confirmed ) { padding: .75rem 1rem; margin: 0 0 1rem; border-left: 4px solid var(--evreg-accent, #2271b1); background: #f6f7f7; }
 .evreg-section[hidden] { display: none; }
+.evreg-choice.is-full > label { opacity: .55; }
