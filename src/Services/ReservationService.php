@@ -102,7 +102,8 @@ final class ReservationService {
 				$types->capacities(),
 				$accommodation->capacities(),
 				(bool) ( $settings['waitlist_enabled'] ?? true ),
-				$accommodation->companionCountsEvent()
+				$accommodation->companionCountsEvent(),
+				$accommodation->slotOccupancies()
 			);
 
 			$decision = $this->calculator->decide(
@@ -160,7 +161,7 @@ final class ReservationService {
 
 			if ( $decision->accommodationGranted && null !== $request->selection ) {
 				$item      = $accommodation->item( $request->selection->packageKey, $request->selection->roomKey );
-				$seats     = $request->companion ? 2 : 1;
+				$seats     = $accommodation->seatsFor( $request->selection->roomKey, $request->companion );
 				$acc_price = ( null === $item ? 0.0 : $item->price ) * $seats;
 				$this->repository->insertAccommodationBooking(
 					$id,
@@ -364,7 +365,8 @@ final class ReservationService {
 				$types->capacities(),
 				$accommodation->capacities(),
 				(bool) ( $settings['waitlist_enabled'] ?? true ),
-				$accommodation->companionCountsEvent()
+				$accommodation->companionCountsEvent(),
+				$accommodation->slotOccupancies()
 			);
 
 			$decision = $this->calculator->decide(
@@ -383,7 +385,7 @@ final class ReservationService {
 			if ( null !== $selection ) {
 				if ( $decision->accommodationGranted ) {
 					$item      = $accommodation->item( $selection->packageKey, $selection->roomKey );
-					$seats     = $companion ? 2 : 1;
+					$seats     = $accommodation->seatsFor( $selection->roomKey, $companion );
 					$acc_price = ( null === $item ? 0.0 : $item->price ) * $seats;
 					$this->repository->deleteAccommodationBooking( $id );
 					$this->repository->insertAccommodationBooking(
@@ -476,7 +478,8 @@ final class ReservationService {
 					$types->capacities(),
 					$accommodation->capacities(),
 					(bool) ( $settings['waitlist_enabled'] ?? true ),
-					$accommodation->companionCountsEvent()
+					$accommodation->companionCountsEvent(),
+					$accommodation->slotOccupancies()
 				);
 
 				$decision = $this->calculator->decide(
@@ -513,7 +516,7 @@ final class ReservationService {
 			$this->repository->deleteAccommodationBooking( $id );
 			if ( null !== $request->selection ) {
 				$item      = $accommodation->item( $request->selection->packageKey, $request->selection->roomKey );
-				$seats     = $request->companion ? 2 : 1;
+				$seats     = $accommodation->seatsFor( $request->selection->roomKey, $request->companion );
 				$acc_price = ( null === $item ? 0.0 : $item->price ) * $seats;
 				$this->repository->insertAccommodationBooking(
 					$id,
