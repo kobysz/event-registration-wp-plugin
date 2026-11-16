@@ -72,6 +72,7 @@ final class AccommodationAvailabilityRenderTest extends WP_UnitTestCase {
 		$this->assertMatchesRegularExpression( '/value="n18\|single"[^>]*disabled/', $html );
 		$this->assertStringContainsString( '(brak miejsc)', $html );
 		$this->assertStringContainsString( 'evreg-choice form-check is-full', $html );
+		$this->assertMatchesRegularExpression( '/value="n18\|single"[^>]*data-evreg-seats-left="0"/', $html );
 	}
 
 	public function test_slot_with_room_left_stays_enabled(): void {
@@ -113,5 +114,102 @@ final class AccommodationAvailabilityRenderTest extends WP_UnitTestCase {
 		$this->assertStringNotContainsString( 'disabled', $html );
 		$this->assertStringNotContainsString( 'data-evreg-seats-left', $html );
 		$this->assertStringNotContainsString( '(brak miejsc)', $html );
+	}
+
+	public function test_dropped_selection_moves_to_none_and_is_announced(): void {
+		$result = SubmitResult::invalid(
+			array( 'email' => 'required' ),
+			array( 'nocleg' => array( 'package' => 'n18', 'room' => 'single', 'roommate' => '' ) )
+		);
+
+		$html = ( new FormRenderer( $this->availability( array( 'n18|single' => 1 ) ) ) )
+			->render( $this->schema(), 1, $result );
+
+		$this->assertMatchesRegularExpression( '/name="evreg_field\[nocleg\]\[slot\]" value=""[^>]*checked/', $html );
+		$this->assertStringContainsString( 'Twój wcześniejszy wybór noclegu jest już niedostępny.', $html );
+	}
+
+	public function test_kept_selection_is_not_announced_as_dropped(): void {
+		$result = SubmitResult::invalid(
+			array( 'email' => 'required' ),
+			array( 'nocleg' => array( 'package' => 'n18', 'room' => 'double', 'roommate' => '' ) )
+		);
+
+		$html = ( new FormRenderer( $this->availability( array( 'n18|single' => 1 ) ) ) )
+			->render( $this->schema(), 1, $result );
+
+		$this->assertMatchesRegularExpression( '/value="n18\|double"[^>]*checked/', $html );
+		$this->assertStringNotContainsString( 'jest już niedostępny', $html );
+	}
+
+	public function test_empty_submitted_selection_checks_none(): void {
+		$result = SubmitResult::invalid(
+			array( 'email' => 'required' ),
+			array( 'nocleg' => array( 'package' => '', 'room' => '', 'roommate' => '' ) )
+		);
+
+		$html = ( new FormRenderer( $this->availability( array() ) ) )->render( $this->schema(), 1, $result );
+
+		$this->assertMatchesRegularExpression( '/name="evreg_field\[nocleg\]\[slot\]" value=""[^>]*checked/', $html );
+		$this->assertStringNotContainsString( 'jest już niedostępny', $html );
+	}
+
+	public function test_all_slots_closed_without_allow_none_shows_message(): void {
+		$config               = $this->accommodationConfig();
+		$config['allow_none'] = false;
+
+		$schema = FormSchema::fromArray(
+			array(
+				'version'  => 1,
+				'sections' => array(
+					array(
+						'key'    => 'dane',
+						'title'  => 'Dane',
+						'fields' => array(
+							array( 'key' => 'nocleg', 'type' => 'accommodation', 'label' => 'Nocleg', 'config' => $config ),
+						),
+					),
+				),
+			)
+		);
+
+		$availability = SlotAvailability::fromSnapshot(
+			AccommodationConfig::fromArray( $config ),
+			new OccupancySnapshot( 0, array(), array( 'n18|single' => 1, 'n18|double' => 5 ) )
+		);
+
+		$html = ( new FormRenderer( $availability ) )->render( $schema, 1 );
+
+		$this->assertStringContainsString( 'Brak wolnych miejsc noclegowych.', $html );
+	}
+
+	public function test_companion_flag_is_ignored_when_event_disallows_companion(): void {
+		$config                      = $this->accommodationConfig();
+		$config['companion_enabled'] = false;
+
+		$schema = FormSchema::fromArray(
+			array(
+				'version'  => 1,
+				'sections' => array(
+					array(
+						'key'    => 'dane',
+						'title'  => 'Dane',
+						'fields' => array(
+							array( 'key' => 'nocleg', 'type' => 'accommodation', 'label' => 'Nocleg', 'config' => $config ),
+						),
+					),
+				),
+			)
+		);
+
+		$result = SubmitResult::invalid(
+			array( 'email' => 'required' ),
+			array( 'evreg_companion' => true )
+		);
+
+		$html = ( new FormRenderer( $this->availability( array( 'n18|double' => 4 ) ) ) )
+			->render( $schema, 1, $result );
+
+		$this->assertDoesNotMatchRegularExpression( '/value="n18\|double"[^>]*disabled/', $html );
 	}
 }

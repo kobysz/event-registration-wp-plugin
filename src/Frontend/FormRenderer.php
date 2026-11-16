@@ -377,6 +377,20 @@ final class FormRenderer {
 
 		$current = is_array( $value ) ? ( (string) ( $value['package'] ?? '' ) . '|' . (string) ( $value['room'] ?? '' ) ) : '';
 
+		// Pusta tablica odpowiedzi daje „|" (puste package i room połączone separatorem) —
+		// to NIE jest wybrany slot, lecz brak wyboru. Bez tej normalizacji radio
+		// „Bez noclegu" nie zaznaczyłoby się przy re-renderze pustej selekcji.
+		if ( '|' === $current ) {
+			$current = '';
+		}
+
+		// Klientowi się nie ufa: gdy event nie pozwala na osobę towarzyszącą,
+		// odtworzony POST z evreg_companion nie może zamykać slotów z jednym
+		// wolnym miejscem (ten sam wzór co SubmissionAssembler::extractCompanion).
+		if ( empty( $config['companion_enabled'] ) ) {
+			$seats = 1;
+		}
+
 		// Pokoje z włączonym polem współlokatora — tylko dla nich renderujemy
 		// (i pokazujemy) pole „Preferowana osoba w pokoju". Flaga jest per pokój.
 		$roommateRooms = array();
@@ -402,6 +416,30 @@ final class FormRenderer {
 					'left'     => null === $this->availability ? null : $this->availability->left( $slot ),
 					'closed'   => null !== $this->availability && $this->availability->isFull( $slot, $seats ),
 				);
+			}
+		}
+
+		// Wybór z poprzedniej próby, który stał się niedostępny (albo zniknął z inwentarza),
+		// PRZENOSIMY na „Bez noclegu" i ogłaszamy. Pusta grupa radio nie wysyła klucza
+		// [slot], a AccommodationValidator przy allow_none tego nie kwestionuje — czyli
+		// dokładnie ten cichy downgrade, który ta zmiana likwiduje.
+		$dropped  = false;
+		$any_open = false;
+		foreach ( $rows as $row ) {
+			if ( ! $row['closed'] ) {
+				$any_open = true;
+			}
+		}
+		if ( '' !== $current ) {
+			$still_open = false;
+			foreach ( $rows as $row ) {
+				if ( $row['slot'] === $current && ! $row['closed'] ) {
+					$still_open = true;
+				}
+			}
+			if ( ! $still_open ) {
+				$dropped = true;
+				$current = '';
 			}
 		}
 
@@ -448,6 +486,20 @@ final class FormRenderer {
 			$hidden      = isset( $roommateRooms[ $currentRoom ] ) ? '' : ' hidden';
 			$roommateVal = is_array( $value ) ? (string) ( $value['roommate'] ?? '' ) : '';
 			$out        .= '<input class="form-control mt-2" type="text" data-evreg-roommate-input name="' . $name . '[roommate]" placeholder="' . esc_attr__( 'Preferowana osoba w pokoju', 'event-registration' ) . '" value="' . esc_attr( $roommateVal ) . '"' . $hidden . '>';
+		}
+
+		if ( $dropped ) {
+			$out .= '<p class="evreg-accommodation-dropped">'
+				. esc_html__( 'Twój wcześniejszy wybór noclegu jest już niedostępny.', 'event-registration' )
+				. '</p>';
+		}
+
+		// Bez „Bez noclegu" i bez ani jednego otwartego slotu nie ma czego wybrać —
+		// powiedz to wprost, zamiast pokazywać listę samych wyszarzonych pozycji.
+		if ( ! $any_open && array() !== $rows && false === ( $config['allow_none'] ?? true ) ) {
+			$out .= '<p class="evreg-accommodation-empty">'
+				. esc_html__( 'Brak wolnych miejsc noclegowych.', 'event-registration' )
+				. '</p>';
 		}
 
 		$out .= '</div>';
