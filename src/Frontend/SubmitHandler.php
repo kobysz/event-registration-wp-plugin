@@ -157,6 +157,19 @@ final class SubmitHandler {
 
 		$reservation = $this->reservations->reserve( $event_id, $request );
 
+		// Wybrany nocleg zajęty w wyścigu: zgłoszenie nie zostało zapisane, więc wracamy
+		// na formularz z błędem przy polu noclegu i ODTWORZONYMI surowymi odpowiedziami.
+		if ( 'accommodation_full' === $reservation->code ) {
+			$accommodation_key = $schema->accommodationFieldKey();
+
+			return null === $accommodation_key
+				? SubmitResult::rejected()
+				: SubmitResult::invalid(
+					array( $accommodation_key => 'accommodation_full' ),
+					$assembled->rawAnswers()
+				);
+		}
+
 		return match ( $reservation->code ) {
 			'reserved'   => SubmitResult::success( 'reserved' ),
 			'waitlisted' => SubmitResult::success( 'waitlisted' ),

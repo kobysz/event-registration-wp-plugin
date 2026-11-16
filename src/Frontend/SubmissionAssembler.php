@@ -82,7 +82,7 @@ final class SubmissionAssembler {
 			$companionName
 		);
 
-		return AssembledSubmission::valid( $values, $request );
+		return AssembledSubmission::valid( $values, $request, $answers );
 	}
 
 	/**
