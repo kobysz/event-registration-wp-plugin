@@ -24,7 +24,7 @@ final class PriceCalculator {
 	 * @param RegistrationType            $type      Wybrany typ zgłoszenia.
 	 * @param AccommodationConfig|null    $config    Konfiguracja zakwaterowania, jeśli dotyczy.
 	 * @param AccommodationSelection|null $selection Wybór zakwaterowania, jeśli dotyczy.
-	 * @param bool                        $companion Czy zgłoszenie zawiera osobę towarzyszącą (podwaja cenę noclegu).
+	 * @param bool                        $companion Czy zgłoszenie zawiera osobę towarzyszącą (wpływa na liczbę miejsc w pokojach bez ustawionej liczby osób).
 	 */
 	public function total(
 		RegistrationType $type,
@@ -38,7 +38,10 @@ final class PriceCalculator {
 			$item = $config->item( $selection->packageKey, $selection->roomKey );
 
 			if ( null !== $item ) {
-				$total += $item->price * ( $companion ? 2 : 1 );
+				// Mnożnik idzie z liczby osób w pokoju, nie z flagi — inaczej cena
+				// rozjechałaby się z pojemnością (pokój dwuosobowy zajmuje 2 łóżka
+				// także wtedy, gdy flaga mówi inaczej).
+				$total += $item->price * $config->seatsFor( $selection->roomKey, $companion );
 			}
 		}
 
