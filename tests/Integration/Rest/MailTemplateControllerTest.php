@@ -102,4 +102,42 @@ final class MailTemplateControllerTest extends WP_UnitTestCase {
 		$saved = ( new MailTemplateRepository() )->get( $this->event_id )['optin']['body'];
 		$this->assertStringNotContainsString( '<script>', $saved );
 	}
+
+	private function store_template(): void {
+		( new MailTemplateRepository() )->save(
+			$this->event_id,
+			array( 'confirmed' => array( 'subject' => 'Temat', 'body' => 'Tresc' ) )
+		);
+	}
+
+	public function test_post_refuses_to_wipe_stored_templates_with_an_empty_payload(): void {
+		wp_set_current_user( $this->admin_id );
+		$this->store_template();
+
+		$response = rest_do_request( new WP_REST_Request( 'POST', $this->path() ) );
+
+		$this->assertSame( 409, $response->get_status() );
+		$this->assertSame( 'Temat', ( new MailTemplateRepository() )->get( $this->event_id )['confirmed']['subject'] );
+	}
+
+	public function test_post_clears_templates_when_clearing_is_requested(): void {
+		wp_set_current_user( $this->admin_id );
+		$this->store_template();
+
+		$post = new WP_REST_Request( 'POST', $this->path() );
+		$post->set_query_params( array( 'clear' => '1' ) );
+		$response = rest_do_request( $post );
+
+		$this->assertSame( 200, $response->get_status() );
+		$this->assertSame( array(), ( new MailTemplateRepository() )->get( $this->event_id ) );
+	}
+
+	public function test_post_accepts_an_empty_payload_when_nothing_is_stored(): void {
+		wp_set_current_user( $this->admin_id );
+
+		$response = rest_do_request( new WP_REST_Request( 'POST', $this->path() ) );
+
+		$this->assertSame( 200, $response->get_status() );
+		$this->assertSame( array(), $response->get_data()['templates'] );
+	}
 }

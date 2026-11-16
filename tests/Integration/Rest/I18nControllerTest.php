@@ -90,4 +90,43 @@ final class I18nControllerTest extends WP_UnitTestCase {
 
 		$this->assertStringNotContainsString( '<script>', $data['en']['fields']['imie'] );
 	}
+
+	private function store_overlay(): void {
+		( new \EvReg\Persistence\EventConfigRepository() )->saveI18n(
+			$this->event_id,
+			array( 'en' => array( 'fields' => array( 'imie' => 'First name' ) ) )
+		);
+	}
+
+	public function test_post_refuses_to_wipe_a_stored_overlay_with_an_empty_payload(): void {
+		wp_set_current_user( $this->admin_id );
+		$this->store_overlay();
+
+		$response = rest_do_request( new WP_REST_Request( 'POST', $this->path() ) );
+
+		$this->assertSame( 409, $response->get_status() );
+		$get = rest_do_request( new WP_REST_Request( 'GET', $this->path() ) )->get_data();
+		$this->assertSame( 'First name', $get['en']['fields']['imie'] );
+	}
+
+	public function test_post_clears_the_overlay_when_clearing_is_requested(): void {
+		wp_set_current_user( $this->admin_id );
+		$this->store_overlay();
+
+		$post = new WP_REST_Request( 'POST', $this->path() );
+		$post->set_query_params( array( 'clear' => '1' ) );
+		$response = rest_do_request( $post );
+
+		$this->assertSame( 200, $response->get_status() );
+		$this->assertSame( array(), $response->get_data() );
+	}
+
+	public function test_post_accepts_an_empty_payload_when_nothing_is_stored(): void {
+		wp_set_current_user( $this->admin_id );
+
+		$response = rest_do_request( new WP_REST_Request( 'POST', $this->path() ) );
+
+		$this->assertSame( 200, $response->get_status() );
+		$this->assertSame( array(), $response->get_data() );
+	}
 }

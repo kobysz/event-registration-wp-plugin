@@ -11,6 +11,11 @@ so keep entries user-facing and concise.
 
 ## [Unreleased]
 
+### Fixed
+- Saved field translations (and mail templates) are no longer erased when the event configuration is saved. On a freshly opened event screen the configuration response could overwrite the translations the editor had already loaded, and the next save then wrote that empty value over the stored one.
+- Translations and mail templates are now sent only when they were loaded and actually edited, and their endpoints refuse a save that would replace stored content with nothing.
+- The translations and mail templates tabs now refuse editing when their stored content failed to load, instead of letting the next save overwrite it.
+
 ## [0.1.15] - 2026-11-16
 
 ### Added

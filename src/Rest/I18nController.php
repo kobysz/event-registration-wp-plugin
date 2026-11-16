@@ -123,8 +123,10 @@ final class I18nController {
 	 * Sanityzuje i zapisuje overlay, po czym zwraca świeży stan.
 	 *
 	 * @param WP_REST_Request $request Żądanie REST.
+	 *
+	 * @return WP_REST_Response|WP_Error
 	 */
-	public function update_overlay( WP_REST_Request $request ): WP_REST_Response {
+	public function update_overlay( WP_REST_Request $request ) {
 		$event_id = (int) $request['id'];
 		$incoming = $request->get_json_params();
 
@@ -139,9 +141,38 @@ final class I18nController {
 		$clean = $this->sanitize( $incoming );
 		$clean = is_array( $clean ) ? $clean : array();
 
+		// This endpoint replaces the stored overlay wholesale, so an empty
+		// payload would wipe every translation. Clearing a single string is
+		// saved as an empty string, never as a dropped key, so an empty payload
+		// over a stored overlay is a client bug, not an intent. Wiping on
+		// purpose takes ?clear=1.
+		if ( array() === $clean && ! $this->clear_requested( $request ) && array() !== $this->repository->getI18n( $event_id ) ) {
+			return new WP_Error(
+				'evreg_empty_overlay',
+				__( 'Odrzucono puste tłumaczenia — zapisane treści pozostały bez zmian.', 'event-registration' ),
+				array( 'status' => 409 )
+			);
+		}
+
 		$this->repository->saveI18n( $event_id, $clean );
 
 		return new WP_REST_Response( $this->repository->getI18n( $event_id ), 200 );
+	}
+
+	/**
+	 * Mówi, czy żądanie jawnie prosi o wyczyszczenie overlayu.
+	 *
+	 * Czytane tylko z query stringu: ciałem żądania jest sam overlay, więc
+	 * klucz w ciele kolidowałby ze slugiem języka.
+	 *
+	 * @param WP_REST_Request $request Żądanie REST.
+	 */
+	private function clear_requested( WP_REST_Request $request ): bool {
+		$params = $request->get_query_params();
+		$raw    = $params['clear'] ?? '';
+		$value  = is_scalar( $raw ) ? (string) $raw : '';
+
+		return in_array( $value, array( '1', 'true', 'yes', 'on' ), true );
 	}
 
 	/**

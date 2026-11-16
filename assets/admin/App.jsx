@@ -11,18 +11,16 @@ import MailTemplatesTab from './tabs/MailTemplatesTab';
 import TranslationsTab from './tabs/TranslationsTab';
 import { ensureTypeField, emptySchema } from './ops/schemaOps';
 import { mergeLoaded, normalizeForSave } from './ops/mailTemplateOps';
-
-const EMPTY = { schema: {}, types: [], accommodation: {}, settings: {} };
+import { EMPTY_CONFIG, mergeLoadedConfig, configPayload, saveTargets } from './ops/configStateOps';
 
 export default function App( { eventId } ) {
-	const [ config, setConfig ] = useState( EMPTY );
+	const [ config, setConfig ] = useState( EMPTY_CONFIG );
+	const [ dirty, setDirty ] = useState( {} );
 	const [ validation, setValidation ] = useState( null );
 	const [ loading, setLoading ] = useState( true );
 	const [ saving, setSaving ] = useState( false );
 	const [ error, setError ] = useState( '' );
 	const [ templateDefaults, setTemplateDefaults ] = useState( {} );
-	const [ templatesLoaded, setTemplatesLoaded ] = useState( false );
-	const [ i18nLoaded, setI18nLoaded ] = useState( false );
 
 	useEffect( () => {
 		if ( ! eventId ) {
@@ -30,16 +28,22 @@ export default function App( { eventId } ) {
 			return;
 		}
 
+		// The three loads run in parallel and land in any order, so each one
+		// merges its own keys into the state instead of replacing it. Replacing
+		// here dropped an already loaded overlay (or set of mail templates) from
+		// the state, and the next save wrote the empty value over the stored one.
 		loadConfig( eventId )
 			.then( ( data ) => {
-				setConfig( {
-					schema: ensureTypeField(
-						data.schema && data.schema.sections ? data.schema : emptySchema()
-					),
-					types: data.types || [],
-					accommodation: data.accommodation || {},
-					settings: data.settings || {},
-				} );
+				setConfig( ( prev ) =>
+					mergeLoadedConfig( prev, {
+						schema: ensureTypeField(
+							data.schema && data.schema.sections ? data.schema : emptySchema()
+						),
+						types: data.types || [],
+						accommodation: data.accommodation || {},
+						settings: data.settings || {},
+					} )
+				);
 				setValidation( data.validation || null );
 			} )
 			.catch( () => setError( __( 'Nie udało się wczytać konfiguracji.', 'event-registration' ) ) )
@@ -47,9 +51,10 @@ export default function App( { eventId } ) {
 
 		loadTemplates( eventId )
 			.then( ( data ) => {
-				setConfig( ( prev ) => ( { ...prev, mailTemplates: mergeLoaded( data.templates || {} ) } ) );
+				setConfig( ( prev ) =>
+					mergeLoadedConfig( prev, { mailTemplates: mergeLoaded( data.templates || {} ) } )
+				);
 				setTemplateDefaults( data.defaults || {} );
-				setTemplatesLoaded( true );
 			} )
 			.catch( () =>
 				setError( __( 'Nie udało się wczytać szablonów maili.', 'event-registration' ) )
@@ -57,31 +62,36 @@ export default function App( { eventId } ) {
 
 		loadI18n( eventId )
 			.then( ( data ) => {
-				setConfig( ( prev ) => ( { ...prev, i18n: data || {} } ) );
-				setI18nLoaded( true );
+				setConfig( ( prev ) => mergeLoadedConfig( prev, { i18n: data || {} } ) );
 			} )
 			.catch( () =>
 				setError( __( 'Nie udało się wczytać tłumaczeń.', 'event-registration' ) )
 			);
 	}, [ eventId ] );
 
-	const update = ( key ) => ( value ) =>
-		setConfig( ( prev ) => ( { ...prev, [ key ]: value } ) );
+	// "Touched" is sticky for the lifetime of the screen: a part the user edited
+	// once keeps being saved on every later save. Clearing it after a successful
+	// save would drop an edit typed while that save was still in flight.
+	const update = ( key ) => ( value ) => {
+		setDirty( ( prev ) => ( prev[ key ] ? prev : { ...prev, [ key ]: true } ) );
+		setConfig( ( prev ) => mergeLoadedConfig( prev, { [ key ]: value } ) );
+	};
 
 	const onSave = () => {
 		setSaving( true );
 		setError( '' );
 
-		// Never issue a templates/i18n save before its initial load has completed:
-		// an unloaded (or failed-load) `config.mailTemplates`/`config.i18n` would
-		// normalize to an empty set and the REST endpoints do a full replace,
-		// wiping any previously saved overrides. Only save once we know we have
-		// a real snapshot to normalize.
-		const tasks = [ saveConfig( eventId, config ) ];
-		const templatesIndex = templatesLoaded ? tasks.push(
-			saveTemplates( eventId, normalizeForSave( config.mailTemplates || {} ) )
+		// The templates and i18n endpoints replace the stored value wholesale, so
+		// each is written only when the state actually carries one (it was
+		// loaded) and the user touched it. A part that never loaded, or that
+		// nobody edited, is left alone instead of being overwritten with an
+		// empty value.
+		const targets = saveTargets( config, dirty );
+		const tasks = [ saveConfig( eventId, configPayload( config ) ) ];
+		const templatesIndex = targets.templates ? tasks.push(
+			saveTemplates( eventId, normalizeForSave( config.mailTemplates ) )
 		) - 1 : -1;
-		const i18nIndex = i18nLoaded ? tasks.push( saveI18n( eventId, config.i18n || {} ) ) - 1 : -1;
+		const i18nIndex = targets.i18n ? tasks.push( saveI18n( eventId, config.i18n ) ) - 1 : -1;
 
 		Promise.allSettled( tasks )
 			.then( ( results ) => {
@@ -94,12 +104,14 @@ export default function App( { eventId } ) {
 				}
 
 				if ( tpl && 'fulfilled' === tpl.status ) {
-					setConfig( ( prev ) => ( { ...prev, mailTemplates: mergeLoaded( tpl.value.templates || {} ) } ) );
+					setConfig( ( prev ) =>
+						mergeLoadedConfig( prev, { mailTemplates: mergeLoaded( tpl.value.templates || {} ) } )
+					);
 					setTemplateDefaults( tpl.value.defaults || {} );
 				}
 
 				if ( i18n && 'fulfilled' === i18n.status ) {
-					setConfig( ( prev ) => ( { ...prev, i18n: i18n.value || {} } ) );
+					setConfig( ( prev ) => mergeLoadedConfig( prev, { i18n: i18n.value || {} } ) );
 				}
 
 				const rejectedLabels = [];
@@ -218,6 +230,9 @@ function TabRouter( { name, config, update, templateDefaults } ) {
 		return <SettingsTab config={ config } update={ update } />;
 	}
 	if ( 'mail' === name ) {
+		if ( undefined === config.mailTemplates || undefined === config.i18n ) {
+			return <NotLoadedNotice />;
+		}
 		return (
 			<MailTemplatesTab
 				templates={ config.mailTemplates }
@@ -228,7 +243,23 @@ function TabRouter( { name, config, update, templateDefaults } ) {
 		);
 	}
 	if ( 'i18n' === name ) {
+		// Editing an overlay that never loaded would send a partial one to an
+		// endpoint that replaces the stored value, so refuse instead.
+		if ( undefined === config.i18n ) {
+			return <NotLoadedNotice />;
+		}
 		return <TranslationsTab config={ config } update={ update } />;
 	}
 	return null;
+}
+
+function NotLoadedNotice() {
+	return (
+		<Notice status="warning" isDismissible={ false }>
+			{ __(
+				'Nie wczytano zapisanych danych tej zakładki. Odśwież stronę — edycja teraz nadpisałaby zapisane treści.',
+				'event-registration'
+			) }
+		</Notice>
+	);
 }

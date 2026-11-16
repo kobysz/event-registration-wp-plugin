@@ -124,8 +124,10 @@ final class MailTemplateController {
 	 * Sanityzuje i zapisuje nadpisania, po czym zwraca świeży stan.
 	 *
 	 * @param WP_REST_Request $request Żądanie REST.
+	 *
+	 * @return WP_REST_Response|WP_Error
 	 */
-	public function update_templates( WP_REST_Request $request ): WP_REST_Response {
+	public function update_templates( WP_REST_Request $request ) {
 		$event_id = (int) $request['id'];
 		$incoming = $request->get_param( 'templates' );
 		$clean    = array();
@@ -143,9 +145,34 @@ final class MailTemplateController {
 			}
 		}
 
+		// Full replace, so a payload carrying no known template key at all would
+		// wipe the stored overrides. Emptying the editor sends every key with
+		// empty strings, never an empty map, so this shape is a client bug.
+		// Wiping on purpose takes ?clear=1.
+		if ( array() === $clean && ! $this->clear_requested( $request ) && array() !== $this->repository->get( $event_id ) ) {
+			return new WP_Error(
+				'evreg_empty_templates',
+				__( 'Odrzucono puste szablony maili — zapisane treści pozostały bez zmian.', 'event-registration' ),
+				array( 'status' => 409 )
+			);
+		}
+
 		$this->repository->save( $event_id, $clean );
 
 		return new WP_REST_Response( $this->payload( $event_id ), 200 );
+	}
+
+	/**
+	 * Mówi, czy żądanie jawnie prosi o wyczyszczenie nadpisań.
+	 *
+	 * @param WP_REST_Request $request Żądanie REST.
+	 */
+	private function clear_requested( WP_REST_Request $request ): bool {
+		$params = $request->get_query_params();
+		$raw    = $params['clear'] ?? '';
+		$value  = is_scalar( $raw ) ? (string) $raw : '';
+
+		return in_array( $value, array( '1', 'true', 'yes', 'on' ), true );
 	}
 
 	/**
