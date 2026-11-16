@@ -352,6 +352,16 @@ final class ReservationService {
 			: new AccommodationSelection( (string) $booking['package_key'], (string) $booking['room_type_key'], (string) ( $booking['roommate_pref'] ?? '' ) );
 		$companion = (bool) ( $row['companion'] ?? false );
 
+		// Pokój mógł zmienić liczbę osób po zawaitlistowaniu. Promowanie zgłoszenia
+		// niespójnego z nową konfiguracją dałoby seats/cenę dla innej liczby osób,
+		// niż zapisano w zgłoszeniu — admin musi to rozstrzygnąć edycją odpowiedzi.
+		if ( null !== $selection ) {
+			$room = $accommodation->room( $selection->roomKey );
+			if ( null !== $room && null !== $room->companionMismatch( $companion ) ) {
+				return AdminActionResult::occupancyMismatch();
+			}
+		}
+
 		$accommodation_lost = false;
 
 		$wpdb->query( 'START TRANSACTION' );

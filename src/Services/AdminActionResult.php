@@ -53,6 +53,15 @@ final class AdminActionResult {
 		return new self( 'promoted_no_accommodation' );
 	}
 
+	/**
+	 * Promocja odrzucona: zapisana para pokój/osoba towarzysząca jest niespójna
+	 * z liczbą osób, jaką pokój ma dziś. Promowanie „jak się da" rozjechałoby
+	 * cenę z pojemnością — admin ma to rozstrzygnąć edycją odpowiedzi.
+	 */
+	public static function occupancyMismatch(): self {
+		return new self( 'occupancy_mismatch' );
+	}
+
 	/** Zgłoszenie trwale usunięte. */
 	public static function deleted(): self {
 		return new self( 'deleted' );

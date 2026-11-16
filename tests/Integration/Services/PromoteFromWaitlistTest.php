@@ -193,4 +193,39 @@ final class PromoteFromWaitlistTest extends WP_UnitTestCase {
 
 		$this->assertSame( 0, $bookings, 'Nieaktualny booking musi zniknąć, inaczej slot zostanie przesprzedany.' );
 	}
+
+	public function test_promote_refused_when_room_now_requires_companion(): void {
+		// Organizator oznaczył pokój jako dwuosobowy PO tym, jak ktoś zapisał się solo
+		// na listę rezerwową. Bez odmowy ten człowiek dostałby seats=2 i cenę ×2 przy
+		// companion=0 — czyli dwa łóżka i podwójny rachunek dla jednej osoby.
+		( new EventConfigRepository() )->save(
+			$this->event_id,
+			array(
+				'types'         => array( array( 'key' => 'uczestnik', 'label' => 'Uczestnik', 'price' => 0.0 ) ),
+				'accommodation' => array(
+					'packages'          => array( array( 'key' => 'n18', 'label' => 'Noc 18/19' ) ),
+					'rooms'             => array( array( 'key' => 'double', 'label' => '2-os.', 'occupancy' => 2 ) ),
+					'inventory'         => array( array( 'package' => 'n18', 'room' => 'double', 'capacity' => 10, 'price' => 0.0 ) ),
+					'companion_enabled' => true,
+				),
+				'settings'      => array( 'waitlist_enabled' => true ),
+			)
+		);
+
+		$waitlisted = $this->seed( 'waitlist', str_repeat( 'f', 32 ) );
+		$this->repository->insertAccommodationBooking(
+			$waitlisted,
+			new AccommodationSelection( 'n18', 'double' ),
+			0.0,
+			1,
+			'Noc 18/19',
+			'2-os.'
+		);
+
+		$result = $this->service->promoteFromWaitlist( $waitlisted );
+
+		$this->assertSame( 'occupancy_mismatch', $result->code );
+		$this->assertSame( 'waitlist', $this->repository->findById( $waitlisted )['status'] );
+		$this->assertNotNull( $this->repository->findAccommodationBooking( $waitlisted ) );
+	}
 }
