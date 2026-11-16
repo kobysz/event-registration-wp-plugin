@@ -11,6 +11,8 @@ so keep entries user-facing and concise.
 
 ## [Unreleased]
 
+## [0.1.17] - 2026-11-16
+
 ### Changed
 - The companion name is now marked as required, with the browser asking for it before the form is sent, as soon as the "companion" box is ticked. It is only required while that box is ticked, and it now has a visible label instead of placeholder text only.
 - The companion block has room above and below it, so the checkbox no longer sits against the accommodation list.
@@ -121,7 +123,8 @@ so keep entries user-facing and concise.
 ### Added
 - Initial internal release covering the full roadmap: event configuration (custom post type, REST API, React admin), public registration form with transactional seat reservation and double opt-in, transactional mail queue with templates and an admin queue screen, submissions panel with lifecycle actions, answer editing and CSV export, data-lifecycle/compliance tooling (gated uninstall, WordPress privacy export/erase), and self-hosted auto-update from GitHub Releases.
 
-[Unreleased]: https://github.com/kobysz/event-registration-wp-plugin/compare/v0.1.16...HEAD
+[Unreleased]: https://github.com/kobysz/event-registration-wp-plugin/compare/v0.1.17...HEAD
+[0.1.17]: https://github.com/kobysz/event-registration-wp-plugin/releases/tag/v0.1.17
 [0.1.16]: https://github.com/kobysz/event-registration-wp-plugin/releases/tag/v0.1.16
 [0.1.15]: https://github.com/kobysz/event-registration-wp-plugin/releases/tag/v0.1.15
 [0.1.14]: https://github.com/kobysz/event-registration-wp-plugin/releases/tag/v0.1.14
