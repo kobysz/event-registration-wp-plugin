@@ -11,8 +11,13 @@ so keep entries user-facing and concise.
 
 ## [Unreleased]
 
+### Added
+- Ticking "companion" now also closes the accommodation options that have only one seat left, since a companion needs two.
+- When a waitlisted registration is promoted but its accommodation is no longer available, the admin notice now says so.
+
 ### Fixed
-- An accommodation option that has run out of seats is now shown as disabled with a "no seats" note instead of looking available, and a registration whose chosen accommodation filled up in the meantime is no longer accepted without it: the form comes back with the entered data and an explanation, so nobody is confirmed for a bed that does not exist. Ticking "companion" closes the options that have only one seat left. Promoting a waitlisted registration that lost its accommodation now says so in the admin notice.
+- An accommodation option that has run out of seats is now shown as disabled with a "no seats" note instead of looking available.
+- A registration whose chosen accommodation filled up in the meantime is no longer accepted without it. The form comes back with the entered data and an explanation, so nobody is confirmed for a bed that does not exist.
 
 ## [0.1.15] - 2026-11-16
 

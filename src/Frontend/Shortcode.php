@@ -100,7 +100,7 @@ final class Shortcode {
 
 		try {
 			$accommodation = AccommodationConfig::fromArray( $raw );
-		} catch ( SchemaException $e ) {
+		} catch ( SchemaException ) {
 			return null;
 		}
 

@@ -461,9 +461,10 @@ final class FormRenderer {
 			$slot_id = $base . '-slot-' . $index++;
 			$note    = '';
 			if ( $row['closed'] ) {
-				$note = ' ' . ( null !== $row['left'] && $row['left'] < 1
+				// Osobny <span>, by form.js mógł ukryć notkę, gdy slot znów się mieści.
+				$note = ' <span class="evreg-seats-note">' . ( null !== $row['left'] && $row['left'] < 1
 					? esc_html__( '(brak miejsc)', 'event-registration' )
-					: esc_html__( '(za mało miejsc)', 'event-registration' ) );
+					: esc_html__( '(za mało miejsc)', 'event-registration' ) ) . '</span>';
 			}
 			$seats_attr = null === $row['left'] ? '' : ' data-evreg-seats-left="' . esc_attr( (string) $row['left'] ) . '"';
 			// Niedostępny slot NIGDY nie renderuje się jako wybrany: `disabled` nie wysyła
@@ -496,7 +497,7 @@ final class FormRenderer {
 
 		// Bez „Bez noclegu" i bez ani jednego otwartego slotu nie ma czego wybrać —
 		// powiedz to wprost, zamiast pokazywać listę samych wyszarzonych pozycji.
-		if ( ! $any_open && array() !== $rows && false === ( $config['allow_none'] ?? true ) ) {
+		if ( ! $any_open && array() !== $rows && ! (bool) ( $config['allow_none'] ?? true ) ) {
 			$out .= '<p class="evreg-accommodation-empty">'
 				. esc_html__( 'Brak wolnych miejsc noclegowych.', 'event-registration' )
 				. '</p>';

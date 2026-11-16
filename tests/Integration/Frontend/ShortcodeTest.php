@@ -20,6 +20,13 @@ final class ShortcodeTest extends WP_UnitTestCase {
 
 	protected function setUp(): void {
 		parent::setUp();
+		// reserve() otwiera własną transakcję, więc zewnętrzny rollback WP_UnitTestCase
+		// jej nie cofa — czyścimy tabele jawnie, jak w ReservationServiceTest.
+		Migrations::install();
+		global $wpdb;
+		foreach ( array( 'registrations', 'accommodation_bookings', 'locks' ) as $t ) {
+			$wpdb->query( 'TRUNCATE TABLE ' . Migrations::table( $t ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+		}
 		$this->event_id = self::factory()->post->create( array( 'post_type' => 'evreg_event' ) );
 		( new EventConfigRepository() )->save(
 			$this->event_id,
@@ -120,12 +127,6 @@ final class ShortcodeTest extends WP_UnitTestCase {
 	}
 
 	public function test_shortcode_renders_exhausted_slot_as_disabled(): void {
-		Migrations::install();
-		global $wpdb;
-		foreach ( array( 'registrations', 'accommodation_bookings', 'locks' ) as $t ) {
-			$wpdb->query( 'TRUNCATE TABLE ' . Migrations::table( $t ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery
-		}
-
 		( new EventConfigRepository() )->save(
 			$this->event_id,
 			array(

@@ -99,7 +99,11 @@
 				if ( none ) { none.checked = true; }
 			}
 			var wrap = el.closest( '.evreg-choice' );
-			if ( wrap ) { wrap.classList.toggle( 'is-full', full ); }
+			if ( wrap ) {
+				wrap.classList.toggle( 'is-full', full );
+				var note = wrap.querySelector( '.evreg-seats-note' );
+				if ( note ) { note.hidden = ! full; }
+			}
 		} );
 	}
 

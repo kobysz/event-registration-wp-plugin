@@ -22,10 +22,10 @@ final class AssembledSubmission {
 	/**
 	 * Tworzy wynik złożenia submisji.
 	 *
-	 * @param bool                    $valid   Czy submisja przeszła walidację.
-	 * @param array<string,string>    $errors  Błędy walidacji (puste gdy valid).
-	 * @param array<string,mixed>     $values  Odpowiedzi do re-renderu (surowe przy invalid).
-	 * @param ReservationRequest|null $request Zbudowane żądanie rezerwacji (tylko gdy valid).
+	 * @param bool                    $valid      Czy submisja przeszła walidację.
+	 * @param array<string,string>    $errors     Błędy walidacji (puste gdy valid).
+	 * @param array<string,mixed>     $values     Odpowiedzi do re-renderu (surowe przy invalid).
+	 * @param ReservationRequest|null $request    Zbudowane żądanie rezerwacji (tylko gdy valid).
 	 * @param array<string,mixed>     $rawAnswers Surowe odpowiedzi z $_POST (do re-renderu).
 	 */
 	private function __construct(

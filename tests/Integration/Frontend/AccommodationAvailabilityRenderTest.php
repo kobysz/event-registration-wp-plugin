@@ -129,6 +129,20 @@ final class AccommodationAvailabilityRenderTest extends WP_UnitTestCase {
 		$this->assertStringContainsString( 'Twój wcześniejszy wybór noclegu jest już niedostępny.', $html );
 	}
 
+	public function test_vanished_slot_moves_to_none_and_is_announced(): void {
+		$result = SubmitResult::invalid(
+			array( 'email' => 'required' ),
+			array( 'nocleg' => array( 'package' => 'n18', 'room' => 'suite', 'roommate' => '' ) )
+		);
+
+		$html = ( new FormRenderer( $this->availability( array() ) ) )
+			->render( $this->schema(), 1, $result );
+
+		$this->assertStringNotContainsString( 'n18|suite', $html );
+		$this->assertMatchesRegularExpression( '/name="evreg_field\[nocleg\]\[slot\]" value=""[^>]*checked/', $html );
+		$this->assertStringContainsString( 'Twój wcześniejszy wybór noclegu jest już niedostępny.', $html );
+	}
+
 	public function test_kept_selection_is_not_announced_as_dropped(): void {
 		$result = SubmitResult::invalid(
 			array( 'email' => 'required' ),
