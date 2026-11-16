@@ -633,7 +633,7 @@ final class RegistrationsScreen {
 
 				echo '<div class="wrap">';
 				echo '<h1>' . esc_html__( 'Edytuj zgłoszenie', 'event-registration' ) . '</h1>';
-				echo RegistrationEditForm::render( $schema, array(), $id, $errors, $assembled->values() ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- już escapowane w rendererze.
+				echo RegistrationEditForm::render( $schema, array(), $id, $errors, $assembled->rawAnswers() ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- już escapowane w rendererze.
 				echo '</div>';
 				return;
 			}

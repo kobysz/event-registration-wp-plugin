@@ -214,10 +214,50 @@ final class EditCompanionRoomRuleTest extends WP_UnitTestCase {
 		$this->assertNull( $redirect, 'Niespójna zmiana nie powinna przekierowywać (inline re-render).' );
 		$this->assertStringContainsString( 'Ten pokój jest jednoosobowy', $html );
 
+		// Re-render zachowuje to, co admin wysłał: checkbox zaznaczony, imię, wybrany slot.
+		$this->assertMatchesRegularExpression( '/<input[^>]*name="evreg_companion"[^>]*checked=/', $html );
+		$this->assertMatchesRegularExpression( '/name="evreg_companion_name"[^>]*value="Anna Kowalska"/', $html );
+		$this->assertMatchesRegularExpression( '/<option value="n18\|single"[^>]*selected=/', $html );
+
 		// Zgłoszenie w bazie nietknięte.
 		$row = $this->repository->findById( $this->registration_id );
 		$this->assertSame( 0, (int) $row['companion'] );
 		$this->assertSame( 'double', (string) $this->repository->findAccommodationBooking( $this->registration_id )['room_type_key'] );
+	}
+
+	public function test_edit_changing_only_the_slot_into_a_mismatch_is_refused(): void {
+		// Flaga bez zmiany (0 -> 0): samo przeniesienie na pokój dwuosobowy odpala regułę.
+		$this->addSingleRoom();
+		$this->repository->deleteAccommodationBooking( $this->registration_id );
+		$this->repository->insertAccommodationBooking(
+			$this->registration_id,
+			new AccommodationSelection( 'n18', 'single' ),
+			100.0,
+			1,
+			'Noc 18/19',
+			'Jednoosobowy'
+		);
+
+		$_POST['registration'] = $this->registration_id;
+		$_REQUEST['_wpnonce']  = wp_create_nonce( 'evreg_edit_' . $this->registration_id );
+		$_POST['evreg_field']  = array(
+			'__type' => 'uczestnik',
+			'email'  => 'jan@example.com',
+			'nocleg' => array( 'slot' => 'n18|double', 'roommate' => '' ),
+		);
+
+		$redirect = null;
+		ob_start();
+		try {
+			$redirect = $this->catchRedirect();
+		} finally {
+			$html = (string) ob_get_clean();
+		}
+
+		$this->assertNull( $redirect, 'Samo przeniesienie slotu na niespójny pokój nie powinno przekierowywać.' );
+		$this->assertStringContainsString( 'Ten pokój jest dwuosobowy', $html );
+		$this->assertSame( 'single', (string) $this->repository->findAccommodationBooking( $this->registration_id )['room_type_key'] );
+		$this->assertSame( 0, (int) $this->repository->findById( $this->registration_id )['companion'] );
 	}
 
 	/**
