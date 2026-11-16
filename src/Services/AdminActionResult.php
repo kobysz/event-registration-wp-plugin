@@ -19,7 +19,7 @@ final class AdminActionResult {
 	/**
 	 * Tworzy wynik.
 	 *
-	 * @param string      $code   Kod: confirmed|cancelled|promoted|promoted_no_accommodation|deleted|rejected|invalid_status|not_found|edited|capacity_full|accommodation_full.
+	 * @param string      $code   Kod: confirmed|cancelled|promoted|promoted_no_accommodation|deleted|rejected|invalid_status|not_found|edited|capacity_full|accommodation_full|occupancy_mismatch.
 	 * @param string|null $reason Kod powodu (np. przy rejected), jeśli dotyczy.
 	 */
 	private function __construct(
@@ -51,6 +51,15 @@ final class AdminActionResult {
 	 */
 	public static function promotedWithoutAccommodation(): self {
 		return new self( 'promoted_no_accommodation' );
+	}
+
+	/**
+	 * Promocja odrzucona: zapisana para pokój/osoba towarzysząca jest niespójna
+	 * z liczbą osób, jaką pokój ma dziś. Promowanie „jak się da" rozjechałoby
+	 * cenę z pojemnością — admin ma to rozstrzygnąć edycją odpowiedzi.
+	 */
+	public static function occupancyMismatch(): self {
+		return new self( 'occupancy_mismatch' );
 	}
 
 	/** Zgłoszenie trwale usunięte. */

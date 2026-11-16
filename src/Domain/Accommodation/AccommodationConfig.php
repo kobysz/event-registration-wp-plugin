@@ -52,8 +52,19 @@ final class AccommodationConfig {
 
 		$rooms = array();
 
+		// Liczba osób w pokoju ma sens tylko gdy event dopuszcza osobę towarzyszącą.
+		// Przy wyłączonym przełączniku SubmissionAssembler twardo wymusza companion=false,
+		// więc pokój „na 2 osoby" byłby trwale niewybieralny, a companion_required
+		// niespełnialne. Czytamy taką sprzeczność jak „nieustawione" — w jednym miejscu,
+		// żeby pojemność, cena, walidacja i render widziały to samo.
+		$companion_enabled = (bool) ( $config['companion_enabled'] ?? false );
+
 		foreach ( (array) ( $config['rooms'] ?? array() ) as $room ) {
-			$rooms[] = RoomType::fromArray( (array) $room );
+			$room = (array) $room;
+			if ( ! $companion_enabled ) {
+				$room['occupancy'] = 0;
+			}
+			$rooms[] = RoomType::fromArray( $room );
 		}
 
 		$package_keys = array_map( static fn ( Package $item ): string => $item->key, $packages );
@@ -99,6 +110,9 @@ final class AccommodationConfig {
 
 	/**
 	 * Serializuje konfigurację do tablicy.
+	 *
+	 * Uwaga: zwracane `occupancy` jest wyzerowane, gdy `companion_enabled` jest wyłączone,
+	 * więc wyniku NIE wolno zapisywać z powrotem jako konfiguracji.
 	 *
 	 * @return array<string,mixed>
 	 */
@@ -170,6 +184,37 @@ final class AccommodationConfig {
 		}
 
 		return null;
+	}
+
+	/**
+	 * Ile miejsc zajmuje zgłoszenie w pokoju o danym kluczu.
+	 * Nieznany pokój (config-drift) zachowuje się jak pokój bez ustawionej liczby osób.
+	 *
+	 * @param string $room_key  Klucz typu pokoju.
+	 * @param bool   $companion Czy zgłoszenie zawiera osobę towarzyszącą.
+	 */
+	public function seatsFor( string $room_key, bool $companion ): int {
+		$room = $this->room( $room_key );
+
+		return null === $room
+			? RoomOccupancy::seats( 0, $companion )
+			: $room->seats( $companion );
+	}
+
+	/**
+	 * Zwraca mapę slot "pakiet|pokój" => liczba osób w pokoju (0 = nieustawione).
+	 *
+	 * @return array<string,int>
+	 */
+	public function slotOccupancies(): array {
+		$map = array();
+
+		foreach ( $this->items as $item ) {
+			$room                    = $this->room( $item->roomKey );
+			$map[ $item->slotKey() ] = null === $room ? 0 : $room->occupancy;
+		}
+
+		return $map;
 	}
 
 	/**

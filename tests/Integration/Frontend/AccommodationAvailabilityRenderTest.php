@@ -153,7 +153,7 @@ final class AccommodationAvailabilityRenderTest extends WP_UnitTestCase {
 			->render( $this->schema(), 1, $result );
 
 		$this->assertMatchesRegularExpression( '/value="n18\|double"[^>]*checked/', $html );
-		$this->assertStringNotContainsString( 'jest już niedostępny', $html );
+		$this->assertStringContainsString( 'evreg-accommodation-dropped" hidden', $html );
 	}
 
 	public function test_empty_submitted_selection_checks_none(): void {
@@ -165,7 +165,7 @@ final class AccommodationAvailabilityRenderTest extends WP_UnitTestCase {
 		$html = ( new FormRenderer( $this->availability( array() ) ) )->render( $this->schema(), 1, $result );
 
 		$this->assertMatchesRegularExpression( '/name="evreg_field\[nocleg\]\[slot\]" value=""[^>]*checked/', $html );
-		$this->assertStringNotContainsString( 'jest już niedostępny', $html );
+		$this->assertStringContainsString( 'evreg-accommodation-dropped" hidden', $html );
 	}
 
 	public function test_all_slots_closed_without_allow_none_shows_message(): void {

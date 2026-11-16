@@ -9,6 +9,9 @@ declare( strict_types=1 );
 
 namespace EvReg\Frontend;
 
+use EvReg\Domain\Accommodation\AccommodationConfig;
+use EvReg\Domain\Schema\FormSchema;
+use EvReg\Services\ReservationRequest;
 use EvReg\Services\ReservationService;
 
 defined( 'ABSPATH' ) || exit;
@@ -155,6 +158,18 @@ final class SubmitHandler {
 			return SubmitResult::configError();
 		}
 
+		// Niespójna para pokój/osoba towarzysząca: pokój dwuosobowy bez towarzyszącej
+		// albo jednoosobowy z nią. Na formularzu publicznym reguła obowiązuje zawsze —
+		// każda submisja to nowy wybór, nie ma „stanu przed".
+		$mismatch = $this->companionRoomMismatch( $schema, $request );
+		if ( null !== $mismatch ) {
+			$accommodation_key = $schema->accommodationFieldKey();
+
+			return null === $accommodation_key
+				? SubmitResult::rejected()
+				: SubmitResult::invalid( array( $accommodation_key => $mismatch ), $assembled->rawAnswers() );
+		}
+
 		$reservation = $this->reservations->reserve( $event_id, $request );
 
 		// Wybrany nocleg zajęty w wyścigu: zgłoszenie nie zostało zapisane, więc wracamy
@@ -176,5 +191,31 @@ final class SubmitHandler {
 			'duplicate'  => SubmitResult::duplicate(),
 			default      => SubmitResult::rejected(),
 		};
+	}
+
+	/**
+	 * Zwraca kod błędu, gdy wybrany pokój nie zgadza się z flagą osoby towarzyszącej.
+	 *
+	 * @param FormSchema         $schema  Złożony schemat formularza.
+	 * @param ReservationRequest $request Zbudowane żądanie rezerwacji.
+	 */
+	private function companionRoomMismatch( FormSchema $schema, ReservationRequest $request ): ?string {
+		if ( null === $request->selection ) {
+			return null;
+		}
+
+		$key = $schema->accommodationFieldKey();
+		if ( null === $key ) {
+			return null;
+		}
+
+		$field = $schema->findField( $key );
+		if ( null === $field ) {
+			return null;
+		}
+
+		$room = AccommodationConfig::fromArray( $field->config )->room( $request->selection->roomKey );
+
+		return null === $room ? null : $room->companionMismatch( $request->companion );
 	}
 }

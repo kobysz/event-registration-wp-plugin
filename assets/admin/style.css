@@ -448,3 +448,9 @@
 	border-bottom: none;
 	padding-bottom: 0;
 }
+
+.evreg-room-row__warning {
+	margin: 6px 0 0;
+	font-size: 12px;
+	color: #996800;
+}

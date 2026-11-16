@@ -102,7 +102,8 @@ final class ReservationService {
 				$types->capacities(),
 				$accommodation->capacities(),
 				(bool) ( $settings['waitlist_enabled'] ?? true ),
-				$accommodation->companionCountsEvent()
+				$accommodation->companionCountsEvent(),
+				$accommodation->slotOccupancies()
 			);
 
 			$decision = $this->calculator->decide(
@@ -160,7 +161,7 @@ final class ReservationService {
 
 			if ( $decision->accommodationGranted && null !== $request->selection ) {
 				$item      = $accommodation->item( $request->selection->packageKey, $request->selection->roomKey );
-				$seats     = $request->companion ? 2 : 1;
+				$seats     = $accommodation->seatsFor( $request->selection->roomKey, $request->companion );
 				$acc_price = ( null === $item ? 0.0 : $item->price ) * $seats;
 				$this->repository->insertAccommodationBooking(
 					$id,
@@ -351,6 +352,16 @@ final class ReservationService {
 			: new AccommodationSelection( (string) $booking['package_key'], (string) $booking['room_type_key'], (string) ( $booking['roommate_pref'] ?? '' ) );
 		$companion = (bool) ( $row['companion'] ?? false );
 
+		// Pokój mógł zmienić liczbę osób po zawaitlistowaniu. Promowanie zgłoszenia
+		// niespójnego z nową konfiguracją dałoby seats/cenę dla innej liczby osób,
+		// niż zapisano w zgłoszeniu — admin musi to rozstrzygnąć edycją odpowiedzi.
+		if ( null !== $selection ) {
+			$room = $accommodation->room( $selection->roomKey );
+			if ( null !== $room && null !== $room->companionMismatch( $companion ) ) {
+				return AdminActionResult::occupancyMismatch();
+			}
+		}
+
 		$accommodation_lost = false;
 
 		$wpdb->query( 'START TRANSACTION' );
@@ -364,7 +375,8 @@ final class ReservationService {
 				$types->capacities(),
 				$accommodation->capacities(),
 				(bool) ( $settings['waitlist_enabled'] ?? true ),
-				$accommodation->companionCountsEvent()
+				$accommodation->companionCountsEvent(),
+				$accommodation->slotOccupancies()
 			);
 
 			$decision = $this->calculator->decide(
@@ -383,7 +395,7 @@ final class ReservationService {
 			if ( null !== $selection ) {
 				if ( $decision->accommodationGranted ) {
 					$item      = $accommodation->item( $selection->packageKey, $selection->roomKey );
-					$seats     = $companion ? 2 : 1;
+					$seats     = $accommodation->seatsFor( $selection->roomKey, $companion );
 					$acc_price = ( null === $item ? 0.0 : $item->price ) * $seats;
 					$this->repository->deleteAccommodationBooking( $id );
 					$this->repository->insertAccommodationBooking(
@@ -468,22 +480,40 @@ final class ReservationService {
 			$occupies = in_array( $status, array( RegistrationStatus::Pending, RegistrationStatus::Confirmed ), true );
 
 			if ( $occupies ) {
-				// KRYTYCZNA KOLEJNOŚĆ: lockEvent przed occupancyExcluding (inwariant lock→count 3A).
+				// KRYTYCZNA KOLEJNOŚĆ: lockEvent przed occupancyExcluding (inwariant lock→count 3A)
+				// ORAZ przed odczytem bookingu niżej — ten odczyt rozstrzyga, czy zgłoszenie "się
+				// przesuwa", więc nieaktualny slot kazałby pominąć slotową część bramki i wpisać
+				// z powrotem starą liczbę miejsc, czyli przesprzedać slot.
 				$this->repository->lockEvent( $event_id );
+			}
 
+			// Zgłoszenie, które nie zmienia ani slotu, ani flagi towarzyszącej, nie "się przesuwa":
+			// zostaje przy zapisanej liczbie miejsc i cenie. Inaczej późniejsze ustawienie liczby
+			// osób w pokoju przeliczyłoby (i zdublowało) stare zgłoszenie przy niezwiązanej edycji.
+			// Odczyt siedzi POD lockiem (gdy status zajmuje miejsce) — patrz komentarz wyżej.
+			$stored_booking = $this->repository->findAccommodationBooking( $id );
+			$stored_slot    = null === $stored_booking
+				? ''
+				: (string) $stored_booking['package_key'] . '|' . (string) $stored_booking['room_type_key'];
+			$new_slot       = null === $request->selection ? '' : $request->selection->slotKey();
+			$unchanged      = $stored_slot === $new_slot && (bool) ( $row['companion'] ?? false ) === $request->companion;
+			$gate_selection = $unchanged ? null : $request->selection;
+
+			if ( $occupies ) {
 				$limits = new CapacityLimits(
 					isset( $settings['global_cap'] ) && null !== $settings['global_cap'] ? (int) $settings['global_cap'] : null,
 					$types->capacities(),
 					$accommodation->capacities(),
 					(bool) ( $settings['waitlist_enabled'] ?? true ),
-					$accommodation->companionCountsEvent()
+					$accommodation->companionCountsEvent(),
+					$accommodation->slotOccupancies()
 				);
 
 				$decision = $this->calculator->decide(
 					$limits,
 					$this->repository->occupancyExcluding( $event_id, $id ),
 					$request->typeKey,
-					$request->selection,
+					$gate_selection,
 					$request->companion
 				);
 
@@ -491,13 +521,14 @@ final class ReservationService {
 					$wpdb->query( 'ROLLBACK' );
 					return AdminActionResult::capacityFull();
 				}
-				if ( null !== $request->selection && ! $decision->accommodationGranted ) {
+				if ( null !== $gate_selection && ! $decision->accommodationGranted ) {
 					$wpdb->query( 'ROLLBACK' );
 					return AdminActionResult::accommodationFull();
 				}
 			}
 
-			$price = $this->pricing->total( $type, $accommodation, $request->selection, $request->companion );
+			$stored_seats = null === $stored_booking ? 1 : max( 1, (int) $stored_booking['seats'] );
+			$price        = $this->pricing->total( $type, $accommodation, $request->selection, $request->companion, $unchanged ? $stored_seats : null );
 
 			$this->repository->updateRegistration(
 				$id,
@@ -513,7 +544,7 @@ final class ReservationService {
 			$this->repository->deleteAccommodationBooking( $id );
 			if ( null !== $request->selection ) {
 				$item      = $accommodation->item( $request->selection->packageKey, $request->selection->roomKey );
-				$seats     = $request->companion ? 2 : 1;
+				$seats     = $unchanged ? $stored_seats : $accommodation->seatsFor( $request->selection->roomKey, $request->companion );
 				$acc_price = ( null === $item ? 0.0 : $item->price ) * $seats;
 				$this->repository->insertAccommodationBooking(
 					$id,

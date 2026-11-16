@@ -108,6 +108,8 @@ final class RegistrationEditForm {
 			'invalid_accommodation'   => __( 'Nieprawidłowy wybór noclegu.', 'event-registration' ),
 			'roommate_not_allowed'    => __( 'Współlokator niedozwolony dla tego pokoju.', 'event-registration' ),
 			'companion_name_required' => __( 'Podaj imię i nazwisko osoby towarzyszącej.', 'event-registration' ),
+			'companion_required'      => __( 'Ten pokój jest dwuosobowy. Zaznacz osobę towarzyszącą albo wybierz pokój jednoosobowy.', 'event-registration' ),
+			'companion_not_allowed'   => __( 'Ten pokój jest jednoosobowy. Odznacz osobę towarzyszącą albo wybierz pokój dwuosobowy.', 'event-registration' ),
 		);
 
 		return $map[ $code ] ?? __( 'Nieprawidłowa wartość.', 'event-registration' );
@@ -217,8 +219,12 @@ final class RegistrationEditForm {
 		// Pokoje z włączonym polem współlokatora (flaga per pokój) — tylko dla nich
 		// renderujemy i pokazujemy pole „Współlokator".
 		$roommateRooms = array();
+		$accommodation = AccommodationConfig::fromArray( $field->config );
+		// Pole nie ma sensu w pokoju dwuosobowym (tak jak w formularzu publicznym):
+		// drugie łóżko zajmuje imiennie wskazana osoba towarzysząca.
 		foreach ( $rooms as $room ) {
-			if ( ! empty( $room['roommate_field'] ) ) {
+			$room_type = $accommodation->room( (string) ( $room['key'] ?? '' ) );
+			if ( ! empty( $room['roommate_field'] ) && 2 !== ( null === $room_type ? 0 : $room_type->occupancy ) ) {
 				$roommateRooms[ (string) ( $room['key'] ?? '' ) ] = true;
 			}
 		}

@@ -14,8 +14,12 @@ so keep entries user-facing and concise.
 ### Added
 - Ticking "companion" now also closes the accommodation options that have only one seat left, since a companion needs two.
 - When a waitlisted registration is promoted but its accommodation is no longer available, the admin notice now says so.
+- Each room can now be set to hold one or two people in the accommodation settings. The number of people drives the seats the room takes from its slot and the price multiplier.
+- The "companion" checkbox now sits above the accommodation list and filters it: with a companion only two-person rooms are offered, without one only single rooms (rooms with no number set stay available either way).
+- Promoting a waitlisted registration is now refused, with an explanation, when its room no longer matches the companion choice.
 
 ### Fixed
+- A room and companion combination that does not match (a two-person room without a companion, or a companion in a single room) is now rejected on the public form and when a registration is edited, so seats and price can no longer drift apart.
 - An accommodation option that has run out of seats is now shown as disabled with a "no seats" note instead of looking available.
 - A registration whose chosen accommodation filled up in the meantime is no longer accepted without it. The form comes back with the entered data and an explanation, so nobody is confirmed for a bed that does not exist.
 - Saved field translations (and mail templates) are no longer erased when the event configuration is saved. On a freshly opened event screen the configuration response could overwrite the translations the editor had already loaded, and the next save then wrote that empty value over the stored one.

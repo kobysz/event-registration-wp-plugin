@@ -44,7 +44,7 @@ export function updatePackage( acc, key, patch ) {
 
 export function addRoom( acc ) {
 	const next = ensure( acc );
-	next.rooms.push( { key: nextKey( 'room' ), label: '', roommate_field: false } );
+	next.rooms.push( { key: nextKey( 'room' ), label: '', roommate_field: false, occupancy: 0 } );
 	return next;
 }
 

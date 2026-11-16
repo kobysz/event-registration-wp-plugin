@@ -81,33 +81,65 @@
 		input.hidden = ! checkbox.checked;
 	}
 
-	// Ile miejsc zajmie zgłoszenie w slocie: 2 z osobą towarzyszącą, inaczej 1.
-	// Serwer wyłącza już sloty bez ani jednego miejsca; tutaj domykamy przypadek
-	// „jedno wolne miejsce, a potrzebne dwa", który zależy od stanu checkboxa.
-	function applySlotSeats( form ) {
+	// Lustro EvReg\Domain\Accommodation\RoomOccupancy::seats.
+	function seatsFor( occupancy, companion ) {
+		return occupancy === 0 ? ( companion ? 2 : 1 ) : occupancy;
+	}
+
+	// Slot bywa zamknięty z DWÓCH niezależnych powodów: brak miejsc (serwer liczy to
+	// świeżo i oznacza wyczerpane) oraz niepasująca liczba osób w pokoju. `disabled`
+	// jest SUMĄ powodów — gdyby każdy powód miał własną pętlę, druga odblokowałaby
+	// slot zamknięty przez pierwszą. Elementy bez tych atrybutów (np. <option> w edycji
+	// admina) nie są dotykane.
+	function applySlotState( form, clearStale ) {
+		var anyMatch = false;
+		var dropped = false;
 		var checkbox = form.querySelector( 'input[name="evreg_companion"]' );
-		var needed = checkbox && checkbox.checked ? 2 : 1;
-		form.querySelectorAll( '[data-evreg-seats-left]' ).forEach( function ( el ) {
+		var companion = !! ( checkbox && checkbox.checked );
+
+		form.querySelectorAll( '[data-evreg-occupancy], [data-evreg-seats-left]' ).forEach( function ( el ) {
+			var occupancy = parseInt( el.getAttribute( 'data-evreg-occupancy' ), 10 );
+			if ( isNaN( occupancy ) ) { occupancy = 0; }
+
+			var mismatch = occupancy !== 0 && occupancy !== ( companion ? 2 : 1 );
+
 			var left = parseInt( el.getAttribute( 'data-evreg-seats-left' ), 10 );
-			var full = ! isNaN( left ) && left < needed;
-			el.disabled = full;
-			if ( full && el.checked ) {
+			var full = ! isNaN( left ) && left < seatsFor( occupancy, companion );
+
+			if ( ! mismatch ) { anyMatch = true; }
+			el.hidden = mismatch;
+			el.disabled = mismatch || full;
+
+			if ( el.disabled && el.checked ) {
 				el.checked = false;
 				// Pusta grupa radio nie wysyła klucza [slot], co serwer odczytałby jako
 				// „Bez noclegu" bez wiedzy zgłaszającego się — przenosimy zaznaczenie jawnie.
 				var none = form.querySelector( 'input[name="' + el.name + '"][value=""]' );
 				if ( none ) { none.checked = true; }
+				dropped = true;
 			}
+
 			var wrap = el.closest( '.evreg-choice' );
 			if ( wrap ) {
+				wrap.hidden = mismatch;
 				wrap.classList.toggle( 'is-full', full );
 				var note = wrap.querySelector( '.evreg-seats-note' );
 				if ( note ) { note.hidden = ! full; }
 			}
 		} );
+
+		// Komunikaty niosą tekst z serwera; tu tylko przełączamy widoczność. Pusty zestaw
+		// wierszy nie ma akapitu (serwer go wtedy nie renderuje), więc anyMatch=false nic nie pokaże.
+		var mismatchNote = form.querySelector( '.evreg-accommodation-mismatch' );
+		if ( mismatchNote ) { mismatchNote.hidden = anyMatch; }
+		var droppedNote = form.querySelector( '.evreg-accommodation-dropped' );
+		if ( droppedNote ) {
+			// Przy starcie nie chowamy komunikatu wyrenderowanego przez serwer po błędzie POST.
+			if ( dropped ) { droppedNote.hidden = false; } else if ( clearStale ) { droppedNote.hidden = true; }
+		}
 	}
 
-	// Programowe el.checked = false w applySlotSeats NIE emituje zdarzenia `change`,
+	// Programowe el.checked = false w applySlotState NIE emituje zdarzenia `change`,
 	// więc widoczność pola współlokatora trzeba przeliczyć ręcznie — inaczej zostaje
 	// widoczna po odebraniu zaznaczenia. Kontenery .evreg-accommodation poza
 	// formularzem (ekran edycji w adminie) obsługuje druga pętla.
@@ -118,12 +150,12 @@
 	document.querySelectorAll( '.evreg-form' ).forEach( function ( form ) {
 		apply( form );
 		applyCompanion( form );
-		applySlotSeats( form );
+		applySlotState( form, false );
 		refreshAccommodation( form );
 		form.addEventListener( 'change', function () {
 			apply( form );
 			applyCompanion( form );
-			applySlotSeats( form );
+			applySlotState( form, true );
 			refreshAccommodation( form );
 		} );
 		form.addEventListener( 'input', function () { apply( form ); } );

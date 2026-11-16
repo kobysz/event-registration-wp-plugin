@@ -51,7 +51,7 @@ final class CapacityCalculator {
 
 		$slot       = $selection->slotKey();
 		$slot_limit = $limits->forSlot( $slot );
-		$acc_seats  = $companion ? 2 : 1;
+		$acc_seats  = $limits->seatsForSlot( $slot, $companion );
 
 		if ( null === $slot_limit || $taken->forSlot( $slot ) + $acc_seats > $slot_limit ) {
 			return new CapacityDecision( Outcome::Accepted, false, 'accommodation_full' );

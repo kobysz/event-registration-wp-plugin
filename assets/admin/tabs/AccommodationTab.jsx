@@ -1,4 +1,4 @@
-import { Button, TextControl, ToggleControl } from '@wordpress/components';
+import { Button, SelectControl, TextControl, ToggleControl } from '@wordpress/components';
 import { __ } from '@wordpress/i18n';
 import {
 	emptyAccommodation,
@@ -67,6 +67,24 @@ export default function AccommodationTab( { config, update } ) {
 							setAcc( updateRoom( acc, room.key, { roommate_field } ) )
 						}
 					/>
+					<SelectControl
+						label={ __( 'Liczba osób', 'event-registration' ) }
+						help={ __( 'Nieustawione = jak dotąd (osoba towarzysząca opcjonalna). 1 osoba = bez towarzyszącej. 2 osoby = wymaga towarzyszącej, a pole współlokatora się nie pokazuje. Opcja „2 osoby" wymaga włączonej osoby towarzyszącej w ustawieniach noclegów poniżej.', 'event-registration' ) }
+						value={ String( room.occupancy ?? 0 ) }
+						options={ [
+							{ value: '0', label: __( '— nieustawione —', 'event-registration' ) },
+							{ value: '1', label: __( '1 osoba', 'event-registration' ) },
+							{ value: '2', label: __( '2 osoby', 'event-registration' ), disabled: ! acc.companion_enabled },
+						] }
+						onChange={ ( occupancy ) =>
+							setAcc( updateRoom( acc, room.key, { occupancy: parseInt( occupancy, 10 ) } ) )
+						}
+					/>
+					{ 2 === ( room.occupancy ?? 0 ) && ! acc.companion_enabled && (
+						<p className="evreg-room-row__warning">
+							{ __( 'Ten pokój jest ustawiony na 2 osoby, ale osoba towarzysząca jest wyłączona dla tego wydarzenia — ustawienie jest ignorowane. Włącz osobę towarzyszącą albo zmień liczbę osób.', 'event-registration' ) }
+						</p>
+					) }
 					<Button isDestructive onClick={ () => setAcc( removeRoom( acc, room.key ) ) }>
 						{ __( 'Usuń', 'event-registration' ) }
 					</Button>
