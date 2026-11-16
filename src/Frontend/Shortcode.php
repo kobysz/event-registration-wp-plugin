@@ -9,7 +9,11 @@ declare( strict_types=1 );
 
 namespace EvReg\Frontend;
 
+use EvReg\Domain\Accommodation\AccommodationConfig;
+use EvReg\Domain\Accommodation\SlotAvailability;
+use EvReg\Domain\Schema\SchemaException;
 use EvReg\Persistence\EventConfigRepository;
+use EvReg\Persistence\RegistrationRepository;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -76,7 +80,34 @@ final class Shortcode {
 		$result = SubmitHandler::resultFor( $event_id );
 		$notice = null === $result ? '' : self::resultNotice( $result );
 
-		return $notice . ( new FormRenderer() )->render( $schema, $event_id, $result );
+		return $notice . ( new FormRenderer( self::availability( $event_id ) ) )->render( $schema, $event_id, $result );
+	}
+
+	/**
+	 * Składa dostępność miejsc w slotach noclegowych eventu. Zwraca null, gdy event nie
+	 * ma inwentarza noclegów albo konfiguracja jest niepoprawna — renderer bez dostępności
+	 * zachowuje się jak przed tą zmianą.
+	 *
+	 * @param int $event_id ID posta eventu.
+	 */
+	private static function availability( int $event_id ): ?SlotAvailability {
+		$config = ( new EventConfigRepository() )->get( $event_id );
+		$raw    = is_array( $config['accommodation'] ) ? $config['accommodation'] : array();
+
+		if ( ! is_array( $raw['inventory'] ?? null ) || array() === $raw['inventory'] ) {
+			return null;
+		}
+
+		try {
+			$accommodation = AccommodationConfig::fromArray( $raw );
+		} catch ( SchemaException $e ) {
+			return null;
+		}
+
+		return SlotAvailability::fromSnapshot(
+			$accommodation,
+			( new RegistrationRepository() )->occupancy( $event_id )
+		);
 	}
 
 	/**
