@@ -474,26 +474,32 @@ final class ReservationService {
 			return AdminActionResult::invalidStatus();
 		}
 
-		// Zgłoszenie, które nie zmienia ani slotu, ani flagi towarzyszącej, nie "się przesuwa":
-		// zostaje przy zapisanej liczbie miejsc i cenie. Inaczej późniejsze ustawienie liczby
-		// osób w pokoju przeliczyłoby (i zdublowało) stare zgłoszenie przy niezwiązanej edycji.
-		$stored_booking = $this->repository->findAccommodationBooking( $id );
-		$stored_slot    = null === $stored_booking
-			? ''
-			: (string) $stored_booking['package_key'] . '|' . (string) $stored_booking['room_type_key'];
-		$new_slot       = null === $request->selection ? '' : $request->selection->slotKey();
-		$unchanged      = $stored_slot === $new_slot && (bool) ( $row['companion'] ?? false ) === $request->companion;
-		$gate_selection = $unchanged ? null : $request->selection;
-
 		$wpdb->query( 'START TRANSACTION' );
 
 		try {
 			$occupies = in_array( $status, array( RegistrationStatus::Pending, RegistrationStatus::Confirmed ), true );
 
 			if ( $occupies ) {
-				// KRYTYCZNA KOLEJNOŚĆ: lockEvent przed occupancyExcluding (inwariant lock→count 3A).
+				// KRYTYCZNA KOLEJNOŚĆ: lockEvent przed occupancyExcluding (inwariant lock→count 3A)
+				// ORAZ przed odczytem bookingu niżej — ten odczyt rozstrzyga, czy zgłoszenie "się
+				// przesuwa", więc nieaktualny slot kazałby pominąć slotową część bramki i wpisać
+				// z powrotem starą liczbę miejsc, czyli przesprzedać slot.
 				$this->repository->lockEvent( $event_id );
+			}
 
+			// Zgłoszenie, które nie zmienia ani slotu, ani flagi towarzyszącej, nie "się przesuwa":
+			// zostaje przy zapisanej liczbie miejsc i cenie. Inaczej późniejsze ustawienie liczby
+			// osób w pokoju przeliczyłoby (i zdublowało) stare zgłoszenie przy niezwiązanej edycji.
+			// Odczyt siedzi POD lockiem (gdy status zajmuje miejsce) — patrz komentarz wyżej.
+			$stored_booking = $this->repository->findAccommodationBooking( $id );
+			$stored_slot    = null === $stored_booking
+				? ''
+				: (string) $stored_booking['package_key'] . '|' . (string) $stored_booking['room_type_key'];
+			$new_slot       = null === $request->selection ? '' : $request->selection->slotKey();
+			$unchanged      = $stored_slot === $new_slot && (bool) ( $row['companion'] ?? false ) === $request->companion;
+			$gate_selection = $unchanged ? null : $request->selection;
+
+			if ( $occupies ) {
 				$limits = new CapacityLimits(
 					isset( $settings['global_cap'] ) && null !== $settings['global_cap'] ? (int) $settings['global_cap'] : null,
 					$types->capacities(),
