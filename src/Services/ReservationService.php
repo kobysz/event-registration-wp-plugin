@@ -351,6 +351,8 @@ final class ReservationService {
 			: new AccommodationSelection( (string) $booking['package_key'], (string) $booking['room_type_key'], (string) ( $booking['roommate_pref'] ?? '' ) );
 		$companion = (bool) ( $row['companion'] ?? false );
 
+		$accommodation_lost = false;
+
 		$wpdb->query( 'START TRANSACTION' );
 
 		try {
@@ -398,6 +400,7 @@ final class ReservationService {
 					// poniżej przeniesie zgłoszenie w status zajmujący miejsce z widmowym
 					// bookingiem i slot zostanie przesprzedany.
 					$this->repository->deleteAccommodationBooking( $id );
+					$accommodation_lost = true;
 				}
 			}
 
@@ -417,7 +420,9 @@ final class ReservationService {
 
 		do_action( 'evreg_registration_reserved', $id, $event_id, (string) $row['token'] );
 
-		return AdminActionResult::promoted();
+		return $accommodation_lost
+			? AdminActionResult::promotedWithoutAccommodation()
+			: AdminActionResult::promoted();
 	}
 
 	/**

@@ -484,8 +484,8 @@ final class ReserveCompanionTest extends WP_UnitTestCase {
 
 		$result = $this->service->promoteFromWaitlist( $waitlisted );
 
-		// Only the slot is full (type/global are fine) -> Outcome::Accepted, accommodationGranted=false.
-		$this->assertSame( 'promoted', $result->code );
+		// Only the slot is full (type/global are fine) -> Outcome::Accepted, accommodationGranted=false; the loss is reported.
+		$this->assertSame( 'promoted_no_accommodation', $result->code );
 		$row = $this->repository->findById( $waitlisted );
 		$this->assertSame( 'pending', $row['status'] );
 

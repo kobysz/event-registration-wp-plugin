@@ -4,6 +4,7 @@ declare( strict_types=1 );
 
 namespace EvReg\Tests\Integration\Services;
 
+use EvReg\Domain\Accommodation\AccommodationSelection;
 use EvReg\Mail\Subscriber;
 use EvReg\Persistence\EventConfigRepository;
 use EvReg\Persistence\Migrations;
@@ -152,5 +153,44 @@ final class PromoteFromWaitlistTest extends WP_UnitTestCase {
 
 		$this->assertSame( 'invalid_status', $this->service->deleteRegistration( $id )->code );
 		$this->assertNotNull( $this->repository->findById( $id ) );
+	}
+
+	public function test_promote_without_accommodation_reports_the_loss(): void {
+		// Typ bez limitu + slot noclegowy na 1 miejsce: miejsce na wydarzeniu jest,
+		// ale łóżko zajął ktoś inny, gdy zgłoszenie czekało na liście rezerwowej.
+		( new EventConfigRepository() )->save(
+			$this->event_id,
+			array(
+				'types'         => array( array( 'key' => 'uczestnik', 'label' => 'Uczestnik', 'price' => 0.0 ) ),
+				'accommodation' => array(
+					'packages'  => array( array( 'key' => 'n18', 'label' => 'Noc 18/19' ) ),
+					'rooms'     => array( array( 'key' => 'single', 'label' => 'Jednoosobowy' ) ),
+					'inventory' => array( array( 'package' => 'n18', 'room' => 'single', 'capacity' => 1, 'price' => 0.0 ) ),
+				),
+				'settings'      => array( 'waitlist_enabled' => true ),
+			)
+		);
+
+		$selection = new AccommodationSelection( 'n18', 'single' );
+
+		// Potwierdzone zgłoszenie trzyma jedyne łóżko (status zajmujący miejsce).
+		$taken = $this->seed( 'confirmed', str_repeat( 'd', 32 ) );
+		$this->repository->insertAccommodationBooking( $taken, $selection, 0.0, 1, 'Noc 18/19', 'Jednoosobowy' );
+
+		// Zgłoszenie na liście rezerwowej ma booking na ten sam slot (waitlist nie zajmuje miejsca).
+		$waitlisted = $this->seed( 'waitlist', str_repeat( 'e', 32 ) );
+		$this->repository->insertAccommodationBooking( $waitlisted, $selection, 0.0, 1, 'Noc 18/19', 'Jednoosobowy' );
+
+		$result = $this->service->promoteFromWaitlist( $waitlisted );
+
+		$this->assertSame( 'promoted_no_accommodation', $result->code );
+		$this->assertSame( 'pending', $this->repository->findById( $waitlisted )['status'] );
+
+		global $wpdb;
+		$bookings = (int) $wpdb->get_var(
+			$wpdb->prepare( 'SELECT COUNT(*) FROM ' . Migrations::table( 'accommodation_bookings' ) . ' WHERE registration_id = %d', $waitlisted )
+		);
+
+		$this->assertSame( 0, $bookings, 'Nieaktualny booking musi zniknąć, inaczej slot zostanie przesprzedany.' );
 	}
 }

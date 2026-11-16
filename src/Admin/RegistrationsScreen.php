@@ -147,18 +147,19 @@ final class RegistrationsScreen {
 		// phpcs:ignore WordPress.Security.NonceVerification.Recommended
 		$code     = sanitize_text_field( wp_unslash( (string) $_GET['evreg_msg'] ) );
 		$messages = array(
-			'confirmed'          => array( 'success', __( 'Zgłoszenie potwierdzone.', 'event-registration' ) ),
-			'cancelled'          => array( 'success', __( 'Zgłoszenie anulowane, miejsce zwolnione.', 'event-registration' ) ),
-			'promoted'           => array( 'success', __( 'Awansowano z listy rezerwowej — wysłano prośbę o potwierdzenie.', 'event-registration' ) ),
-			'deleted'            => array( 'success', __( 'Zgłoszenie trwale usunięte.', 'event-registration' ) ),
-			'note'               => array( 'success', __( 'Notatka zapisana.', 'event-registration' ) ),
-			'edited'             => array( 'success', __( 'Odpowiedzi zgłoszenia zaktualizowane.', 'event-registration' ) ),
-			'rejected'           => array( 'error', __( 'Brak wolnych miejsc — nie można awansować.', 'event-registration' ) ),
-			'invalid_status'     => array( 'error', __( 'Akcja niedozwolona dla tego statusu.', 'event-registration' ) ),
-			'not_found'          => array( 'error', __( 'Nie znaleziono zgłoszenia.', 'event-registration' ) ),
-			'capacity_full'      => array( 'error', __( 'Brak wolnych miejsc dla wybranego typu zgłoszenia.', 'event-registration' ) ),
-			'accommodation_full' => array( 'error', __( 'Brak wolnych miejsc dla wybranego noclegu.', 'event-registration' ) ),
-			'export_no_event'    => array( 'error', __( 'Wybierz event, aby wyeksportować zgłoszenia.', 'event-registration' ) ),
+			'confirmed'                 => array( 'success', __( 'Zgłoszenie potwierdzone.', 'event-registration' ) ),
+			'cancelled'                 => array( 'success', __( 'Zgłoszenie anulowane, miejsce zwolnione.', 'event-registration' ) ),
+			'promoted'                  => array( 'success', __( 'Awansowano z listy rezerwowej — wysłano prośbę o potwierdzenie.', 'event-registration' ) ),
+			'promoted_no_accommodation' => array( 'warning', __( 'Awansowano z listy rezerwowej, ale wybrany nocleg był już pełny — zgłoszenie nie ma przyznanego noclegu.', 'event-registration' ) ),
+			'deleted'                   => array( 'success', __( 'Zgłoszenie trwale usunięte.', 'event-registration' ) ),
+			'note'                      => array( 'success', __( 'Notatka zapisana.', 'event-registration' ) ),
+			'edited'                    => array( 'success', __( 'Odpowiedzi zgłoszenia zaktualizowane.', 'event-registration' ) ),
+			'rejected'                  => array( 'error', __( 'Brak wolnych miejsc — nie można awansować.', 'event-registration' ) ),
+			'invalid_status'            => array( 'error', __( 'Akcja niedozwolona dla tego statusu.', 'event-registration' ) ),
+			'not_found'                 => array( 'error', __( 'Nie znaleziono zgłoszenia.', 'event-registration' ) ),
+			'capacity_full'             => array( 'error', __( 'Brak wolnych miejsc dla wybranego typu zgłoszenia.', 'event-registration' ) ),
+			'accommodation_full'        => array( 'error', __( 'Brak wolnych miejsc dla wybranego noclegu.', 'event-registration' ) ),
+			'export_no_event'           => array( 'error', __( 'Wybierz event, aby wyeksportować zgłoszenia.', 'event-registration' ) ),
 		);
 
 		if ( ! isset( $messages[ $code ] ) ) {
