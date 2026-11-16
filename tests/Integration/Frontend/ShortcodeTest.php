@@ -118,6 +118,7 @@ final class ShortcodeTest extends WP_UnitTestCase {
 
 		delete_option( SettingsScreen::LOAD_BOOTSTRAP_OPTION );
 	}
+
 	public function test_shortcode_renders_exhausted_slot_as_disabled(): void {
 		Migrations::install();
 		global $wpdb;

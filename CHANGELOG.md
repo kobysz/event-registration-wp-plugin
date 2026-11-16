@@ -11,6 +11,9 @@ so keep entries user-facing and concise.
 
 ## [Unreleased]
 
+### Fixed
+- An accommodation option that has run out of seats is now shown as disabled with a "no seats" note instead of looking available, and a registration whose chosen accommodation filled up in the meantime is no longer accepted without it: the form comes back with the entered data and an explanation, so nobody is confirmed for a bed that does not exist. Ticking "companion" closes the options that have only one seat left. Promoting a waitlisted registration that lost its accommodation now says so in the admin notice.
+
 ## [0.1.15] - 2026-11-16
 
 ### Added

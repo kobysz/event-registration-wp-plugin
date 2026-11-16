@@ -209,6 +209,7 @@ final class ReserveCompanionTest extends WP_UnitTestCase {
 
 		$this->assertSame( 'accommodation_full', $result->code );
 		$this->assertNull( $result->registrationId );
+		$this->assertSame( array(), $this->repository->findByEmailPaged( 'a@example.com', 10, 0 ) );
 	}
 
 	public function test_reserve_companion_counts_toward_event_limit_when_enabled(): void {
