@@ -148,7 +148,7 @@ final class FormRenderer {
 		}
 
 		if ( '' !== $field->description ) {
-			$out .= '<p class="evreg-field-desc form-text">' . esc_html( $field->description ) . '</p>';
+			$out .= '<p class="evreg-field-desc form-text">' . wp_kses_post( $field->description ) . '</p>';
 		}
 
 		if ( $invalid ) {
@@ -228,13 +228,20 @@ final class FormRenderer {
 				foreach ( $field->options as $option ) {
 					$opts .= '<option value="' . esc_attr( $option->value ) . '"' . selected( $this->scalarValue( $value ), $option->value, false ) . '>' . esc_html( $option->label ) . '</option>';
 				}
-				return '<select class="' . $select . '" id="' . $id . '" name="' . $name . '"' . $req . '><option value="">—</option>' . $opts . '</select>';
+				$select_html = '<select class="' . $select . '" id="' . $id . '" name="' . $name . '"' . $req . '><option value="">—</option>' . $opts . '</select>';
+
+				// Opisów opcji nie da się umieścić w <option>, więc lecą blokiem pod kontrolką.
+				foreach ( $field->options as $option ) {
+					$select_html .= $this->optionDescription( $field->key, 'equals', $option );
+				}
+
+				return $select_html;
 
 			case FieldType::Radio:
-				return $this->renderChoices( $field->options, $name, 'radio', $value, $invalid );
+				return $this->renderChoices( $field->options, $name, 'radio', $value, $invalid, $field->key, 'equals' );
 
 			case FieldType::CheckboxGroup:
-				return $this->renderChoices( $field->options, $name . '[]', 'checkbox', $value, $invalid );
+				return $this->renderChoices( $field->options, $name . '[]', 'checkbox', $value, $invalid, $field->key, 'in' );
 
 			case FieldType::Checkbox:
 				return '<input class="' . $check . '" type="checkbox" id="' . $id . '" name="' . $name . '" value="1"' . checked( '1', $this->scalarValue( $value ), false ) . $req . '>';
@@ -279,8 +286,10 @@ final class FormRenderer {
 	 * @param string   $type    Typ HTML kontrolki ("radio" lub "checkbox").
 	 * @param mixed    $value   Wpisana wartość (lub wartości) do odtworzenia.
 	 * @param bool     $invalid Czy pole ma błąd walidacji (dodaje is-invalid).
+	 * @param string   $field_key Klucz pola — steruje widocznością opisów opcji.
+	 * @param string   $operator  Operator warunku opisu: `equals` albo `in`.
 	 */
-	private function renderChoices( array $options, string $name, string $type, mixed $value, bool $invalid = false ): string {
+	private function renderChoices( array $options, string $name, string $type, mixed $value, bool $invalid = false, string $field_key = '', string $operator = 'equals' ): string {
 		$selected    = is_array( $value ) ? array_map( 'strval', $value ) : array( (string) $value );
 		$input_class = 'form-check-input' . ( $invalid ? ' is-invalid' : '' );
 		$base        = 'evreg-opt-' . preg_replace( '/[^a-z0-9]+/i', '-', $name );
@@ -292,11 +301,41 @@ final class FormRenderer {
 			$out    .= '<div class="evreg-choice form-check">'
 				. '<input class="' . $input_class . '" type="' . esc_attr( $type ) . '" id="' . esc_attr( $oid ) . '" name="' . esc_attr( $name ) . '" value="' . esc_attr( $option->value ) . '"' . $checked . '>'
 				. ' <label class="form-check-label" for="' . esc_attr( $oid ) . '">' . esc_html( $option->label ) . '</label>'
+				. $this->optionDescription( $field_key, $operator, $option )
 				. '</div>';
 		}
 		$out .= '</div>';
 
 		return $out;
+	}
+
+	/**
+	 * Renderuje opis opcji widoczny dopiero po jej wybraniu.
+	 *
+	 * Warunek nie jest konfigurowany przez autora — wynika wprost z opcji, więc
+	 * atrybuty `data-evreg-when-*` składamy tu z klucza pola i wartości opcji.
+	 * Przełączanie obsługuje już `assets/public/form.js` (ten sam silnik co warunki
+	 * pól i sekcji), dlatego element startuje jako `hidden`.
+	 *
+	 * Treść przechodzi przez wp_kses_post(): autor (admin z capem edycji wydarzeń)
+	 * może wstawić link czy pogrubienie, ale skrypty i atrybuty zdarzeń odpadają.
+	 *
+	 * @param string $field_key Klucz pola, którego wybór steruje widocznością.
+	 * @param string $operator  Operator warunku: `equals` (radio/lista) lub `in` (wielokrotny).
+	 * @param Option $option    Opcja niosąca opis.
+	 */
+	private function optionDescription( string $field_key, string $operator, Option $option ): string {
+		if ( '' === $option->description || '' === $field_key ) {
+			return '';
+		}
+
+		$encoded = wp_json_encode( $option->value );
+
+		return '<p class="evreg-option-desc form-text"'
+			. ' data-evreg-when-field="' . esc_attr( $field_key ) . '"'
+			. ' data-evreg-when-operator="' . esc_attr( $operator ) . '"'
+			. ' data-evreg-when-value="' . esc_attr( false !== $encoded ? $encoded : '' ) . '"'
+			. ' hidden>' . wp_kses_post( $option->description ) . '</p>';
 	}
 
 	/**

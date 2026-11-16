@@ -317,3 +317,21 @@ przez `aria-describedby`, więc czytniki ekranu nie łączą opisu z polem.
 kontrolki w `renderControl` (gdy pole ma opis). Uwaga: przy błędzie walidacji
 warto też wskazać komunikat błędu (`aria-describedby` może mieć wiele id).
 Analogicznie rozważyć w `RegistrationEditForm`.
+
+---
+
+## B11 — Tłumaczenie opisów opcji i opisów pomocniczych pól
+
+**Priorytet:** niski. Uzupełnienie overlay i18n (B3b/B6) o treści dodane w opisach.
+
+**Stan:** overlay `_evreg_i18n[lang]` tłumaczy m.in. `options` (etykiety opcji) oraz
+`descriptions` (opis pomocniczy pola). **Opis opcji** (`options[].description`,
+pokazywany po wybraniu opcji) nie ma swojego bucketu — w innym języku wróci wersja
+bazowa.
+
+**Szkic:** dodać bucket `optionDescriptions: { fieldKey: { optionValue: tekst } }`
+(kształt jak istniejący `options`), nałożyć w `ContentTranslator::apply` obok etykiet
+opcji, dopisać wiersze do `translatableItems` + get/set w `i18nOps`, routing w
+`TranslationsTab`. Uwaga: treść bywa HTML-em (link), więc overlay musi przechodzić
+przez tę samą ścieżkę sanitizacji co `description` (wp_kses_post), a nie
+sanitize_text_field.
