@@ -1484,7 +1484,7 @@ git add src/Frontend/FormRenderer.php assets/public/form.css tests/Integration/F
 
 - [ ] **Step 1: Write the failing tests**
 
-`tests/Integration/Frontend/CompanionRoomRuleTest.php` — wzoruj się na `AccommodationFullSubmitTest` z poprzedniej zmiany (ten sam fixture, `SubmitHandler` budowany tak samo), z konfiguracją: pokój `single` `occupancy=1`, pokój `double` `occupancy=2`, oba z zapasem miejsc, `companion_enabled => true`. Testy:
+`tests/Integration/Frontend/CompanionRoomRuleTest.php` — wzoruj się na `AccommodationFullSubmitTest` z poprzedniej zmiany (ten sam fixture, `SubmitHandler` budowany tak samo). Konfiguracja musi mieć **trzy** pokoje, bo testy sięgają po wszystkie trzy: `single` z `occupancy => 1`, `double` z `occupancy => 2` i `any` **bez** klucza `occupancy` — każdy z zapasem miejsc (`capacity => 10`), pakiet `n18`, `companion_enabled => true`, `allow_none => true`. Testy:
 
 ```php
 	public function test_double_room_without_companion_is_refused(): void {
