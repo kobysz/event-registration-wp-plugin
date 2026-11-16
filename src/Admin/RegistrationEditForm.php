@@ -219,8 +219,12 @@ final class RegistrationEditForm {
 		// Pokoje z włączonym polem współlokatora (flaga per pokój) — tylko dla nich
 		// renderujemy i pokazujemy pole „Współlokator".
 		$roommateRooms = array();
+		$accommodation = AccommodationConfig::fromArray( $field->config );
+		// Pole nie ma sensu w pokoju dwuosobowym (tak jak w formularzu publicznym):
+		// drugie łóżko zajmuje imiennie wskazana osoba towarzysząca.
 		foreach ( $rooms as $room ) {
-			if ( ! empty( $room['roommate_field'] ) ) {
+			$room_type = $accommodation->room( (string) ( $room['key'] ?? '' ) );
+			if ( ! empty( $room['roommate_field'] ) && 2 !== ( null === $room_type ? 0 : $room_type->occupancy ) ) {
 				$roommateRooms[ (string) ( $room['key'] ?? '' ) ] = true;
 			}
 		}

@@ -66,7 +66,7 @@ final class EditCompanionRoomRuleTest extends WP_UnitTestCase {
 						'nocleg' => array( 'package' => 'n18', 'room' => 'double', 'roommate' => '' ),
 					)
 				),
-				'price_total' => 100.0,
+				'price_total' => 280.0, // typ 100 + nocleg 180 × 1 miejsce.
 				'expires_at'  => '2099-01-01 00:00:00',
 				'companion'   => 0,
 			)
@@ -95,8 +95,9 @@ final class EditCompanionRoomRuleTest extends WP_UnitTestCase {
 
 	/**
 	 * @param int $occupancy Liczba osób pokoju "double".
+	 * @param int $capacity  Pojemność slotu n18|double.
 	 */
-	private function saveConfig( int $occupancy ): void {
+	private function saveConfig( int $occupancy, int $capacity = 10 ): void {
 		$room = array( 'key' => 'double', 'label' => 'Dwuosobowy' );
 		if ( 0 !== $occupancy ) {
 			$room['occupancy'] = $occupancy;
@@ -123,7 +124,7 @@ final class EditCompanionRoomRuleTest extends WP_UnitTestCase {
 				'accommodation' => array(
 					'packages'          => array( array( 'key' => 'n18', 'label' => 'Noc 18/19' ) ),
 					'rooms'             => array( $room ),
-					'inventory'         => array( array( 'package' => 'n18', 'room' => 'double', 'capacity' => 10, 'price' => 180.0 ) ),
+					'inventory'         => array( array( 'package' => 'n18', 'room' => 'double', 'capacity' => $capacity, 'price' => 180.0 ) ),
 					'allow_none'        => true,
 					'companion_enabled' => true,
 				),
@@ -166,6 +167,43 @@ final class EditCompanionRoomRuleTest extends WP_UnitTestCase {
 		$this->assertNotNull( $redirect, 'Zapis bez zmiany noclegu i flagi powinien przejść (PRG).' );
 		$this->assertStringContainsString( 'evreg_msg=edited', $redirect->location );
 		$this->assertSame( 'nowy@example.com', $this->repository->findById( $this->registration_id )['email'] );
+		$this->assertUnmoved();
+	}
+
+	public function test_unrelated_edit_succeeds_on_a_tight_slot_for_legacy_row(): void {
+		// Slot ma 1 miejsce i trzyma je to zgłoszenie. Pokój jest już dwuosobowy, więc
+		// "2 miejsca" nie mieszczą się — ale edycja nie rusza noclegu, więc nie wolno
+		// jej odrzucić jako "brak miejsc".
+		$this->saveConfig( 2, 1 );
+
+		$_POST['registration'] = $this->registration_id;
+		$_REQUEST['_wpnonce']  = wp_create_nonce( 'evreg_edit_' . $this->registration_id );
+		$_POST['evreg_field']  = array(
+			'__type' => 'uczestnik',
+			'email'  => 'nowy@example.com',
+			'nocleg' => array( 'slot' => 'n18|double', 'roommate' => '' ),
+		);
+
+		$redirect = $this->catchRedirect();
+
+		$this->assertNotNull( $redirect );
+		$this->assertStringContainsString( 'evreg_msg=edited', $redirect->location );
+		$this->assertSame( 'nowy@example.com', $this->repository->findById( $this->registration_id )['email'] );
+		$this->assertUnmoved();
+	}
+
+	/**
+	 * Zgłoszenie dalej trzyma jedno łóżko za pierwotną cenę, bez osoby towarzyszącej.
+	 */
+	private function assertUnmoved(): void {
+		$row     = $this->repository->findById( $this->registration_id );
+		$booking = $this->repository->findAccommodationBooking( $this->registration_id );
+
+		$this->assertSame( 280.0, (float) $row['price_total'] );
+		$this->assertSame( 0, (int) $row['companion'] );
+		$this->assertNotNull( $booking );
+		$this->assertSame( 1, (int) $booking['seats'] );
+		$this->assertSame( 180.0, (float) $booking['price'] );
 	}
 
 	public function test_edit_changing_the_flag_into_a_consistent_pair_passes(): void {

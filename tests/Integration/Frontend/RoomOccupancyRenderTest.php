@@ -136,6 +136,27 @@ final class RoomOccupancyRenderTest extends WP_UnitTestCase {
 		$this->assertStringContainsString( 'nie ma pasujących pokojów', $html );
 	}
 
+	public function test_mismatch_message_is_the_only_explanation_when_none_is_not_allowed(): void {
+		// Wszystkie pokoje niepasujące + brak "Bez noclegu": powód to niedopasowanie,
+		// nie wyczerpane miejsca — komunikat o braku miejsc byłby fałszywy.
+		$config               = $this->accommodationConfig();
+		$config['rooms']      = array( array( 'key' => 'double', 'label' => 'Dwuosobowy', 'occupancy' => 2 ) );
+		$config['inventory']  = array( array( 'package' => 'n18', 'room' => 'double', 'capacity' => 10, 'price' => 180.0 ) );
+		$config['allow_none'] = false;
+
+		$html = ( new FormRenderer() )->render( $this->schema( $config ), 1 );
+
+		$this->assertStringContainsString( 'nie ma pasujących pokojów', $html );
+		$this->assertStringNotContainsString( 'Brak wolnych miejsc noclegowych.', $html );
+	}
+
+	public function test_mismatch_and_dropped_notes_are_always_rendered_but_hidden_when_not_applicable(): void {
+		$html = ( new FormRenderer() )->render( $this->schema(), 1 );
+
+		$this->assertMatchesRegularExpression( '/<p class="evreg-accommodation-mismatch" hidden>/', $html );
+		$this->assertMatchesRegularExpression( '/<p class="evreg-accommodation-dropped" hidden>/', $html );
+	}
+
 	public function test_contradictory_config_reads_as_unset_and_offers_the_room(): void {
 		// Room marked double while the event has the companion option OFF: the domain
 		// zeroes occupancy, so the renderer must not hide or disable the room.

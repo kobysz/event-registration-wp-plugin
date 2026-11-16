@@ -474,6 +474,17 @@ final class ReservationService {
 			return AdminActionResult::invalidStatus();
 		}
 
+		// Zgłoszenie, które nie zmienia ani slotu, ani flagi towarzyszącej, nie "się przesuwa":
+		// zostaje przy zapisanej liczbie miejsc i cenie. Inaczej późniejsze ustawienie liczby
+		// osób w pokoju przeliczyłoby (i zdublowało) stare zgłoszenie przy niezwiązanej edycji.
+		$stored_booking = $this->repository->findAccommodationBooking( $id );
+		$stored_slot    = null === $stored_booking
+			? ''
+			: (string) $stored_booking['package_key'] . '|' . (string) $stored_booking['room_type_key'];
+		$new_slot       = null === $request->selection ? '' : $request->selection->slotKey();
+		$unchanged      = $stored_slot === $new_slot && (bool) ( $row['companion'] ?? false ) === $request->companion;
+		$gate_selection = $unchanged ? null : $request->selection;
+
 		$wpdb->query( 'START TRANSACTION' );
 
 		try {
@@ -496,7 +507,7 @@ final class ReservationService {
 					$limits,
 					$this->repository->occupancyExcluding( $event_id, $id ),
 					$request->typeKey,
-					$request->selection,
+					$gate_selection,
 					$request->companion
 				);
 
@@ -504,13 +515,14 @@ final class ReservationService {
 					$wpdb->query( 'ROLLBACK' );
 					return AdminActionResult::capacityFull();
 				}
-				if ( null !== $request->selection && ! $decision->accommodationGranted ) {
+				if ( null !== $gate_selection && ! $decision->accommodationGranted ) {
 					$wpdb->query( 'ROLLBACK' );
 					return AdminActionResult::accommodationFull();
 				}
 			}
 
-			$price = $this->pricing->total( $type, $accommodation, $request->selection, $request->companion );
+			$stored_seats = null === $stored_booking ? 1 : max( 1, (int) $stored_booking['seats'] );
+			$price        = $this->pricing->total( $type, $accommodation, $request->selection, $request->companion, $unchanged ? $stored_seats : null );
 
 			$this->repository->updateRegistration(
 				$id,
@@ -526,7 +538,7 @@ final class ReservationService {
 			$this->repository->deleteAccommodationBooking( $id );
 			if ( null !== $request->selection ) {
 				$item      = $accommodation->item( $request->selection->packageKey, $request->selection->roomKey );
-				$seats     = $accommodation->seatsFor( $request->selection->roomKey, $request->companion );
+				$seats     = $unchanged ? $stored_seats : $accommodation->seatsFor( $request->selection->roomKey, $request->companion );
 				$acc_price = ( null === $item ? 0.0 : $item->price ) * $seats;
 				$this->repository->insertAccommodationBooking(
 					$id,

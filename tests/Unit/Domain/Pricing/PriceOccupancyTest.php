@@ -63,4 +63,18 @@ final class PriceOccupancyTest extends TestCase {
 		$this->assertSame( 600.0, $calculator->total( $this->type(), $this->config(), new AccommodationSelection( 'n18', 'any' ), false ) );
 		$this->assertSame( 750.0, $calculator->total( $this->type(), $this->config(), new AccommodationSelection( 'n18', 'any' ), true ) );
 	}
+
+	public function test_explicit_seat_count_overrides_the_configured_one(): void {
+		// Zgłoszenie, które się nie przesuwa, zostaje przy zapisanej liczbie miejsc,
+		// nawet jeśli pokój dostał potem inną liczbę osób.
+		$total = ( new PriceCalculator() )->total(
+			$this->type(),
+			$this->config(),
+			new AccommodationSelection( 'n18', 'double' ),
+			false,
+			1
+		);
+
+		$this->assertSame( 630.0, $total ); // 450 + 1 × 180
+	}
 }

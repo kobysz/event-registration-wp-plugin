@@ -7,7 +7,7 @@
  * with plenty of seats, plus a page embedding the form shortcode. Makes no
  * reservations: this spec exercises the companion filter, not availability.
  *
- * Prints a single line "<eventId> <pageId>" to stdout for the spec to parse.
+ * Prints a single line "<eventId> <pageId> <doublesOnlyPageId>" to stdout for the spec to parse.
  *
  * @package EvReg
  */
@@ -78,4 +78,64 @@ if ( is_wp_error( $page_id ) ) {
 	exit( 1 );
 }
 
-echo (int) $event_id . ' ' . (int) $page_id . "\n";
+// Second event: ONLY a two-person room, so the first render hides every row and
+// prints the "no matching rooms" message (the all-doubles direction of the spec).
+$doubles_event_id = wp_insert_post(
+	array(
+		'post_type'   => 'evreg_event',
+		'post_status' => 'publish',
+		'post_title'  => 'E2E Room Occupancy Doubles Only',
+	),
+	true
+);
+
+if ( is_wp_error( $doubles_event_id ) ) {
+	fwrite( STDERR, 'Failed to create doubles evreg_event: ' . $doubles_event_id->get_error_message() . "\n" );
+	exit( 1 );
+}
+
+( new \EvReg\Persistence\EventConfigRepository() )->save(
+	(int) $doubles_event_id,
+	array(
+		'schema'        => array(
+			'version'  => 1,
+			'sections' => array(
+				array(
+					'key'    => 'dane',
+					'title'  => 'Dane',
+					'fields' => array(
+						array( 'key' => '__type', 'type' => 'radio', 'label' => 'Typ' ),
+						array( 'key' => 'email', 'type' => 'email', 'label' => 'E-mail', 'required' => true ),
+						array( 'key' => 'nocleg', 'type' => 'accommodation', 'label' => 'Nocleg' ),
+					),
+				),
+			),
+		),
+		'types'         => array( array( 'key' => 'uczestnik', 'label' => 'Uczestnik', 'price' => 0 ) ),
+		'accommodation' => array(
+			'packages'          => array( array( 'key' => 'n18', 'label' => 'Noc 18/19' ) ),
+			'rooms'             => array( array( 'key' => 'double', 'label' => 'Dwuosobowy', 'occupancy' => 2 ) ),
+			'inventory'         => array( array( 'package' => 'n18', 'room' => 'double', 'capacity' => 10, 'price' => 180.0 ) ),
+			'allow_none'        => true,
+			'companion_enabled' => true,
+		),
+		'settings'      => array( 'global_cap' => null, 'waitlist_enabled' => true ),
+	)
+);
+
+$doubles_page_id = wp_insert_post(
+	array(
+		'post_type'    => 'page',
+		'post_status'  => 'publish',
+		'post_title'   => 'Zapisy tylko dwuosobowe',
+		'post_content' => '[evreg_form event="' . (int) $doubles_event_id . '"]',
+	),
+	true
+);
+
+if ( is_wp_error( $doubles_page_id ) ) {
+	fwrite( STDERR, 'Failed to create doubles page: ' . $doubles_page_id->get_error_message() . "\n" );
+	exit( 1 );
+}
+
+echo (int) $event_id . ' ' . (int) $page_id . ' ' . (int) $doubles_page_id . "\n";

@@ -91,7 +91,9 @@
 	// jest SUMĄ powodów — gdyby każdy powód miał własną pętlę, druga odblokowałaby
 	// slot zamknięty przez pierwszą. Elementy bez tych atrybutów (np. <option> w edycji
 	// admina) nie są dotykane.
-	function applySlotState( form ) {
+	function applySlotState( form, clearStale ) {
+		var anyMatch = false;
+		var dropped = false;
 		var checkbox = form.querySelector( 'input[name="evreg_companion"]' );
 		var companion = !! ( checkbox && checkbox.checked );
 
@@ -104,6 +106,7 @@
 			var left = parseInt( el.getAttribute( 'data-evreg-seats-left' ), 10 );
 			var full = ! isNaN( left ) && left < seatsFor( occupancy, companion );
 
+			if ( ! mismatch ) { anyMatch = true; }
 			el.hidden = mismatch;
 			el.disabled = mismatch || full;
 
@@ -113,6 +116,7 @@
 				// „Bez noclegu" bez wiedzy zgłaszającego się — przenosimy zaznaczenie jawnie.
 				var none = form.querySelector( 'input[name="' + el.name + '"][value=""]' );
 				if ( none ) { none.checked = true; }
+				dropped = true;
 			}
 
 			var wrap = el.closest( '.evreg-choice' );
@@ -123,6 +127,16 @@
 				if ( note ) { note.hidden = ! full; }
 			}
 		} );
+
+		// Komunikaty niosą tekst z serwera; tu tylko przełączamy widoczność. Pusty zestaw
+		// wierszy nie ma akapitu (serwer go wtedy nie renderuje), więc anyMatch=false nic nie pokaże.
+		var mismatchNote = form.querySelector( '.evreg-accommodation-mismatch' );
+		if ( mismatchNote ) { mismatchNote.hidden = anyMatch; }
+		var droppedNote = form.querySelector( '.evreg-accommodation-dropped' );
+		if ( droppedNote ) {
+			// Przy starcie nie chowamy komunikatu wyrenderowanego przez serwer po błędzie POST.
+			if ( dropped ) { droppedNote.hidden = false; } else if ( clearStale ) { droppedNote.hidden = true; }
+		}
 	}
 
 	// Programowe el.checked = false w applySlotState NIE emituje zdarzenia `change`,
@@ -136,12 +150,12 @@
 	document.querySelectorAll( '.evreg-form' ).forEach( function ( form ) {
 		apply( form );
 		applyCompanion( form );
-		applySlotState( form );
+		applySlotState( form, false );
 		refreshAccommodation( form );
 		form.addEventListener( 'change', function () {
 			apply( form );
 			applyCompanion( form );
-			applySlotState( form );
+			applySlotState( form, true );
 			refreshAccommodation( form );
 		} );
 		form.addEventListener( 'input', function () { apply( form ); } );

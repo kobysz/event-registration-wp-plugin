@@ -512,21 +512,23 @@ final class FormRenderer {
 			$out        .= '<input class="form-control mt-2" type="text" data-evreg-roommate-input name="' . $name . '[roommate]" placeholder="' . esc_attr__( 'Preferowana osoba w pokoju', 'event-registration' ) . '" value="' . esc_attr( $roommateVal ) . '"' . $hidden . '>';
 		}
 
-		if ( $dropped ) {
-			$out .= '<p class="evreg-accommodation-dropped">'
+		// Oba komunikaty renderujemy ZAWSZE (gdy są wiersze), z atrybutem `hidden` gdy
+		// nie dotyczą stanu startowego — form.js przełącza je reaktywnie, bez własnych
+		// tłumaczonych tekstów.
+		if ( array() !== $rows ) {
+			$out .= '<p class="evreg-accommodation-dropped"' . ( $dropped ? '' : ' hidden' ) . '>'
 				. esc_html__( 'Twój wcześniejszy wybór noclegu jest już niedostępny.', 'event-registration' )
 				. '</p>';
-		}
 
-		if ( ! $any_match && array() !== $rows ) {
-			$out .= '<p class="evreg-accommodation-mismatch">'
+			$out .= '<p class="evreg-accommodation-mismatch"' . ( $any_match ? ' hidden' : '' ) . '>'
 				. esc_html__( 'Dla tego wyboru nie ma pasujących pokojów — zmień zaznaczenie osoby towarzyszącej.', 'event-registration' )
 				. '</p>';
 		}
 
 		// Bez „Bez noclegu" i bez ani jednego otwartego slotu nie ma czego wybrać —
-		// powiedz to wprost, zamiast pokazywać listę samych wyszarzonych pozycji.
-		if ( ! $any_open && array() !== $rows && ! (bool) ( $config['allow_none'] ?? true ) ) {
+		// powiedz to wprost (tylko gdy powodem są wyczerpane miejsca, nie niepasujące
+		// pokoje — to osobny komunikat powyżej), zamiast pokazywać listę samych wyszarzonych pozycji.
+		if ( ! $any_open && $any_match && array() !== $rows && ! (bool) ( $config['allow_none'] ?? true ) ) {
 			$out .= '<p class="evreg-accommodation-empty">'
 				. esc_html__( 'Brak wolnych miejsc noclegowych.', 'event-registration' )
 				. '</p>';
