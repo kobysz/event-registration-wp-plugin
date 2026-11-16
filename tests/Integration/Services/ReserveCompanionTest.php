@@ -166,18 +166,14 @@ final class ReserveCompanionTest extends WP_UnitTestCase {
 			$this->request( 'a@example.com', true, 'Jan T.', new AccommodationSelection( 'n12', 'double' ) )
 		);
 
-		$this->assertSame( 'reserved', $result->code );
-		$this->assertFalse( $result->accommodationGranted );
-		$this->assertSame( 'accommodation_full', $result->reason );
-
-		$row = $this->repository->findById( $result->registrationId );
-		$this->assertSame( '1', (string) $row['companion'] );
-		$this->assertNull( $this->repository->findAccommodationBooking( $result->registrationId ) );
-		// Nocleg nieprzyznany → cena tylko za typ, BEZ noclegu i BEZ ×2 companion.
-		$this->assertSame( '100.00', $row['price_total'] );
+		// Companion zajmuje 2 miejsca w slocie o pojemności 1 → nocleg nieprzyznany →
+		// zgłoszenie jest odrzucone i NIE zapisane (brak cichego downgrade'u).
+		$this->assertSame( 'accommodation_full', $result->code );
+		$this->assertNull( $result->registrationId );
+		$this->assertSame( array(), $this->repository->findByEmailPaged( 'a@example.com', 10, 0 ) );
 	}
 
-	public function test_reserve_without_companion_not_charged_for_ungranted_room(): void {
+	public function test_reserve_without_companion_refused_for_ungranted_room(): void {
 		$this->configure(
 			array(
 				'accommodation' => array(
@@ -211,12 +207,8 @@ final class ReserveCompanionTest extends WP_UnitTestCase {
 			$this->request( 'a@example.com', false, '', new AccommodationSelection( 'n12', 'double' ) )
 		);
 
-		$this->assertSame( 'reserved', $result->code );
-		$this->assertFalse( $result->accommodationGranted );
-
-		$row = $this->repository->findById( $result->registrationId );
-		$this->assertNull( $this->repository->findAccommodationBooking( $result->registrationId ) );
-		$this->assertSame( '100.00', $row['price_total'] );
+		$this->assertSame( 'accommodation_full', $result->code );
+		$this->assertNull( $result->registrationId );
 	}
 
 	public function test_reserve_companion_counts_toward_event_limit_when_enabled(): void {

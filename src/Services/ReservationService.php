@@ -118,6 +118,19 @@ final class ReservationService {
 				return ReservationResult::rejected( (string) $decision->reason );
 			}
 
+			// Wybrany nocleg przepadł między renderem a submitem. NIE zapisujemy zgłoszenia
+			// bez bookingu — to byłby cichy downgrade (człowiek dostaje potwierdzenie bez
+			// łóżka). Wywołujący zamienia ten kod na błąd przy polu noclegu i re-render.
+			// Warunek Accepted jest konieczny: przy pełnym limicie wydarzenia/typu decide()
+			// wraca wcześniej z full(), gdzie accommodationGranted też jest false — bez
+			// tego warunku zapis na listę rezerwową zamieniłby się w błąd noclegu.
+			if ( Outcome::Accepted === $decision->outcome
+				&& null !== $request->selection
+				&& ! $decision->accommodationGranted ) {
+				$wpdb->query( 'ROLLBACK' );
+				return ReservationResult::accommodationFull();
+			}
+
 			$is_waitlist = Outcome::Waitlisted === $decision->outcome;
 			$status      = $is_waitlist ? RegistrationStatus::Waitlist : RegistrationStatus::Pending;
 			$expires_at  = $is_waitlist ? null : gmdate( 'Y-m-d H:i:s', strtotime( self::PENDING_TTL, time() ) );
