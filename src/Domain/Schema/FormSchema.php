@@ -109,6 +109,19 @@ final class FormSchema {
 	}
 
 	/**
+	 * Zwraca klucz pierwszego pola zakwaterowania albo null, gdy schemat go nie ma.
+	 */
+	public function accommodationFieldKey(): ?string {
+		foreach ( $this->allFields() as $field ) {
+			if ( FieldType::Accommodation === $field->type ) {
+				return $field->key;
+			}
+		}
+
+		return null;
+	}
+
+	/**
 	 * Znajduje sekcję zawierającą pole o podanym kluczu.
 	 *
 	 * @param string $fieldKey Klucz pola.

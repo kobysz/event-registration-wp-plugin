@@ -10,6 +10,7 @@ declare( strict_types=1 );
 namespace EvReg\Frontend;
 
 use EvReg\Domain\Accommodation\AccommodationConfig;
+use EvReg\Domain\Accommodation\SlotAvailability;
 use EvReg\Domain\Conditions\Condition;
 use EvReg\Domain\Schema\Field;
 use EvReg\Domain\Schema\FieldType;
@@ -23,6 +24,23 @@ defined( 'ABSPATH' ) || exit;
  * Renderuje FormSchema do publicznego HTML formularza. Serwerowo, bez JS.
  */
 final class FormRenderer {
+
+	/**
+	 * Tworzy renderer. Bez dostępności (null) wszystkie sloty noclegowe renderują się aktywne.
+	 *
+	 * @param SlotAvailability|null $availability Dostępność miejsc w slotach albo null.
+	 */
+	public function __construct( private readonly ?SlotAvailability $availability = null ) {
+	}
+
+	/**
+	 * Ile miejsc zajmie to zgłoszenie w slocie noclegowym: 2 przy osobie towarzyszącej.
+	 *
+	 * @param SubmitResult|null $result Wynik poprzedniej próby submisji.
+	 */
+	private function seatsNeeded( ?SubmitResult $result ): int {
+		return null !== $result && ! empty( $result->submittedValue( 'evreg_companion' ) ) ? 2 : 1;
+	}
 
 	/**
 	 * Renderuje kompletny formularz. $result niesie błędy i wpisane wartości do re-renderu.
@@ -122,6 +140,7 @@ final class FormRenderer {
 		$error = null === $result ? null : ( $result->errors()[ $field->key ] ?? null );
 
 		$invalid = null !== $error;
+		$seats   = $this->seatsNeeded( $result );
 		$class   = 'evreg-field evreg-field-' . esc_attr( $field->type->value ) . ' mb-3';
 		if ( $invalid ) {
 			$class .= ' evreg-field-error';
@@ -131,7 +150,7 @@ final class FormRenderer {
 			// Pojedynczy checkbox zgody: BS5 form-check — input (form-check-input)
 			// przed etykietą (form-check-label), obok siebie, nie blok nad polem.
 			$out  = '<div class="' . $class . ' form-check"' . $this->conditionAttrs( $field->condition ) . '>';
-			$out .= $this->renderControl( $field, $value, $invalid );
+			$out .= $this->renderControl( $field, $value, $invalid, $seats );
 			$out .= ' <label class="form-check-label" for="evreg-' . esc_attr( $field->key ) . '">' . esc_html( $field->label );
 			if ( $field->required ) {
 				$out .= ' <span class="evreg-required">*</span>';
@@ -144,7 +163,7 @@ final class FormRenderer {
 				$out .= ' <span class="evreg-required">*</span>';
 			}
 			$out .= '</label>';
-			$out .= $this->renderControl( $field, $value, $invalid );
+			$out .= $this->renderControl( $field, $value, $invalid, $seats );
 		}
 
 		if ( '' !== $field->description ) {
@@ -205,8 +224,9 @@ final class FormRenderer {
 	 * @param Field $field   Pole formularza.
 	 * @param mixed $value   Wpisana wartość do odtworzenia (lub null).
 	 * @param bool  $invalid Czy pole ma błąd walidacji (dodaje is-invalid).
+	 * @param int   $seats   Ile miejsc zajmie zgłoszenie w slocie noclegu (2 z osobą towarzyszącą).
 	 */
-	private function renderControl( Field $field, mixed $value, bool $invalid = false ): string {
+	private function renderControl( Field $field, mixed $value, bool $invalid = false, int $seats = 1 ): string {
 		// Namespace pól pod evreg_field[...], by nazwy pól NIE kolidowały z publicznymi
 		// query-vars WordPressa (name/page/p/s/cat/author/...). WP czyta te vary także
 		// z $_POST przy POST-to-self → surowe name="name" korumpuje główne zapytanie (404).
@@ -247,7 +267,7 @@ final class FormRenderer {
 				return '<input class="' . $check . '" type="checkbox" id="' . $id . '" name="' . $name . '" value="1"' . checked( '1', $this->scalarValue( $value ), false ) . $req . '>';
 
 			case FieldType::Accommodation:
-				return $this->renderAccommodation( $field, $value );
+				return $this->renderAccommodation( $field, $value, $seats );
 
 			case FieldType::Number:
 				return '<input class="' . $control . '" type="number" id="' . $id . '" name="' . $name . '" value="' . esc_attr( $this->scalarValue( $value ) ) . '"' . $req . '>';
@@ -343,8 +363,9 @@ final class FormRenderer {
 	 *
 	 * @param Field $field Pole typu accommodation.
 	 * @param mixed $value Wpisana wartość do odtworzenia (lub null).
+	 * @param int   $seats Ile miejsc zajmie zgłoszenie w slocie (2 z osobą towarzyszącą).
 	 */
-	private function renderAccommodation( Field $field, mixed $value ): string {
+	private function renderAccommodation( Field $field, mixed $value, int $seats = 1 ): string {
 		$config    = $field->config;
 		$packages  = is_array( $config['packages'] ?? null ) ? $config['packages'] : array();
 		$rooms     = is_array( $config['rooms'] ?? null ) ? $config['rooms'] : array();
@@ -356,9 +377,20 @@ final class FormRenderer {
 
 		$current = is_array( $value ) ? ( (string) ( $value['package'] ?? '' ) . '|' . (string) ( $value['room'] ?? '' ) ) : '';
 
-		// Namespace pól pod evreg_field[...], by nazwy pól NIE kolidowały z publicznymi
-		// query-vars WordPressa (name/page/p/s/cat/author/...). WP czyta te vary także
-		// z $_POST przy POST-to-self → surowe name="name" korumpuje główne zapytanie (404).
+		// Pusta tablica odpowiedzi daje „|" (puste package i room połączone separatorem) —
+		// to NIE jest wybrany slot, lecz brak wyboru. Bez tej normalizacji radio
+		// „Bez noclegu" nie zaznaczyłoby się przy re-renderze pustej selekcji.
+		if ( '|' === $current ) {
+			$current = '';
+		}
+
+		// Klientowi się nie ufa: gdy event nie pozwala na osobę towarzyszącą,
+		// odtworzony POST z evreg_companion nie może zamykać slotów z jednym
+		// wolnym miejscem (ten sam wzór co SubmissionAssembler::extractCompanion).
+		if ( empty( $config['companion_enabled'] ) ) {
+			$seats = 1;
+		}
+
 		// Pokoje z włączonym polem współlokatora — tylko dla nich renderujemy
 		// (i pokazujemy) pole „Preferowana osoba w pokoju". Flaga jest per pokój.
 		$roommateRooms = array();
@@ -368,6 +400,52 @@ final class FormRenderer {
 			}
 		}
 
+		// Najpierw zbieramy wiersze z dostępnością, dopiero potem renderujemy: stan
+		// „wybrany slot jest niedostępny" musi być znany, zanim wypiszemy pierwsze radio.
+		$rows = array();
+		foreach ( $packages as $pkg ) {
+			foreach ( $rooms as $room ) {
+				$slot = (string) ( $pkg['key'] ?? '' ) . '|' . (string) ( $room['key'] ?? '' );
+				if ( ! isset( $available[ $slot ] ) ) {
+					continue;
+				}
+				$rows[] = array(
+					'slot'     => $slot,
+					'label'    => (string) ( $pkg['label'] ?? '' ) . ' — ' . (string) ( $room['label'] ?? '' ),
+					'roommate' => isset( $roommateRooms[ (string) ( $room['key'] ?? '' ) ] ),
+					'left'     => null === $this->availability ? null : $this->availability->left( $slot ),
+					'closed'   => null !== $this->availability && $this->availability->isFull( $slot, $seats ),
+				);
+			}
+		}
+
+		// Wybór z poprzedniej próby, który stał się niedostępny (albo zniknął z inwentarza),
+		// PRZENOSIMY na „Bez noclegu" i ogłaszamy. Pusta grupa radio nie wysyła klucza
+		// [slot], a AccommodationValidator przy allow_none tego nie kwestionuje — czyli
+		// dokładnie ten cichy downgrade, który ta zmiana likwiduje.
+		$dropped  = false;
+		$any_open = false;
+		foreach ( $rows as $row ) {
+			if ( ! $row['closed'] ) {
+				$any_open = true;
+			}
+		}
+		if ( '' !== $current ) {
+			$still_open = false;
+			foreach ( $rows as $row ) {
+				if ( $row['slot'] === $current && ! $row['closed'] ) {
+					$still_open = true;
+				}
+			}
+			if ( ! $still_open ) {
+				$dropped = true;
+				$current = '';
+			}
+		}
+
+		// Namespace pól pod evreg_field[...], by nazwy pól NIE kolidowały z publicznymi
+		// query-vars WordPressa (name/page/p/s/cat/author/...). WP czyta te vary także
+		// z $_POST przy POST-to-self → surowe name="name" korumpuje główne zapytanie (404).
 		$name  = 'evreg_field[' . esc_attr( $field->key ) . ']';
 		$base  = 'evreg-' . esc_attr( $field->key );
 		$index = 0;
@@ -379,20 +457,25 @@ final class FormRenderer {
 			. ' <label class="form-check-label" for="' . $none_id . '">' . esc_html__( 'Bez noclegu', 'event-registration' ) . '</label>'
 			. '</div>';
 
-		foreach ( $packages as $pkg ) {
-			foreach ( $rooms as $room ) {
-				$slot = (string) ( $pkg['key'] ?? '' ) . '|' . (string) ( $room['key'] ?? '' );
-				if ( ! isset( $available[ $slot ] ) ) {
-					continue;
-				}
-				$label    = (string) ( $pkg['label'] ?? '' ) . ' — ' . (string) ( $room['label'] ?? '' );
-				$roommate = isset( $roommateRooms[ (string) ( $room['key'] ?? '' ) ] ) ? ' data-evreg-roommate="1"' : '';
-				$slot_id  = $base . '-slot-' . $index++;
-				$out     .= '<div class="evreg-choice form-check">'
-					. '<input class="form-check-input" type="radio" id="' . $slot_id . '" name="' . $name . '[slot]" value="' . esc_attr( $slot ) . '"' . checked( $slot, $current, false ) . $roommate . '>'
-					. ' <label class="form-check-label" for="' . $slot_id . '">' . esc_html( $label ) . '</label>'
-					. '</div>';
+		foreach ( $rows as $row ) {
+			$slot_id = $base . '-slot-' . $index++;
+			$note    = '';
+			if ( $row['closed'] ) {
+				// Osobny <span>, by form.js mógł ukryć notkę, gdy slot znów się mieści.
+				$note = ' <span class="evreg-seats-note">' . ( null !== $row['left'] && $row['left'] < 1
+					? esc_html__( '(brak miejsc)', 'event-registration' )
+					: esc_html__( '(za mało miejsc)', 'event-registration' ) ) . '</span>';
 			}
+			$seats_attr = null === $row['left'] ? '' : ' data-evreg-seats-left="' . esc_attr( (string) $row['left'] ) . '"';
+			// Niedostępny slot NIGDY nie renderuje się jako wybrany: `disabled` nie wysyła
+			// wartości, więc zaznaczony-i-wyłączony radio dałby po submicie pusty [slot]
+			// = „Bez noclegu" bez wiedzy zgłaszającego się (cichy downgrade).
+			$checked  = ! $row['closed'] && $row['slot'] === $current;
+			$roommate = $row['roommate'] ? ' data-evreg-roommate="1"' : '';
+			$out     .= '<div class="evreg-choice form-check' . ( $row['closed'] ? ' is-full' : '' ) . '">'
+				. '<input class="form-check-input" type="radio" id="' . $slot_id . '" name="' . $name . '[slot]" value="' . esc_attr( $row['slot'] ) . '"' . checked( $checked, true, false ) . ( $row['closed'] ? ' disabled' : '' ) . $seats_attr . $roommate . '>'
+				. ' <label class="form-check-label" for="' . $slot_id . '">' . esc_html( $row['label'] ) . $note . '</label>'
+				. '</div>';
 		}
 
 		// Pole współlokatora renderujemy tylko gdy JAKIKOLWIEK pokój je włącza.
@@ -404,6 +487,20 @@ final class FormRenderer {
 			$hidden      = isset( $roommateRooms[ $currentRoom ] ) ? '' : ' hidden';
 			$roommateVal = is_array( $value ) ? (string) ( $value['roommate'] ?? '' ) : '';
 			$out        .= '<input class="form-control mt-2" type="text" data-evreg-roommate-input name="' . $name . '[roommate]" placeholder="' . esc_attr__( 'Preferowana osoba w pokoju', 'event-registration' ) . '" value="' . esc_attr( $roommateVal ) . '"' . $hidden . '>';
+		}
+
+		if ( $dropped ) {
+			$out .= '<p class="evreg-accommodation-dropped">'
+				. esc_html__( 'Twój wcześniejszy wybór noclegu jest już niedostępny.', 'event-registration' )
+				. '</p>';
+		}
+
+		// Bez „Bez noclegu" i bez ani jednego otwartego slotu nie ma czego wybrać —
+		// powiedz to wprost, zamiast pokazywać listę samych wyszarzonych pozycji.
+		if ( ! $any_open && array() !== $rows && ! (bool) ( $config['allow_none'] ?? true ) ) {
+			$out .= '<p class="evreg-accommodation-empty">'
+				. esc_html__( 'Brak wolnych miejsc noclegowych.', 'event-registration' )
+				. '</p>';
 		}
 
 		$out .= '</div>';
@@ -428,6 +525,7 @@ final class FormRenderer {
 			'invalid_accommodation'   => __( 'Nieprawidłowy wybór noclegu.', 'event-registration' ),
 			'roommate_not_allowed'    => __( 'Współlokator niedozwolony dla tego pokoju.', 'event-registration' ),
 			'companion_name_required' => __( 'Podaj imię i nazwisko osoby towarzyszącej.', 'event-registration' ),
+			'accommodation_full'      => __( 'Wybrany nocleg nie ma już wolnych miejsc dla Twojego zgłoszenia. Wybierz inny albo „Bez noclegu".', 'event-registration' ),
 		);
 
 		return $map[ $code ] ?? __( 'Nieprawidłowa wartość.', 'event-registration' );

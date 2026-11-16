@@ -114,14 +114,36 @@ final class ReservationServiceTest extends WP_UnitTestCase {
 		$this->assertSame( 'event_full', $result->reason );
 	}
 
-	public function test_accommodation_full_accepts_without_room(): void {
+	public function test_accommodation_full_is_refused_without_storing(): void {
 		$this->configure(); // slot n12|double capacity=1
 		$this->service->reserve( $this->event_id, $this->request( 'a@example.com', 'uczestnik', new AccommodationSelection( 'n12', 'double' ) ) );
 
 		$result = $this->service->reserve( $this->event_id, $this->request( 'b@example.com', 'uczestnik', new AccommodationSelection( 'n12', 'double' ) ) );
 
-		$this->assertSame( 'reserved', $result->code );
+		$this->assertSame( 'accommodation_full', $result->code );
+		$this->assertNull( $result->registrationId );
 		$this->assertFalse( $result->accommodationGranted );
-		$this->assertSame( 'accommodation_full', $result->reason );
+
+		global $wpdb;
+		$registrations = (int) $wpdb->get_var(
+			$wpdb->prepare( 'SELECT COUNT(*) FROM ' . Migrations::table( 'registrations' ) . ' WHERE event_id = %d', $this->event_id )
+		);
+		$bookings = (int) $wpdb->get_var( 'SELECT COUNT(*) FROM ' . Migrations::table( 'accommodation_bookings' ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+
+		$this->assertSame( 1, $registrations, 'Odrzucone zgłoszenie nie może zostawić wiersza.' );
+		$this->assertSame( 1, $bookings );
+	}
+
+	public function test_event_full_with_accommodation_still_waitlists(): void {
+		$this->configure( array( 'settings' => array( 'global_cap' => 1, 'waitlist_enabled' => true ) ) );
+		$this->service->reserve( $this->event_id, $this->request( 'a@example.com' ) );
+
+		$result = $this->service->reserve(
+			$this->event_id,
+			$this->request( 'b@example.com', 'uczestnik', new AccommodationSelection( 'n12', 'double' ) )
+		);
+
+		$this->assertSame( 'waitlisted', $result->code );
+		$this->assertSame( 'event_full', $result->reason );
 	}
 }

@@ -335,3 +335,30 @@ opcji, dopisać wiersze do `translatableItems` + get/set w `i18nOps`, routing w
 `TranslationsTab`. Uwaga: treść bywa HTML-em (link), więc overlay musi przechodzić
 przez tę samą ścieżkę sanitizacji co `description` (wp_kses_post), a nie
 sanitize_text_field.
+
+---
+
+## B12 — Promocja z waitlisty nie ponawia wybranego noclegu
+
+**Priorytet:** średni. Luka funkcjonalna, bez ryzyka dla danych (nic nie jest zepsute ani przesprzedane).
+
+**Stan:** `ReservationService::reserve` wstawia booking noclegu tylko gdy
+`$decision->accommodationGranted` jest true, a decyzja waitlistowa zawsze niesie
+`accommodationGranted === false`. Zwykły przepływ — ktoś wybiera nocleg, wydarzenie jest
+pełne, trafia na waitlistę — zapisuje wybór w kolumnie `data` zgłoszenia i **nie tworzy
+wiersza bookingu**. `ReservationService::promoteFromWaitlist` wyprowadza selekcję do
+ponownej decyzji wyłącznie z `findAccommodationBooking()`; bez bookingu `$selection` to
+`null`, więc (a) wybrany nocleg nie jest ponawiany, nawet gdy miejsca się zwolniły, oraz
+(b) nowy wynik `promoted_no_accommodation` nie może wystąpić — admin widzi zwykły komunikat
+„Awansowano" bez śladu, że ta osoba chciała łóżka.
+
+**Skutek:** kod `promoted_no_accommodation` odpala się tylko dla zgłoszenia waitlistowego,
+które zyskało booking przez `editAnswers` (wąski przypadek opisany w `ReserveCompanionTest`
+jako pozostały booking po edycji na etapie waitlisty). Nic nie jest przesprzedane, a
+`PlaceholderFactory::accommodationLabel` czyta booking, więc żaden mail nie obiecuje łóżka,
+którego nie ma.
+
+**Szkic:** gdy brak bookingu, sięgnąć po selekcję zapisaną w `data` zgłoszenia. Wymaga to
+schemy wewnątrz transakcyjnego serwisu (dziś nic o schemach nie wie) oraz decyzji
+produktowej, której nikt nie podjął: czy promocja ma zajmować łóżko wybrane tygodnie
+wcześniej, być może po zmienionej od tego czasu cenie?

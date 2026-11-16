@@ -81,12 +81,50 @@
 		input.hidden = ! checkbox.checked;
 	}
 
+	// Ile miejsc zajmie zgłoszenie w slocie: 2 z osobą towarzyszącą, inaczej 1.
+	// Serwer wyłącza już sloty bez ani jednego miejsca; tutaj domykamy przypadek
+	// „jedno wolne miejsce, a potrzebne dwa", który zależy od stanu checkboxa.
+	function applySlotSeats( form ) {
+		var checkbox = form.querySelector( 'input[name="evreg_companion"]' );
+		var needed = checkbox && checkbox.checked ? 2 : 1;
+		form.querySelectorAll( '[data-evreg-seats-left]' ).forEach( function ( el ) {
+			var left = parseInt( el.getAttribute( 'data-evreg-seats-left' ), 10 );
+			var full = ! isNaN( left ) && left < needed;
+			el.disabled = full;
+			if ( full && el.checked ) {
+				el.checked = false;
+				// Pusta grupa radio nie wysyła klucza [slot], co serwer odczytałby jako
+				// „Bez noclegu" bez wiedzy zgłaszającego się — przenosimy zaznaczenie jawnie.
+				var none = form.querySelector( 'input[name="' + el.name + '"][value=""]' );
+				if ( none ) { none.checked = true; }
+			}
+			var wrap = el.closest( '.evreg-choice' );
+			if ( wrap ) {
+				wrap.classList.toggle( 'is-full', full );
+				var note = wrap.querySelector( '.evreg-seats-note' );
+				if ( note ) { note.hidden = ! full; }
+			}
+		} );
+	}
+
+	// Programowe el.checked = false w applySlotSeats NIE emituje zdarzenia `change`,
+	// więc widoczność pola współlokatora trzeba przeliczyć ręcznie — inaczej zostaje
+	// widoczna po odebraniu zaznaczenia. Kontenery .evreg-accommodation poza
+	// formularzem (ekran edycji w adminie) obsługuje druga pętla.
+	function refreshAccommodation( form ) {
+		form.querySelectorAll( '.evreg-accommodation' ).forEach( applyRoommate );
+	}
+
 	document.querySelectorAll( '.evreg-form' ).forEach( function ( form ) {
 		apply( form );
 		applyCompanion( form );
+		applySlotSeats( form );
+		refreshAccommodation( form );
 		form.addEventListener( 'change', function () {
 			apply( form );
 			applyCompanion( form );
+			applySlotSeats( form );
+			refreshAccommodation( form );
 		} );
 		form.addEventListener( 'input', function () { apply( form ); } );
 	} );

@@ -19,7 +19,7 @@ final class ReservationResult {
 	/**
 	 * Tworzy wynik rezerwacji.
 	 *
-	 * @param string      $code                 Kod wyniku: reserved|waitlisted|rejected|duplicate.
+	 * @param string      $code                 Kod wyniku: reserved|waitlisted|rejected|duplicate|accommodation_full.
 	 * @param int|null    $registrationId       ID utworzonego zgłoszenia, jeśli dotyczy.
 	 * @param string|null $token                Token zgłoszenia, jeśli dotyczy.
 	 * @param bool        $accommodationGranted Czy przyznano zakwaterowanie.
@@ -64,6 +64,15 @@ final class ReservationResult {
 	 */
 	public static function rejected( string $reason ): self {
 		return new self( 'rejected', null, null, false, $reason );
+	}
+
+	/**
+	 * Buduje wynik dla zgłoszenia NIEzapisanego, bo wybrany slot noclegu nie ma już miejsca.
+	 * Celowo osobny od rejected(): zgłaszający się ma poprawić wybór, nie odbić się od limitu
+	 * całego wydarzenia.
+	 */
+	public static function accommodationFull(): self {
+		return new self( 'accommodation_full', null, null, false, 'accommodation_full' );
 	}
 
 	/**

@@ -19,7 +19,7 @@ final class AdminActionResult {
 	/**
 	 * Tworzy wynik.
 	 *
-	 * @param string      $code   Kod: confirmed|cancelled|promoted|deleted|rejected|invalid_status|not_found|edited|capacity_full|accommodation_full.
+	 * @param string      $code   Kod: confirmed|cancelled|promoted|promoted_no_accommodation|deleted|rejected|invalid_status|not_found|edited|capacity_full|accommodation_full.
 	 * @param string|null $reason Kod powodu (np. przy rejected), jeśli dotyczy.
 	 */
 	private function __construct(
@@ -41,6 +41,16 @@ final class AdminActionResult {
 	/** Zgłoszenie awansowane z listy rezerwowej. */
 	public static function promoted(): self {
 		return new self( 'promoted' );
+	}
+
+	/**
+	 * Zgłoszenie awansowane, ale BEZ noclegu — wybrany slot nie miał już miejsca.
+	 * Celowo nie blokujemy promocji: odmowa zostawiłaby człowieka na liście rezerwowej
+	 * mimo wolnego miejsca na wydarzeniu. Admin dowiaduje się i może poprawić nocleg
+	 * przez edycję odpowiedzi.
+	 */
+	public static function promotedWithoutAccommodation(): self {
+		return new self( 'promoted_no_accommodation' );
 	}
 
 	/** Zgłoszenie trwale usunięte. */
