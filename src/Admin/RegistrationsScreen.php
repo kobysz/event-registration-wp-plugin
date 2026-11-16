@@ -13,10 +13,12 @@ use EvReg\Domain\Accommodation\AccommodationConfig;
 use EvReg\Domain\Export\RegistrationExportMapper;
 use EvReg\Domain\Registration\RegistrationTypeCollection;
 use EvReg\Domain\Schema\FieldType;
+use EvReg\Domain\Schema\FormSchema;
 use EvReg\Frontend\EventFormLoader;
 use EvReg\Frontend\SubmissionAssembler;
 use EvReg\Persistence\EventConfigRepository;
 use EvReg\Persistence\RegistrationRepository;
+use EvReg\Services\ReservationRequest;
 use EvReg\Services\ReservationService;
 
 defined( 'ABSPATH' ) || exit;
@@ -611,6 +613,32 @@ final class RegistrationsScreen {
 			return;
 		}
 
+		// Reguła spójności pary obowiązuje w adminie TYLKO gdy edycja faktycznie zmienia
+		// nocleg albo flagę towarzyszącej. Bez tego oznaczenie pokoju jako dwuosobowego
+		// zablokowałoby każdy zapis starych zgłoszeń w tym pokoju — admin nie poprawiłby
+		// w nich numeru telefonu bez rozstrzygania osoby towarzyszącej.
+		$booking       = $repository->findAccommodationBooking( $id );
+		$previous_slot = null === $booking
+			? ''
+			: (string) $booking['package_key'] . '|' . (string) $booking['room_type_key'];
+		$new_slot      = null === $request->selection ? '' : $request->selection->slotKey();
+		$changed       = $previous_slot !== $new_slot || (bool) ( $row['companion'] ?? false ) !== $request->companion;
+
+		if ( $changed ) {
+			$mismatch = self::companionRoomMismatch( $schema, $request );
+
+			if ( null !== $mismatch ) {
+				$key    = $schema->accommodationFieldKey();
+				$errors = null === $key ? array() : array( $key => $mismatch );
+
+				echo '<div class="wrap">';
+				echo '<h1>' . esc_html__( 'Edytuj zgłoszenie', 'event-registration' ) . '</h1>';
+				echo RegistrationEditForm::render( $schema, array(), $id, $errors, $assembled->values() ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- już escapowane w rendererze.
+				echo '</div>';
+				return;
+			}
+		}
+
 		$result = self::service()->editAnswers( $id, $request );
 
 		switch ( $result->code ) {
@@ -636,6 +664,35 @@ final class RegistrationsScreen {
 			default: // invalid_status / not_found.
 				self::redirect( $result->code );
 		}
+	}
+
+	/**
+	 * Zwraca kod błędu, gdy wybrany pokój nie zgadza się z flagą osoby towarzyszącej.
+	 *
+	 * Bliźniak `SubmitHandler::companionRoomMismatch` — dwie powierzchnie, dwa wyzwalacze;
+	 * sąd siedzi w jednym miejscu (`RoomType::companionMismatch`).
+	 *
+	 * @param FormSchema         $schema  Złożony schemat formularza.
+	 * @param ReservationRequest $request Zbudowane żądanie rezerwacji.
+	 */
+	private static function companionRoomMismatch( FormSchema $schema, ReservationRequest $request ): ?string {
+		if ( null === $request->selection ) {
+			return null;
+		}
+
+		$key = $schema->accommodationFieldKey();
+		if ( null === $key ) {
+			return null;
+		}
+
+		$field = $schema->findField( $key );
+		if ( null === $field ) {
+			return null;
+		}
+
+		$room = AccommodationConfig::fromArray( $field->config )->room( $request->selection->roomKey );
+
+		return null === $room ? null : $room->companionMismatch( $request->companion );
 	}
 
 	/** Handler eksportu CSV zgłoszeń (streaming, bez PRG na sukcesie). */
