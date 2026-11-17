@@ -49,7 +49,11 @@ npm run test:js          # jest (moduły assets/admin/ops/*)
 # PHP (kontener, przez wrapper)
 node scripts/wp-env.cjs run tests-cli --env-cwd=wp-content/plugins/event-registration -- vendor/bin/phpunit --testsuite unit
 node scripts/wp-env.cjs run tests-cli --env-cwd=wp-content/plugins/event-registration -- vendor/bin/phpunit -c phpunit-integration.xml.dist
-node scripts/wp-env.cjs run tests-cli --env-cwd=wp-content/plugins/event-registration -- vendor/bin/phpstan analyse
+# PHPStan: WOŁAJ PRZEZ SKRYPT COMPOSERA (niesie --memory-limit=2G). Gołe
+# `vendor/bin/phpstan analyse` wywala się na default 128M z komunikatem
+# „PHPStan process crashed because it reached configured PHP memory limit",
+# który wygląda na błąd kodu, a jest wyczerpaniem pamięci workera.
+node scripts/wp-env.cjs run tests-cli --env-cwd=wp-content/plugins/event-registration -- composer analyse
 node scripts/wp-env.cjs run tests-cli --env-cwd=wp-content/plugins/event-registration -- vendor/bin/phpcs
 
 # E2E (host, wymaga działającej wp-env)
