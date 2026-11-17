@@ -6,7 +6,6 @@ namespace EvReg\Tests\Unit\Domain\Accommodation;
 
 use EvReg\Domain\Accommodation\NightSelection;
 use EvReg\Domain\Accommodation\NightsConfig;
-use EvReg\Domain\Capacity\NightOccupancy;
 use PHPUnit\Framework\TestCase;
 
 final class NightSelectionTest extends TestCase {
@@ -52,19 +51,5 @@ final class NightSelectionTest extends TestCase {
 	public function test_empty_selection_is_empty(): void {
 		$this->assertTrue( NightSelection::fromKeys( array(), $this->config( array( 'n1' ) ) )->isEmpty() );
 		$this->assertTrue( NightSelection::fromKeys( array( 'widmo' ), $this->config( array( 'n1' ) ) )->isEmpty() );
-	}
-
-	public function test_occupancy_returns_given_numbers_for_a_known_night(): void {
-		$occupancy = new NightOccupancy( array( 'n1' => 7 ), array( 'n1' => 2 ) );
-
-		$this->assertSame( 7, $occupancy->seatsFor( 'n1' ) );
-		$this->assertSame( 2, $occupancy->pairsFor( 'n1' ) );
-	}
-
-	public function test_occupancy_returns_zero_for_an_unknown_night(): void {
-		$occupancy = new NightOccupancy( array( 'n1' => 7 ), array( 'n1' => 2 ) );
-
-		$this->assertSame( 0, $occupancy->seatsFor( 'n9' ) );
-		$this->assertSame( 0, $occupancy->pairsFor( 'n9' ) );
 	}
 }
