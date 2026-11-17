@@ -11,6 +11,12 @@ so keep entries user-facing and concise.
 
 ## [Unreleased]
 
+### Added
+- A second accommodation mode, "nights", chosen per event. Instead of packages and room types, you list the nights and give each a price, a number of seats and, optionally, a limit on registrations that bring a companion. Participants simply tick the nights they want.
+- Nights with no seats left are shown as unavailable, and a night that has a seat but no room for two people is closed only while "companion" is ticked and opens again when it is unticked. A night that gets closed after you ticked it is unticked with a note, so nobody submits believing they still hold it.
+- A registration that cannot get all of its ticked nights is refused as a whole rather than half booked. The nights appear in the admin detail and edit screens, the CSV export ("Nights"), the confirmation e-mail and the translations.
+- The mode cannot be switched once an event has accommodation registrations.
+
 ### Fixed
 - Editing a submission that has accommodation no longer shows the accommodation as unselected. The stored answers kept the selection under internal names the edit screen did not read, so the form opened with no room chosen and saving could drop the booking and lower the price. Submissions saved before this fix are read correctly too.
 

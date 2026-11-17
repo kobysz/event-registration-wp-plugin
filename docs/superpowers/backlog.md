@@ -447,3 +447,65 @@ przejściowy przyjmować **oba** kształty (stare wiersze w bazie mają już zł
 Test: round-trip zapis → `render_edit` → zaznaczona właściwa pozycja. Osobna zmiana od
 pul dobowych; tryb `nights` świadomie zapisuje listę kluczy, nie obiekt, żeby tego nie
 odziedziczyć.
+
+---
+
+## B16 — `ReservationService` zduplikowany po gałęziach `nights`
+
+**Priorytet:** średni (dług, który już raz kosztował błąd).
+
+**Stan:** plik ma ponad 1300 linii i cztery gałęzie `nights`; budowa `CapacityLimits`, budowa wierszy dób i sprawdzenie zliczeń istnieją w trzech–czterech kopiach (`reserve`, `editAnswers`, `promoteFromWaitlist`, oraz ścieżki pomocnicze).
+
+**Skutek:** ryzyko rozjazdu jest realne — projekt już to przerobił przy arytmetyce towarzyszącej (B5), gdzie jedna ścieżka została poprawiona, a pozostałe nie. Poprawka w jednej kopii wygląda na kompletną.
+
+**Odłożone**, bo wyciąganie kodu transakcyjnego w połowie planu jest bardziej ryzykowne niż zostawienie go, a żaden z pozostałych tasków nie dodał kolejnej gałęzi.
+
+**Szkic:** wydzielić prywatne metody/obiekt pomocniczy dla (a) budowy `CapacityLimits` z configu + flagi, (b) budowy wierszy dób ze snapshotem etykiety i ceny, (c) sprawdzenia zliczeń pod lockiem. Zachować kolejność `lockEvent` → zliczenie (nośny inwariant 3A); refaktor pod pełną siatką testów integracyjnych, bez zmiany zachowania.
+
+---
+
+## B17 — Wyścig sprawdzenie-zapis przy zmianie trybu noclegu
+
+**Priorytet:** niski.
+
+**Stan:** `eventHasAccommodation()` i `save()` nie siedzą pod `lockEvent`, więc pierwsze zgłoszenie z noclegiem może zostać zatwierdzone między jednym a drugim i zostawić booking pod starym trybem.
+
+**Skutek:** wąski (wymaga commitu między dwoma instrukcjami jednego żądania admina), widoczny w panelu zajętości, odwracalny przełączeniem trybu z powrotem.
+
+**Szkic:** wykonać sprawdzenie i zapis konfiguracji pod `lockEvent` (ta sama blokada wiersza `evreg_locks`, którą biorą ścieżki rezerwacji).
+
+---
+
+## B18 — Kolejka maili wciąż może stanąć przez event klasyczny
+
+**Priorytet:** średni (zatrzymuje WSZYSTKIE eventy), choć wymaga niespójnych danych.
+
+**Stan:** `PlaceholderFactory::accommodationLabel` woła `AccommodationConfig::fromArray` dla eventów klasycznych, więc event klasyczny z zalegającym lub niespójnym inwentarzem kończy `fromArray` wyjątkiem w dispatcherze odpalanym z crona. Wiersz zostaje w `sending`, sweep odzysku podejmuje go po pięciu minutach i znów wywala — cała kolejka stoi dla każdego eventu.
+
+**Skutek:** istniało przed gałęzią `night-seat-pools` (nie zostało przez nią wprowadzone); ten sam promień rażenia, który ścieżka `nights` właśnie zamknęła.
+
+**Szkic:** w ścieżce klasycznej łapać `SchemaException` i degradować etykietę noclegu (surowe klucze jak w eksporcie), tak jak robi to rozstrzygnięcie trybu z surowej konfiguracji; osobny test z niespójnym inwentarzem i wierszem w kolejce.
+
+---
+
+## B19 — Dwie drogi rozstrzygania trybu noclegu
+
+**Priorytet:** niski.
+
+**Stan:** panel zajętości odczytuje tryb z surowego meta, a pozostałe powierzchnie przechodzą przez `NightsResolver::forSchema`. Dziś są równoważne.
+
+**Skutek:** panel nie zobaczy niczego, co przyszły overlay albo filtr nałoży przy składaniu schemy.
+
+**Szkic:** poprowadzić panel przez `NightsResolver`, żeby tryb miał jedno źródło prawdy.
+
+---
+
+## B20 — `RegistrationsScreen` ma ponad 950 linii
+
+**Priorytet:** niski (dług strukturalny).
+
+**Stan:** jedna klasa niesie listę, detal, edycję, komunikaty, siedem handlerów i eksport.
+
+**Szkic:** oczywistym cięciem jest renderowanie detalu i edycji do osobnej klasy prezentacji; handlery admin-post zostają.
+
+**Uwaga:** zdarzenie „ukryte pole `required` blokuje wysyłkę" jest już opisane jako B14 i nie wymaga uzupełnienia.
