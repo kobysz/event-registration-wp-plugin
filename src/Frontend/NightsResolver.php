@@ -24,6 +24,16 @@ defined( 'ABSPATH' ) || exit;
 final class NightsResolver {
 
 	/**
+	 * Tryb z surowej konfiguracji noclegu — niezależny od tego, czy schemat się złoży.
+	 * Dla powierzchni bez schematu pod ręką albo takich, którym złożenie może się nie udać (mail z crona).
+	 *
+	 * @param array<string,mixed> $accommodation Surowa konfiguracja noclegu eventu.
+	 */
+	public static function isNightsRaw( array $accommodation ): bool {
+		return 'nights' === ( $accommodation['mode'] ?? 'classic' );
+	}
+
+	/**
 	 * Czy event działa w trybie „doby” — dla powierzchni, którym wystarcza sam tryb (eksport,
 	 * mail, Privacy), bo etykiety dób biorą z zapisanych wierszy, nie z konfiguracji.
 	 *

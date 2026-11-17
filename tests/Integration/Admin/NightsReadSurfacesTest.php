@@ -7,10 +7,12 @@ namespace EvReg\Tests\Integration\Admin;
 use EvReg\Admin\RegistrationsExporter;
 use EvReg\Admin\RegistrationsScreen;
 use EvReg\Domain\Accommodation\AccommodationConfig;
+use EvReg\Domain\Accommodation\AccommodationSelection;
 use EvReg\Domain\Registration\RegistrationTypeCollection;
 use EvReg\Domain\Schema\FormSchema;
 use EvReg\Domain\Schema\SchemaException;
 use EvReg\Frontend\EventFormLoader;
+use EvReg\Frontend\NightsResolver;
 use EvReg\Mail\PlaceholderFactory;
 use EvReg\Persistence\EventConfigRepository;
 use EvReg\Persistence\Migrations;
@@ -182,5 +184,62 @@ final class NightsReadSurfacesTest extends WP_UnitTestCase {
 		$row = $this->repository->findById( $id );
 		$this->assertNotNull( $row );
 		$this->assertSame( 'deleted-' . $id . '@example.invalid', $row['email'] );
+	}
+
+	/**
+	 * Zapisuje event z niepoprawną konfiguracją dób (zduplikowany klucz) i zapomnianym inwentarzem.
+	 */
+	private function breakNightsConfig(): void {
+		$repo   = new EventConfigRepository();
+		$config = $repo->get( $this->event_id );
+		// Schemat, który się nie składa (nieznany typ pola): loader zwraca null.
+		$config['schema']['sections'][0]['fields'][] = array( 'key' => 'zepsute', 'type' => 'bogus', 'label' => 'X' );
+		$config['accommodation']['nights'] = array(
+			array( 'key' => 'n1', 'label' => 'Noc 1', 'price' => 80.0, 'seats' => 4 ),
+			array( 'key' => 'n1', 'label' => 'Noc 1 bis', 'price' => 80.0, 'seats' => 4 ),
+		);
+		$repo->save( $this->event_id, $config );
+	}
+
+	public function test_isNightsMode_degrades_to_true_when_the_nights_config_is_malformed(): void {
+		$schema = FormSchema::fromArray(
+			array(
+				'version'  => 1,
+				'sections' => array(
+					array(
+						'key'    => 's',
+						'title'  => 'S',
+						'fields' => array(
+							array(
+								'key'    => 'nocleg',
+								'type'   => 'accommodation',
+								'label'  => 'Nocleg',
+								'config' => array(
+									'mode'   => 'nights',
+									'nights' => array( array( 'key' => 'n1' ), array( 'key' => 'n1' ) ),
+								),
+							),
+						),
+					),
+				),
+			)
+		);
+
+		$this->assertTrue( NightsResolver::isNightsMode( $schema ) );
+	}
+
+	public function test_mail_does_not_fatal_on_malformed_nights_config_with_a_stale_classic_booking(): void {
+		$this->breakNightsConfig();
+		$id = $this->registration( array() );
+		$this->repository->insertAccommodationBooking( $id, new AccommodationSelection( 'ghost', 'ghost', '' ), 1.0 );
+		$row = $this->repository->findById( $id );
+		$this->assertNotNull( $row );
+
+		$config = new EventConfigRepository();
+		$values = ( new PlaceholderFactory( $config, $this->repository, new EventFormLoader( $config ) ) )->build( $row );
+
+		$this->assertSame( 'Jan Kowalski', $values->get( 'imie' ) );
+		$this->assertSame( '', $values->get( 'nocleg' ) );
+		$this->assertSame( '', $values->get( 'noclegi' ) );
 	}
 }

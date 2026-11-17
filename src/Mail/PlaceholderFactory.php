@@ -15,8 +15,8 @@ use EvReg\Domain\Export\RegistrationExportMapper;
 use EvReg\Domain\Mail\Placeholders;
 use EvReg\Domain\Mail\SummaryBuilder;
 use EvReg\Domain\Registration\RegistrationTypeCollection;
-use EvReg\Domain\Schema\VisibilityResolver;
 use EvReg\Domain\Schema\FormSchema;
+use EvReg\Domain\Schema\VisibilityResolver;
 use EvReg\Frontend\EventFormLoader;
 use EvReg\Frontend\NightsResolver;
 use EvReg\Persistence\EventConfigRepository;
@@ -53,8 +53,10 @@ final class PlaceholderFactory {
 		$config          = $this->config->get( $event_id );
 		$registration_id = (int) ( $registration['id'] ?? 0 );
 		$schema          = $this->loader->load( $event_id );
-		$is_nights       = null !== $schema && NightsResolver::isNightsMode( $schema );
-		// Tryb rozstrzygany raz, tu: doby czytają zapisane wiersze, klasyk — booking i konfigurację.
+		// Tryb z SUROWEJ konfiguracji, nie ze złożonego schematu: schemat, który się nie składa
+		// (np. zduplikowana doba), dałby null i event dobowy udawałby klasyczny — a mail jedzie z crona,
+		// więc fatal w nim zatrzymałby całą kolejkę (odzysk `sending` ponawia ten sam wiersz).
+		$is_nights      = NightsResolver::isNightsRaw( is_array( $config['accommodation'] ) ? $config['accommodation'] : array() );
 		$nights         = $is_nights ? $this->nightsLabel( $registration_id ) : '';
 		$accommodation  = $is_nights ? '' : $this->accommodationLabel( $config, $registration_id );
 		$companion_name = (string) ( $registration['companion_name'] ?? '' );
