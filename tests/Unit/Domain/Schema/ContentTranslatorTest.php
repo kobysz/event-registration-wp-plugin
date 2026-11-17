@@ -208,4 +208,25 @@ final class ContentTranslatorTest extends TestCase {
 		$this->assertSame( $before_schema, json_encode( $schema ) );
 		$this->assertSame( $before_types, json_encode( $types ) );
 	}
+
+	public function test_translate_accommodation_applies_night_labels_only(): void {
+		$acc     = array(
+			'mode'   => 'nights',
+			'nights' => array(
+				array( 'key' => 'n1', 'label' => 'Noc 1', 'price' => 80.0, 'seats' => 4, 'companion_cap' => 2 ),
+				array( 'key' => 'n2', 'label' => 'Noc 2', 'price' => 90.0, 'seats' => 4 ),
+			),
+		);
+		$overlay = array( 'en' => array( 'accommodation' => array( 'nights' => array( 'n1' => 'Night 1', 'ghost' => 'Orphan' ) ) ) );
+
+		$out = ( new ContentTranslator() )->translateAccommodation( $acc, $overlay, 'en' );
+
+		$this->assertSame( 'Night 1', $out['nights'][0]['label'] );
+		$this->assertSame( 'Noc 2', $out['nights'][1]['label'] ); // brak override → baza
+		$this->assertSame( 'n1', $out['nights'][0]['key'] );
+		$this->assertSame( 80.0, $out['nights'][0]['price'] );
+		$this->assertSame( 4, $out['nights'][0]['seats'] );
+		$this->assertSame( 2, $out['nights'][0]['companion_cap'] );
+		$this->assertCount( 2, $out['nights'] ); // osierocone tłumaczenie jest inertne
+	}
 }

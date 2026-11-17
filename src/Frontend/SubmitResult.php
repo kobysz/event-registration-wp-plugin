@@ -73,6 +73,16 @@ final class SubmitResult {
 	}
 
 	/**
+	 * Tworzy wynik awarii po stronie serwera (np. nieudany zapis dób) — bez błędów pól,
+	 * ale z wpisanymi wartościami, żeby uczestnik nie wpisywał wszystkiego od nowa.
+	 *
+	 * @param array<string,mixed> $values Surowe odpowiedzi do odtworzenia.
+	 */
+	public static function failure( array $values = array() ): self {
+		return new self( 'error', false, array(), $values );
+	}
+
+	/**
 	 * Tworzy wynik błędu konfiguracji eventu.
 	 */
 	public static function configError(): self {

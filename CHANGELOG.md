@@ -11,7 +11,17 @@ so keep entries user-facing and concise.
 
 ## [Unreleased]
 
+### Added
+- A second accommodation mode, "nights", chosen per event. Instead of packages and room types, you list the nights and give each a price, a number of seats and, optionally, a limit on registrations that bring a companion. Participants simply tick the nights they want.
+- Nights with no seats left are shown as unavailable, and a night that has a seat but no room for two people is closed only while "companion" is ticked and opens again when it is unticked. A night that gets closed after you ticked it is unticked with a note, so nobody submits believing they still hold it.
+- A registration that cannot get all of its ticked nights is refused as a whole rather than half booked. The nights appear in the admin detail and edit screens, the CSV export ("Nights"), the confirmation e-mail and the translations.
+- The mode cannot be switched once an event has accommodation registrations.
+
 ### Fixed
+- Editing a submission is now refused, naming the night, when any of its booked nights has since been removed from the event — including when the removed night was its only one. Before, the night, its seat and its price quietly disappeared the next time anyone saved that submission. The refusal explains that the night is gone rather than full, and says to either restore it in the event's accommodation settings or untick every night to drop the accommodation on purpose. An edit that touches neither the nights nor the companion box still saves, since it changes nothing about the accommodation.
+- Ticking a night that no longer exists alongside one that does is now refused instead of being accepted without the missing night.
+- The CSV export and the privacy data export now report the booked nights even when the accommodation field has been taken off the form.
+- The translations tab no longer asks for translations of packages and room types on an event that uses nights (and the other way round).
 - Editing a submission that has accommodation no longer shows the accommodation as unselected. The stored answers kept the selection under internal names the edit screen did not read, so the form opened with no room chosen and saving could drop the booking and lower the price. Submissions saved before this fix are read correctly too.
 
 ## [0.1.17] - 2026-11-16

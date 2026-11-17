@@ -447,3 +447,79 @@ przejściowy przyjmować **oba** kształty (stare wiersze w bazie mają już zł
 Test: round-trip zapis → `render_edit` → zaznaczona właściwa pozycja. Osobna zmiana od
 pul dobowych; tryb `nights` świadomie zapisuje listę kluczy, nie obiekt, żeby tego nie
 odziedziczyć.
+
+---
+
+## B16 — `ReservationService` zduplikowany po gałęziach `nights`
+
+**Priorytet:** średni (dług, który już raz kosztował błąd).
+
+**Stan:** plik ma ponad 1300 linii i cztery gałęzie `nights`; budowa `CapacityLimits`, budowa wierszy dób i sprawdzenie zliczeń istnieją w trzech–czterech kopiach (`reserve`, `editAnswers`, `promoteFromWaitlist`, oraz ścieżki pomocnicze).
+
+**Skutek:** ryzyko rozjazdu jest realne — projekt już to przerobił przy arytmetyce towarzyszącej (B5), gdzie jedna ścieżka została poprawiona, a pozostałe nie. Poprawka w jednej kopii wygląda na kompletną.
+
+**Odłożone**, bo wyciąganie kodu transakcyjnego w połowie planu jest bardziej ryzykowne niż zostawienie go, a żaden z pozostałych tasków nie dodał kolejnej gałęzi.
+
+**Szkic:** wydzielić prywatne metody/obiekt pomocniczy dla (a) budowy `CapacityLimits` z configu + flagi, (b) budowy wierszy dób ze snapshotem etykiety i ceny, (c) sprawdzenia zliczeń pod lockiem. Zachować kolejność `lockEvent` → zliczenie (nośny inwariant 3A); refaktor pod pełną siatką testów integracyjnych, bez zmiany zachowania.
+
+---
+
+## B17 — Wyścig sprawdzenie-zapis przy zmianie trybu noclegu
+
+**Priorytet:** niski.
+
+**Stan:** `eventHasAccommodation()` i `save()` nie siedzą pod `lockEvent`, więc pierwsze zgłoszenie z noclegiem może zostać zatwierdzone między jednym a drugim i zostawić booking pod starym trybem.
+
+**Skutek:** wąski (wymaga commitu między dwoma instrukcjami jednego żądania admina), widoczny w panelu zajętości, odwracalny przełączeniem trybu z powrotem.
+
+**Szkic:** wykonać sprawdzenie i zapis konfiguracji pod `lockEvent` (ta sama blokada wiersza `evreg_locks`, którą biorą ścieżki rezerwacji).
+
+---
+
+## B18 — Kolejka maili wciąż może stanąć przez event klasyczny
+
+**Priorytet:** średni (zatrzymuje WSZYSTKIE eventy), choć wymaga niespójnych danych.
+
+**Stan:** `PlaceholderFactory::accommodationLabel` woła `AccommodationConfig::fromArray` dla eventów klasycznych, więc event klasyczny z zalegającym lub niespójnym inwentarzem kończy `fromArray` wyjątkiem w dispatcherze odpalanym z crona. Wiersz zostaje w `sending`, sweep odzysku podejmuje go po pięciu minutach i znów wywala — cała kolejka stoi dla każdego eventu.
+
+**Skutek:** istniało przed gałęzią `night-seat-pools` (nie zostało przez nią wprowadzone); ten sam promień rażenia, który ścieżka `nights` właśnie zamknęła.
+
+**Szkic:** w ścieżce klasycznej łapać `SchemaException` i degradować etykietę noclegu (surowe klucze jak w eksporcie), tak jak robi to rozstrzygnięcie trybu z surowej konfiguracji; osobny test z niespójnym inwentarzem i wierszem w kolejce.
+
+---
+
+## B19 — Dwie drogi rozstrzygania trybu noclegu
+
+**Priorytet:** niski.
+
+**Stan:** powierzchnie czytające zapisane zgłoszenia (panel zajętości, `ReservationService`, mail, eksport CSV, WP Privacy) odczytują tryb z surowego meta przez `NightsResolver::isNightsRaw`; ścieżka publiczna formularza przechodzi przez `NightsResolver::forSchema`, bo potrzebuje nie samego trybu, a obiektu `NightsConfig`. Dziś są równoważne.
+
+**Skutek:** powierzchnie czytające surowe meta nie zobaczą niczego, co przyszły overlay albo filtr nałoży przy składaniu schemy.
+
+**Szkic:** jedno źródło prawdy o trybie, znoszące rozjazd między surowym meta a złożoną schemą — z zachowaniem dzisiejszej reguły, że tryb jest właściwością EVENTU, a nie schematu (patrz docblock `NightsResolver::isNightsMode`: event dobowy bez pola noclegu w formularzu nie ma w schemacie śladu trybu).
+
+---
+
+## B20 — `RegistrationsScreen` ma ponad 950 linii
+
+**Priorytet:** niski (dług strukturalny).
+
+**Stan:** jedna klasa niesie listę, detal, edycję, komunikaty, siedem handlerów i eksport.
+
+**Szkic:** oczywistym cięciem jest renderowanie detalu i edycji do osobnej klasy prezentacji; handlery admin-post zostają.
+
+**Uwaga:** zdarzenie „ukryte pole `required` blokuje wysyłkę" jest już opisane jako B14 i nie wymaga uzupełnienia.
+
+---
+
+## B21 — Nocleg ukryty warunkową widocznością gubi się przy edycji w adminie
+
+**Priorytet:** średni (cicha utrata danych i pieniędzy, ale wymaga zbiegu okoliczności).
+
+**Stan:** `RegistrationEditForm` renderuje WSZYSTKIE pola schematu (`FormSchema::allFields()`), natomiast `Validator` zwraca wartości tylko pól WIDOCZNYCH (`VisibilityResolver::resolve(...)->visibleFields()`). Gdy pole noclegu ma warunek (B1) i edycja zmienia odpowiedź, od której ten warunek zależy — typowo typ zgłoszenia — pole przestaje być widoczne w trakcie tej właśnie edycji, więc jego wartość wypada z wyniku walidacji. Ekstrakcja widzi wtedy brak wyboru, a nie „nie podano": na ścieżce dobowej powstaje PODANY, pusty `NightSelection`, czyli świadoma rezygnacja.
+
+**Skutek:** zaznaczone doby (klasycznie: wybrany pakiet i pokój) giną razem z wierszami, zajęte miejsca wracają do puli, a cena spada — pod komunikatem „Odpowiedzi zgłoszenia zaktualizowane". Dokładnie ta klasa cichej utraty, którą zamknęły B-slots, B7 i odmowa po nazwie w `editAnswersNights`, tylko wejściem przez warunkową widoczność.
+
+**Dlaczego nie teraz:** zachowanie jest **identyczne na ścieżce klasycznej**, więc problem jest wspólny i zastany, a nie wniesiony przez pule dobowe. Naprawa dotyka `Validator`/`SubmissionAssembler`, czyli kodu wspólnego dla obu trybów i dla formularza publicznego — to osobna gałąź z własną siatką testów, nie fala poprawek po przeglądzie.
+
+**Szkic (propozycja recenzenta):** dla pola noclegu niewidocznego zwracać `null` zamiast pustej selekcji. Jest to bezpieczne na obu ścieżkach i w obu trybach: `reserve` czyta `null` jako „bez noclegu" (nic nie traci, bo nowe zgłoszenie nic nie ma), a `editAnswers` czyta `null` jako „nie dotykaj noclegu" — ta asymetria jest już zbudowana i opisana przy `ReservationRequest::$nights`. Testy: edycja zmieniająca typ tak, że warunek pola noclegu przestaje pasować, osobno dla trybu `nights` i `classic`; w obu wiersze, miejsca i cena muszą zostać nietknięte.

@@ -65,6 +65,22 @@ final class RegistrationExportMapper {
 	}
 
 	/**
+	 * Komórka „Doby”: etykiety zapisanych dób zgłoszenia po przecinku (fallback: klucz doby).
+	 * Czyta wyłącznie zapisane wiersze — nie zna konfiguracji, więc historia przeżywa jej zmiany.
+	 *
+	 * @param array<int,array<string,mixed>> $rows Wiersze dób zgłoszenia (key, label, ...).
+	 */
+	public function nightsCell( array $rows ): string {
+		$labels = array();
+		foreach ( $rows as $row ) {
+			$label    = (string) ( $row['label'] ?? '' );
+			$labels[] = '' !== $label ? $label : (string) ( $row['key'] ?? '' );
+		}
+
+		return implode( ', ', $labels );
+	}
+
+	/**
 	 * Labele noclegu z wiersza bookingu (fallback surowy klucz gdy nieznany).
 	 *
 	 * @param array<string,mixed>|null $booking Wiersz evreg_accommodation_bookings albo null.

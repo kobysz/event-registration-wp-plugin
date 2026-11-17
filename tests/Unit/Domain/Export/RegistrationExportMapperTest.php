@@ -431,4 +431,22 @@ final class RegistrationExportMapperTest extends TestCase {
 		$this->assertCount( 2, $cells );
 		$this->assertSame( array( 'John', 'john@example.com' ), $cells );
 	}
+
+	public function test_nightsCell_joins_the_stored_labels(): void {
+		$cell = ( new RegistrationExportMapper() )->nightsCell(
+			array(
+				array( 'key' => 'n1', 'label' => '18/19 XI', 'seats' => 1, 'price' => 80.0 ),
+				array( 'key' => 'n2', 'label' => '19/20 XI', 'seats' => 1, 'price' => 90.0 ),
+			)
+		);
+
+		$this->assertSame( '18/19 XI, 19/20 XI', $cell );
+	}
+
+	public function test_nightsCell_falls_back_to_the_key_and_is_empty_without_rows(): void {
+		$mapper = new RegistrationExportMapper();
+
+		$this->assertSame( 'n1, 19/20 XI', $mapper->nightsCell( array( array( 'key' => 'n1', 'label' => '' ), array( 'key' => 'n2', 'label' => '19/20 XI' ) ) ) );
+		$this->assertSame( '', $mapper->nightsCell( array() ) );
+	}
 }

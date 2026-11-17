@@ -10,8 +10,10 @@ declare( strict_types=1 );
 namespace EvReg\Frontend;
 
 use EvReg\Domain\Accommodation\AccommodationConfig;
+use EvReg\Domain\Accommodation\NightsConfig;
 use EvReg\Domain\Accommodation\RoomOccupancy;
 use EvReg\Domain\Accommodation\SlotAvailability;
+use EvReg\Domain\Capacity\NightOccupancy;
 use EvReg\Domain\Conditions\Condition;
 use EvReg\Domain\Schema\Field;
 use EvReg\Domain\Schema\FieldType;
@@ -29,9 +31,17 @@ final class FormRenderer {
 	/**
 	 * Tworzy renderer. Bez dostępności (null) wszystkie sloty noclegowe renderują się aktywne.
 	 *
-	 * @param SlotAvailability|null $availability Dostępność miejsc w slotach albo null.
+	 * @param SlotAvailability|null $availability   Dostępność miejsc w slotach albo null.
+	 * @param NightOccupancy|null   $nightOccupancy Zajętość dób (tryb „doby”); null = wszystkie doby wolne.
+	 * @param NightsConfig|null     $nights         Konfiguracja trybu „doby” rozstrzygnięta u wejścia
+	 *                                              (NightsResolver); null = tryb klasyczny. Nigdy „niepoprawna” —
+	 *                                              ta zatrzymuje się u wejścia, renderer sam fromArray nie woła.
 	 */
-	public function __construct( private readonly ?SlotAvailability $availability = null ) {
+	public function __construct(
+		private readonly ?SlotAvailability $availability = null,
+		private readonly ?NightOccupancy $nightOccupancy = null,
+		private readonly ?NightsConfig $nights = null
+	) {
 	}
 
 	/**
@@ -176,7 +186,7 @@ final class FormRenderer {
 		}
 
 		if ( $invalid ) {
-			$out .= '<div class="evreg-error-msg invalid-feedback d-block">' . esc_html( $this->errorMessage( (string) $error ) ) . '</div>';
+			$out .= '<div class="evreg-error-msg invalid-feedback d-block">' . esc_html( $this->fieldErrorMessage( $field, (string) $error ) ) . '</div>';
 		}
 
 		$out .= '</div>';
@@ -194,8 +204,11 @@ final class FormRenderer {
 	 * @param SubmitResult|null $result Wynik poprzedniej próby submisji (do re-renderu).
 	 */
 	private function renderCompanion( Field $field, ?SubmitResult $result ): string {
-		$config = AccommodationConfig::fromArray( $field->config );
-		if ( ! $config->companionEnabled() ) {
+		// Jedno rozgałęzienie po trybie: „doby” czyta flagę z NightsConfig, bez AccommodationConfig.
+		$enabled = null !== $this->nights
+			? $this->nights->companionEnabled()
+			: AccommodationConfig::fromArray( $field->config )->companionEnabled();
+		if ( ! $enabled ) {
 			return '';
 		}
 
@@ -375,6 +388,10 @@ final class FormRenderer {
 	 * @param bool  $companion Czy odtwarzana submisja ma osobę towarzyszącą.
 	 */
 	private function renderAccommodation( Field $field, mixed $value, bool $companion = false ): string {
+		if ( null !== $this->nights ) {
+			return $this->renderNights( $field, $this->nights, $value, $companion );
+		}
+
 		$config = $field->config;
 		// Liczbę osób w pokoju czytamy przez AccommodationConfig, nie z surowej tablicy:
 		// fromArray() zeruje occupancy, gdy event ma wyłączoną osobę towarzyszącą, więc
@@ -545,6 +562,103 @@ final class FormRenderer {
 		$out .= '</div>';
 
 		return $out;
+	}
+
+	/**
+	 * Renderuje wybór dób jako checkboxy (tryb „doby”).
+	 *
+	 * Nazwy pól siedzą pod `evreg_field[<klucz>][nights][]` (namespace jest obowiązkowy —
+	 * patrz renderControl). Doba bez miejsc jest `disabled`; doba z miejscem, ale bez miejsca
+	 * dla pary, jest `disabled` TYLKO przy zaznaczonej osobie towarzyszącej — odznaczenie
+	 * jej otwiera dobę ponownie, co robi form.js (applyNightState). Zaznaczenie z doby, która
+	 * jest wyłączona, zdejmujemy jawnie i ogłaszamy: `disabled` nie wysyła wartości, więc
+	 * zaznaczony-i-wyłączony checkbox po submicie po cichu znikałby z wyboru.
+	 *
+	 * @param Field        $field     Pole typu accommodation.
+	 * @param NightsConfig $config    Konfiguracja trybu „doby”.
+	 * @param mixed        $value     Surowa odpowiedź do odtworzenia (`['nights' => [...]]`) lub null.
+	 * @param bool         $companion Czy odtwarzana submisja ma osobę towarzyszącą.
+	 */
+	private function renderNights( Field $field, NightsConfig $config, mixed $value, bool $companion ): string {
+		// Klientowi się nie ufa: bez włączonej osoby towarzyszącej POST evreg_companion nie
+		// zamyka żadnej doby (ten sam wzór co w ścieżce klasycznej i w SubmissionAssembler).
+		if ( ! $config->companionEnabled() ) {
+			$companion = false;
+		}
+
+		$occupancy = $this->nightOccupancy ?? new NightOccupancy( array(), array() );
+		$raw       = is_array( $value ) && is_array( $value['nights'] ?? null ) ? $value['nights'] : array();
+		$selected  = array_map( 'strval', array_values( array_filter( $raw, 'is_scalar' ) ) );
+
+		$name    = 'evreg_field[' . esc_attr( $field->key ) . '][nights][]';
+		$base    = 'evreg-' . esc_attr( $field->key ) . '-night-';
+		$out     = '<div class="evreg-accommodation evreg-nights">';
+		$dropped = false;
+		$any_on  = false;
+
+		foreach ( $config->nights() as $index => $night ) {
+			$left       = max( 0, $night->seats - $occupancy->seatsFor( $night->key ) );
+			$pairs_left = null === $night->companionCap ? null : max( 0, $night->companionCap - $occupancy->pairsFor( $night->key ) );
+			$full       = $left < 1;
+			$no_pair    = $companion && ! $full && ( $left < 2 || ( null !== $pairs_left && $pairs_left < 1 ) );
+			$off        = $full || $no_pair;
+			$ticked     = in_array( $night->key, $selected, true );
+			$id         = $base . $index;
+
+			if ( ! $off ) {
+				$any_on = true;
+			}
+			// Zaznaczenie z wyłączonej doby zdejmujemy (nigdy checked + disabled).
+			if ( $off && $ticked ) {
+				$dropped = true;
+			}
+
+			$out .= '<div class="evreg-choice evreg-night form-check' . ( $off ? ' is-full' : '' ) . '">'
+				. '<input class="form-check-input" type="checkbox" id="' . esc_attr( $id ) . '" name="' . $name . '" value="' . esc_attr( $night->key ) . '"'
+				. checked( $ticked && ! $off, true, false )
+				. ' data-evreg-night-seats-left="' . esc_attr( (string) $left ) . '"'
+				. ' data-evreg-night-pairs-left="' . esc_attr( null === $pairs_left ? '' : (string) $pairs_left ) . '"'
+				. ( $off ? ' disabled' : '' ) . '>'
+				. ' <label class="form-check-label" for="' . esc_attr( $id ) . '">' . esc_html( $night->label )
+				// Obie notki istnieją zawsze (jedna schowana): form.js przełącza je reaktywnie
+				// i nie ma własnych tłumaczonych tekstów.
+				. ' <span class="evreg-seats-note" data-evreg-night-note="full"' . ( $full ? '' : ' hidden' ) . '>' . esc_html__( '(brak miejsc)', 'event-registration' ) . '</span>'
+				. ' <span class="evreg-seats-note" data-evreg-night-note="pair"' . ( $no_pair ? '' : ' hidden' ) . '>' . esc_html__( '(brak miejsc dla dwóch osób)', 'event-registration' ) . '</span>'
+				. '</label>'
+				. '</div>';
+		}
+
+		if ( array() !== $config->nights() ) {
+			$out .= '<p class="evreg-nights-dropped"' . ( $dropped ? '' : ' hidden' ) . '>'
+				. esc_html__( 'Zaznaczona doba jest już niedostępna i została odznaczona.', 'event-registration' )
+				. '</p>';
+
+			if ( ! $any_on && ! $config->allowsNone() ) {
+				$out .= '<p class="evreg-accommodation-empty">'
+					. esc_html__( 'Brak wolnych miejsc noclegowych.', 'event-registration' )
+					. '</p>';
+			}
+		}
+
+		return $out . '</div>';
+	}
+
+	/**
+	 * Komunikat błędu pola: kody niosące kontekst pola (`night_full:<doba>`) dostają jego
+	 * etykietę, resztę rozstrzyga errorMessage().
+	 *
+	 * @param Field  $field Pole, którego dotyczy błąd.
+	 * @param string $code  Kod błędu.
+	 */
+	private function fieldErrorMessage( Field $field, string $code ): string {
+		if ( null !== $this->nights && str_starts_with( $code, 'night_full:' ) && FieldType::Accommodation === $field->type ) {
+			$label = $this->nights->nightLabel( substr( $code, strlen( 'night_full:' ) ) );
+
+			/* translators: %s: etykieta doby noclegowej. */
+			return sprintf( __( 'Doba „%s” nie ma już wolnych miejsc dla Twojego zgłoszenia. Odznacz ją albo wybierz inne doby.', 'event-registration' ), $label );
+		}
+
+		return $this->errorMessage( $code );
 	}
 
 	/**

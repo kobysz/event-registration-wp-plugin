@@ -11,11 +11,14 @@ namespace EvReg\Admin;
 
 use EvReg\Domain\Accommodation\AccommodationConfig;
 use EvReg\Domain\Accommodation\AccommodationSelection;
+use EvReg\Domain\Accommodation\NightsConfig;
 use EvReg\Domain\Export\RegistrationExportMapper;
 use EvReg\Domain\Registration\RegistrationTypeCollection;
 use EvReg\Domain\Schema\FieldType;
 use EvReg\Domain\Schema\FormSchema;
+use EvReg\Domain\Schema\SchemaException;
 use EvReg\Frontend\EventFormLoader;
+use EvReg\Frontend\NightsResolver;
 use EvReg\Frontend\SubmissionAssembler;
 use EvReg\Persistence\EventConfigRepository;
 use EvReg\Persistence\RegistrationRepository;
@@ -140,8 +143,11 @@ final class RegistrationsScreen {
 
 	/**
 	 * Renderuje komunikat wyniku akcji z parametru evreg_msg.
+	 *
+	 * @param NightsConfig|null $nights Konfiguracja trybu „doby” rozstrzygnięta u wejścia ekranu;
+	 *                                  null = tryb klasyczny albo ekran bez kontekstu eventu.
 	 */
-	private static function render_notice(): void {
+	private static function render_notice( ?NightsConfig $nights = null ): void {
 		// phpcs:ignore WordPress.Security.NonceVerification.Recommended
 		if ( ! isset( $_GET['evreg_msg'] ) ) {
 			return;
@@ -163,6 +169,8 @@ final class RegistrationsScreen {
 			'not_found'                 => array( 'error', __( 'Nie znaleziono zgłoszenia.', 'event-registration' ) ),
 			'capacity_full'             => array( 'error', __( 'Brak wolnych miejsc dla wybranego typu zgłoszenia.', 'event-registration' ) ),
 			'accommodation_full'        => array( 'error', __( 'Brak wolnych miejsc dla wybranego noclegu.', 'event-registration' ) ),
+			'accommodation_gone'        => array( 'error', __( 'Doba zapisana w tym zgłoszeniu nie istnieje już w konfiguracji wydarzenia, więc edycja nie została zapisana.', 'event-registration' ) ),
+			'config_error'              => array( 'error', __( 'Konfiguracja noclegów tego wydarzenia jest niepoprawna — popraw ją w ustawieniach wydarzenia.', 'event-registration' ) ),
 			'export_no_event'           => array( 'error', __( 'Wybierz event, aby wyeksportować zgłoszenia.', 'event-registration' ) ),
 		);
 
@@ -170,10 +178,41 @@ final class RegistrationsScreen {
 			return;
 		}
 
+		$text = $messages[ $code ][1];
+
+		// Tryb „doby”: odmowa niesie KLUCZ doby — identyfikator wewnętrzny, którego
+		// organizator nie ma czytać. Zamieniamy go na zdanie o konkretnej dobie.
+		//
+		// Dwa kody, bo dwa różne fakty i dwie różne rady. accommodation_full mówi o dobie
+		// PEŁNEJ: ona jest w konfiguracji, ma etykietę i da się ją na formularzu odznaczyć.
+		// accommodation_gone mówi o dobie USUNIĘTEJ z konfiguracji: tamtej rady nie wolno
+		// jej dać, bo doby nie ma w formularzu i nie da się odznaczyć czegoś, czego nie
+		// widać; nie ma też etykiety (nightLabel() degraduje wtedy do klucza), więc klucz
+		// jest tu jedynym i właściwym identyfikatorem — po nim operator znajdzie dobę
+		// w konfiguracji wydarzenia.
+		if ( in_array( $code, array( 'accommodation_full', 'accommodation_gone' ), true ) ) {
+			// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- odczyt kodu wyniku z PRG, widok read-only.
+			$night = isset( $_GET['evreg_night'] ) ? sanitize_text_field( wp_unslash( (string) $_GET['evreg_night'] ) ) : '';
+
+			if ( '' !== $night && 'accommodation_gone' === $code ) {
+				$text = sprintf(
+					/* translators: %s: klucz doby noclegowej usuniętej z konfiguracji. */
+					__( 'Doba o kluczu „%s” jest zapisana w tym zgłoszeniu, ale nie ma jej już w konfiguracji wydarzenia — edycja nie została zapisana, więc nocleg, miejsce i cena zgłoszenia pozostają bez zmian. Przywróć tę dobę w ustawieniach noclegów wydarzenia, albo — jeśli nocleg ma przepaść — odznacz w tym formularzu wszystkie doby i zapisz ponownie.', 'event-registration' ),
+					$night
+				);
+			} elseif ( '' !== $night && null !== $nights ) {
+				$text = sprintf(
+					/* translators: %s: etykieta doby noclegowej. */
+					__( 'Doba „%s” nie ma już tyle wolnych miejsc. Odznacz ją albo wybierz inne doby.', 'event-registration' ),
+					$nights->nightLabel( $night )
+				);
+			}
+		}
+
 		printf(
 			'<div class="notice notice-%s is-dismissible"><p>%s</p></div>',
 			esc_attr( $messages[ $code ][0] ),
-			esc_html( $messages[ $code ][1] )
+			esc_html( $text )
 		);
 	}
 
@@ -202,9 +241,37 @@ final class RegistrationsScreen {
 			return;
 		}
 
-		self::render_notice();
-
 		$event_id = (int) $row['event_id'];
+		$schema   = ( new EventFormLoader( new EventConfigRepository() ) )->load( $event_id );
+
+		// Tryb „doby” rozstrzygamy RAZ, u wejścia ekranu, i wstrzykujemy niżej. Niepoprawna
+		// konfiguracja degraduje się do komunikatu — detal zgłoszenia musi dać się odczytać
+		// także wtedy, gdy konfiguracja eventu jest zepsuta.
+		$nights       = null;
+		$config_error = null;
+
+		if ( null !== $schema ) {
+			try {
+				$nights = NightsResolver::forSchema( $schema );
+			} catch ( SchemaException $e ) {
+				$config_error = $e->getMessage();
+			}
+		}
+
+		self::render_notice( $nights );
+
+		if ( null !== $config_error ) {
+			printf(
+				'<div class="notice notice-error"><p>%s</p></div>',
+				esc_html(
+					sprintf(
+						/* translators: %s: komunikat błędu konfiguracji. */
+						__( 'Konfiguracja noclegów tego wydarzenia jest niepoprawna (%s) — nocleg nie jest pokazany.', 'event-registration' ),
+						$config_error
+					)
+				)
+			);
+		}
 
 		echo '<table class="widefat striped"><tbody>';
 		self::detail_row( __( 'Status', 'event-registration' ), RegistrationsListTable::status_label( (string) $row['status'] ) );
@@ -220,10 +287,22 @@ final class RegistrationsScreen {
 		}
 		echo '</tbody></table>';
 
-		$booking = $repository->findAccommodationBooking( $id );
+		// Czy event jest w trybie „doby”, rozstrzyga się NIEZALEŻNIE od tego, czy konfiguracja
+		// dała się odczytać: NightsConfig::fromArray rzuca wyłącznie dla mode === 'nights'
+		// (poza tym trybem listy dób nie czyta wcale), więc nieudany odczyt też znaczy „doby”.
+		$is_nights = null !== $nights || null !== $config_error;
 
-		self::render_answers( $event_id, (string) $row['data'], $booking );
+		$booking = $is_nights ? null : $repository->findAccommodationBooking( $id );
+		// Wiersze dób to PRAWDA o tym, co zgłoszenie trzyma, i niosą WŁASNE snapshoty
+		// etykiety i ceny — detal czyta je, nie dzisiejszą konfigurację (przemianowana albo
+		// przeceniona doba nie przepisuje historii). Dlatego nie potrzebują konfiguracji
+		// WCALE i renderują się także wtedy, gdy jest zepsuta: zepsuty config to żaden powód,
+		// by schować tabelę, która i tak wyszłaby poprawnie. Jeden odczyt bulk, nie N+1.
+		$night_rows = $is_nights ? ( $repository->bookingNightsFor( array( $id ) )[ $id ] ?? array() ) : array();
+
+		self::render_answers( $schema, (string) $row['data'], $booking, $nights, $night_rows, $is_nights );
 		self::render_booking( $booking, $event_id );
+		self::render_night_rows( $night_rows );
 		self::render_note_form( $id, (string) ( $row['note'] ?? '' ) );
 		self::render_actions( $id, (string) $row['status'] );
 
@@ -259,6 +338,28 @@ final class RegistrationsScreen {
 			return;
 		}
 
+		// Tryb „doby” rozstrzygamy RAZ, u wejścia ekranu, i wstrzykujemy do renderera —
+		// inaczej formularz wyrenderowałby kontrolkę klasyczną dla eventu dobowego, a zapis
+		// skasowałby doby zgłoszenia. Niepoprawna konfiguracja degraduje się do komunikatu:
+		// formularz, który nie umie oddać tego, co pokazuje, lepiej się nie pokazywać wcale.
+		try {
+			$nights = NightsResolver::forSchema( $schema );
+		} catch ( SchemaException $e ) {
+			printf(
+				'<div class="notice notice-error"><p>%s</p></div></div>',
+				esc_html(
+					sprintf(
+						/* translators: %s: komunikat błędu konfiguracji. */
+						__( 'Konfiguracja noclegów tego wydarzenia jest niepoprawna (%s) — popraw ją, zanim zmienisz odpowiedzi.', 'event-registration' ),
+						$e->getMessage()
+					)
+				)
+			);
+			return;
+		}
+
+		self::render_notice( $nights );
+
 		wp_enqueue_script( 'evreg-public' );
 
 		$answers = json_decode( (string) $row['data'], true );
@@ -269,7 +370,32 @@ final class RegistrationsScreen {
 		$answers['evreg_companion']      = (bool) ( $row['companion'] ?? false );
 		$answers['evreg_companion_name'] = (string) ( $row['companion_name'] ?? '' );
 
-		echo RegistrationEditForm::render( $schema, $answers, $id ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- już escapowane w rendererze.
+		// Tryb „doby”: prefill z ZAPISANYCH WIERSZY, a gdy ich nie ma — z JSON-a odpowiedzi.
+		// Wiersze są prawdą o tym, co zgłoszenie TRZYMA, i tam, gdzie są, biją JSON (ten
+		// niesie życzenie i może się z nimi rozejść: awans bez przyznanego noclegu, odmowa
+		// pojedynczej doby). Ale NIGDY nie nadpisujemy nimi życzenia na puste: zgłoszenie
+		// z listy rezerwowej nie ma wierszy NIGDY (nie zajmuje miejsc), a jego wybór żyje
+		// wyłącznie w JSON-ie. Bezwarunkowe nadpisanie odznaczyłoby wszystko, a zapis — bo
+		// kontrolka domyka się w obie strony — skasowałby życzenie po cichu, meldując
+		// „zapisano”, i późniejsza „Promuj” nie miałaby już czego przyznać. To ta sama
+		// asymetria zapisu i odczytu co B15, o jeden ekran dalej: detal POKAZUJE życzenie
+		// (patrz night_text()), więc edycja nie może go kasować. Rows first, JSON fallback,
+		// nigdy clobber. Oba kształty czyta RegistrationEditForm::nightKeys().
+		$accommodation_key = $schema->accommodationFieldKey();
+
+		if ( null !== $nights && null !== $accommodation_key ) {
+			$rows = $repository->bookingNightsFor( array( $id ) )[ $id ] ?? array();
+
+			if ( array() !== $rows ) {
+				$answers[ $accommodation_key ] = array_column( $rows, 'key' );
+			}
+
+			// Podpowiedź renderu (NIE kontrolka): bez wierszy ptaszki są życzeniem, nie
+			// zajętymi miejscami, i formularz ma to powiedzieć — tak jak detal.
+			$answers['evreg_nights_granted'] = array() !== $rows;
+		}
+
+		echo RegistrationEditForm::render( $schema, $answers, $id, null, null, $nights ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- już escapowane w rendererze.
 		echo '</div>';
 	}
 
@@ -294,13 +420,20 @@ final class RegistrationsScreen {
 	/**
 	 * Renderuje odpowiedzi uczestnika ze złożonej schemy.
 	 *
-	 * @param int                      $event_id ID eventu.
-	 * @param string                   $data     JSON odpowiedzi.
-	 * @param array<string,mixed>|null $booking  Rezerwacja noclegu (nośnik snapshotu etykiet) albo null.
+	 * @param FormSchema|null                                                 $schema     Złożony schemat formularza albo null.
+	 * @param string                                                          $data       JSON odpowiedzi.
+	 * @param array<string,mixed>|null                                        $booking    Rezerwacja noclegu (nośnik snapshotu etykiet) albo null.
+	 * @param NightsConfig|null                                               $nights     Konfiguracja trybu „doby” albo null (klasyczna
+	 *                                                                                    ALBO dobowa, której nie dało się odczytać).
+	 * @param array<int,array{key:string,label:string,seats:int,price:float}> $night_rows Zapisane doby zgłoszenia.
+	 * @param bool                                                            $is_nights  Czy event jest w trybie „doby” — także wtedy, gdy
+	 *                                                                                    konfiguracja nie dała się odczytać ($nights === null,
+	 *                                                                                    notice stoi wyżej). Rozstrzyga o gałęzi pola noclegu,
+	 *                                                                                    więc gałąź klasyczna (jedyna, która buduje
+	 *                                                                                    AccommodationConfig — ta rzuca na niespójnym
+	 *                                                                                    inwentarzu) nie jest osiągalna dla eventu dobowego.
 	 */
-	private static function render_answers( int $event_id, string $data, ?array $booking = null ): void {
-		$schema = ( new EventFormLoader( new EventConfigRepository() ) )->load( $event_id );
-
+	private static function render_answers( ?FormSchema $schema, string $data, ?array $booking = null, ?NightsConfig $nights = null, array $night_rows = array(), bool $is_nights = false ): void {
 		if ( null === $schema ) {
 			return;
 		}
@@ -318,7 +451,13 @@ final class RegistrationsScreen {
 
 			$value = $answers[ $field->key ] ?? '';
 
-			if ( FieldType::Accommodation === $field->type && is_array( $value ) ) {
+			if ( FieldType::Accommodation === $field->type && $is_nights ) {
+				// Tryb „doby”: etykiety ze SNAPSHOTU wierszy. Bez wierszy (zgłoszenie
+				// z listy rezerwowej albo bez przyznanego noclegu) zostaje życzenie
+				// z odpowiedzi — nazwane dzisiejszą konfiguracją, a gdy ta się nie
+				// odczytała, surowymi kluczami. Bez fatala i bez pustki.
+				$text = self::night_text( $nights, $value, $night_rows );
+			} elseif ( FieldType::Accommodation === $field->type && is_array( $value ) ) {
 				// Surowa odpowiedź to klucze (package/room) — bez etykiet jest nieczytelna.
 				// Rezerwacja niesie snapshot etykiet, więc jest lepszym źródłem niż same klucze.
 				$stored = AccommodationSelection::normalizeArray( $value );
@@ -362,6 +501,78 @@ final class RegistrationsScreen {
 		self::detail_row( __( 'Pakiet', 'event-registration' ), $cells['package'] );
 		self::detail_row( __( 'Pokój', 'event-registration' ), $cells['room'] );
 		self::detail_row( __( 'Współlokator', 'event-registration' ), $cells['roommate'] );
+		echo '</tbody></table>';
+	}
+
+	/**
+	 * Składa czytelny opis wybranych dób.
+	 *
+	 * Źródłem pierwszym są ZAPISANE wiersze — niosą snapshot etykiety z chwili rezerwacji,
+	 * więc przemianowana doba nie przepisuje historii. Brak wierszy znaczy „nocleg nie jest
+	 * przyznany" (lista rezerwowa, odmowa przy awansie): wtedy pokazujemy życzenie
+	 * z odpowiedzi, nazwane dzisiejszą konfiguracją, bo innego źródła etykiet nie ma.
+	 *
+	 * @param NightsConfig|null                                               $config Konfiguracja trybu „doby” albo null, gdy się nie
+	 *                                                                                odczytała (wtedy życzenie idzie surowymi kluczami —
+	 *                                                                                wiersze i tak niosą własne etykiety).
+	 * @param mixed                                                           $value  Odpowiedź pola (płaska lista kluczy dób).
+	 * @param array<int,array{key:string,label:string,seats:int,price:float}> $rows   Zapisane doby zgłoszenia.
+	 */
+	private static function night_text( ?NightsConfig $config, $value, array $rows ): string {
+		if ( array() !== $rows ) {
+			return implode( ', ', array_column( $rows, 'label' ) );
+		}
+
+		$keys = is_array( $value ) ? array_filter( $value, 'is_scalar' ) : array();
+
+		if ( array() === $keys ) {
+			return '';
+		}
+
+		$labels = array();
+		foreach ( $keys as $key ) {
+			$labels[] = null === $config ? (string) $key : $config->nightLabel( (string) $key );
+		}
+
+		/* translators: %s: lista etykiet dób. */
+		return sprintf( __( '%s (nocleg nieprzyznany)', 'event-registration' ), implode( ', ', $labels ) );
+	}
+
+	/**
+	 * Renderuje tabelę zapisanych dób zgłoszenia (etykieta, miejsca, cena ze snapshotu).
+	 *
+	 * @param array<int,array{key:string,label:string,seats:int,price:float}> $rows Zapisane doby.
+	 */
+	private static function render_night_rows( array $rows ): void {
+		if ( array() === $rows ) {
+			return;
+		}
+
+		echo '<h2>' . esc_html__( 'Nocleg (doby)', 'event-registration' ) . '</h2>';
+		echo '<table class="widefat striped"><thead><tr>';
+		printf( '<th scope="col">%s</th>', esc_html__( 'Doba', 'event-registration' ) );
+		printf( '<th scope="col">%s</th>', esc_html__( 'Miejsca', 'event-registration' ) );
+		printf( '<th scope="col">%s</th>', esc_html__( 'Kwota', 'event-registration' ) );
+		echo '</tr></thead><tbody>';
+
+		$total = 0.0;
+		foreach ( $rows as $row ) {
+			$total += $row['price'];
+
+			printf(
+				'<tr><td>%s</td><td>%s</td><td>%s</td></tr>',
+				esc_html( $row['label'] ),
+				esc_html( number_format_i18n( $row['seats'] ) ),
+				esc_html( number_format_i18n( $row['price'], 2 ) )
+			);
+		}
+
+		printf(
+			'<tr><td><strong>%s</strong></td><td></td><td><strong>%s</strong></td></tr>',
+			esc_html__( 'Razem za noclegi', 'event-registration' ),
+			esc_html( number_format_i18n( $total, 2 ) )
+		);
+
 		echo '</tbody></table>';
 	}
 
@@ -540,10 +751,21 @@ final class RegistrationsScreen {
 		self::redirect( self::service()->cancel( $id )->code );
 	}
 
-	/** Handler promocji z waitlisty. */
+	/**
+	 * Handler promocji z waitlisty. `promoteFromWaitlist` czyta konfigurację noclegów
+	 * zapisaną przy eventcie i rzuca, gdy jest niepoprawna — degradujemy do komunikatu
+	 * zamiast fatala (handler nie ma czego re-renderować, więc PRG jak przy innych kodach).
+	 */
 	public static function handle_promote(): void {
 		$id = self::guard( self::ACTION_PROMOTE );
-		self::redirect( self::service()->promoteFromWaitlist( $id )->code );
+
+		try {
+			$code = self::service()->promoteFromWaitlist( $id )->code;
+		} catch ( SchemaException ) {
+			$code = 'config_error';
+		}
+
+		self::redirect( $code );
 	}
 
 	/** Handler trwałego usunięcia. */
@@ -597,13 +819,24 @@ final class RegistrationsScreen {
 			return;
 		}
 
+		// Tryb „doby” rozstrzygamy RAZ, tu, u wejścia (jak SubmitHandler na ścieżce publicznej):
+		// bez tego asembler wyciągnąłby odpowiedzi w kształcie klasycznym, a walidator — który
+		// tryb czyta sam — zablokowałby zapis na `required`. Niepoprawna konfiguracja nie może
+		// dotrzeć ani do asemblera, ani do walidatora, ani do serwisu.
+		try {
+			$nights = NightsResolver::forSchema( $schema );
+		} catch ( SchemaException ) {
+			self::redirect( 'config_error' );
+			return;
+		}
+
 		$posted    = wp_unslash( $_POST ); // phpcs:ignore WordPress.Security.NonceVerification.Missing -- nonce zweryfikowany wyżej.
-		$assembled = ( new SubmissionAssembler() )->assemble( $schema, is_array( $posted ) ? $posted : array() );
+		$assembled = ( new SubmissionAssembler() )->assemble( $schema, is_array( $posted ) ? $posted : array(), $nights );
 
 		if ( ! $assembled->isValid() ) {
 			echo '<div class="wrap">';
 			echo '<h1>' . esc_html__( 'Edytuj zgłoszenie', 'event-registration' ) . '</h1>';
-			echo RegistrationEditForm::render( $schema, array(), $id, $assembled->errors(), $assembled->values() ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- już escapowane w rendererze.
+			echo RegistrationEditForm::render( $schema, array(), $id, $assembled->errors(), $assembled->values(), $nights ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- już escapowane w rendererze.
 			echo '</div>';
 			return;
 		}
@@ -619,29 +852,41 @@ final class RegistrationsScreen {
 		// nocleg albo flagę towarzyszącej. Bez tego oznaczenie pokoju jako dwuosobowego
 		// zablokowałoby każdy zapis starych zgłoszeń w tym pokoju — admin nie poprawiłby
 		// w nich numeru telefonu bez rozstrzygania osoby towarzyszącej.
-		$booking       = $repository->findAccommodationBooking( $id );
-		$previous_slot = null === $booking
-			? ''
-			: (string) $booking['package_key'] . '|' . (string) $booking['room_type_key'];
-		$new_slot      = null === $request->selection ? '' : $request->selection->slotKey();
-		$changed       = $previous_slot !== $new_slot || (bool) ( $row['companion'] ?? false ) !== $request->companion;
+		//
+		// Cała reguła dotyczy POKOJU, którego tryb „doby” nie ma — tam miejsca liczy doba,
+		// a liczbę miejsc rozstrzyga sama flaga towarzyszącej (bramka w editAnswersNights).
+		// Dlatego gałąź dobowa nie wchodzi tu wcale i nie buduje AccommodationConfig
+		// (rzuca na niespójnym inwentarzu, a event dobowy może nieść zapomniane dane klasyczne).
+		if ( null === $nights ) {
+			$booking       = $repository->findAccommodationBooking( $id );
+			$previous_slot = null === $booking
+				? ''
+				: (string) $booking['package_key'] . '|' . (string) $booking['room_type_key'];
+			$new_slot      = null === $request->selection ? '' : $request->selection->slotKey();
+			$changed       = $previous_slot !== $new_slot || (bool) ( $row['companion'] ?? false ) !== $request->companion;
 
-		if ( $changed ) {
-			$mismatch = self::companionRoomMismatch( $schema, $request );
+			if ( $changed ) {
+				$mismatch = self::companionRoomMismatch( $schema, $request );
 
-			if ( null !== $mismatch ) {
-				$key    = $schema->accommodationFieldKey();
-				$errors = null === $key ? array() : array( $key => $mismatch );
+				if ( null !== $mismatch ) {
+					$key    = $schema->accommodationFieldKey();
+					$errors = null === $key ? array() : array( $key => $mismatch );
 
-				echo '<div class="wrap">';
-				echo '<h1>' . esc_html__( 'Edytuj zgłoszenie', 'event-registration' ) . '</h1>';
-				echo RegistrationEditForm::render( $schema, array(), $id, $errors, $assembled->rawAnswers() ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- już escapowane w rendererze.
-				echo '</div>';
-				return;
+					echo '<div class="wrap">';
+					echo '<h1>' . esc_html__( 'Edytuj zgłoszenie', 'event-registration' ) . '</h1>';
+					echo RegistrationEditForm::render( $schema, array(), $id, $errors, $assembled->rawAnswers(), $nights ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- już escapowane w rendererze.
+					echo '</div>';
+					return;
+				}
 			}
 		}
 
-		$result = self::service()->editAnswers( $id, $request );
+		try {
+			$result = self::service()->editAnswers( $id, $request );
+		} catch ( SchemaException ) {
+			self::redirect( 'config_error' );
+			return;
+		}
 
 		switch ( $result->code ) {
 			case 'edited':
@@ -653,8 +898,24 @@ final class RegistrationsScreen {
 					)
 				);
 				break;
-			case 'capacity_full':
 			case 'accommodation_full':
+			case 'accommodation_gone':
+				// Odmowa niesie KLUCZ doby — przenosimy go przez PRG, żeby ekran edycji
+				// nazwał ją etykietą (doba pełna) albo samym kluczem (doba usunięta
+				// z konfiguracji, która etykiety już nie ma) — patrz render_notice().
+				// Na ścieżce klasycznej reason jest null i komunikat zostaje dzisiejszy.
+				$extra = array(
+					'action' => 'edit',
+					'id'     => $id,
+				);
+
+				if ( null !== $result->reason && '' !== $result->reason ) {
+					$extra['evreg_night'] = $result->reason;
+				}
+
+				self::redirect( $result->code, $extra );
+				break;
+			case 'capacity_full':
 				self::redirect(
 					$result->code,
 					array(
@@ -697,6 +958,46 @@ final class RegistrationsScreen {
 		return null === $room ? null : $room->companionMismatch( $request->companion );
 	}
 
+	/**
+	 * Składa tekst CSV eksportu eventu albo null, gdy event nie ma schematu.
+	 *
+	 * Tryb rozstrzygany RAZ, u wejścia: w trybie „doby” nie powstaje AccommodationConfig
+	 * (rzuca na niespójnym inwentarzu, a event dobowy może nieść zapomniane dane klasyczne),
+	 * a kolumna „Doby” czyta zapisane wiersze zbiorczo — jedno zapytanie na cały eksport.
+	 *
+	 * Tryb czytamy z SUROWEJ konfiguracji noclegu, tą samą drogą co ReservationService,
+	 * panel obłożenia i kolejka maili. Ze schematu nie da się go odczytać wiarygodnie:
+	 * event dobowy, któremu organizator usunął pole noclegu z formularza, nie ma w schemacie
+	 * śladu trybu, a zgłoszenia dalej trzymają wiersze dób — eksport wpadłby wtedy w gałąź
+	 * klasyczną, zgubił kolumnę „Doby” i (na zapomnianym, niespójnym inwentarzu) wywalił się
+	 * na SchemaException.
+	 *
+	 * @param int                 $event_id ID eventu.
+	 * @param array<string,mixed> $filters  Filtry listy (status, type_key, event_id).
+	 */
+	public static function build_export_csv( int $event_id, array $filters ): ?string {
+		$schema = ( new EventFormLoader( new EventConfigRepository() ) )->load( $event_id );
+		if ( null === $schema ) {
+			return null;
+		}
+		$config = ( new EventConfigRepository() )->get( $event_id );
+		$types  = RegistrationTypeCollection::fromArray( is_array( $config['types'] ) ? $config['types'] : array() );
+		$raw    = is_array( $config['accommodation'] ) ? $config['accommodation'] : array();
+
+		$repository = new RegistrationRepository();
+		$rows       = $repository->exportRegistrations( $filters );
+		$ids        = array_map( 'intval', array_column( $rows, 'id' ) );
+		$exporter   = new RegistrationsExporter();
+
+		if ( NightsResolver::isNightsRaw( $raw ) ) {
+			return $exporter->buildCsv( $schema, null, $types, $rows, array(), $repository->bookingNightsFor( $ids ) );
+		}
+
+		$accommodation = AccommodationConfig::fromArray( $raw );
+
+		return $exporter->buildCsv( $schema, $accommodation, $types, $rows, $repository->accommodationBookingsFor( $ids ) );
+	}
+
 	/** Handler eksportu CSV zgłoszeń (streaming, bez PRG na sukcesie). */
 	public static function handle_export(): void {
 		check_admin_referer( self::ACTION_EXPORT );
@@ -721,21 +1022,12 @@ final class RegistrationsScreen {
 		}
 		$filters['event_id'] = $event_id;
 
-		$schema = ( new EventFormLoader( new EventConfigRepository() ) )->load( $event_id );
-		if ( null === $schema ) {
+		$csv = self::build_export_csv( $event_id, $filters );
+		if ( null === $csv ) {
 			self::redirect( 'export_no_event' );
 			return;
 		}
-		$config        = ( new EventConfigRepository() )->get( $event_id );
-		$types         = RegistrationTypeCollection::fromArray( is_array( $config['types'] ) ? $config['types'] : array() );
-		$accommodation = AccommodationConfig::fromArray( is_array( $config['accommodation'] ) ? $config['accommodation'] : array() );
 
-		$repository = new RegistrationRepository();
-		$rows       = $repository->exportRegistrations( $filters );
-		$ids        = array_map( 'intval', array_column( $rows, 'id' ) );
-		$bookings   = $repository->accommodationBookingsFor( $ids );
-
-		$csv      = ( new RegistrationsExporter() )->buildCsv( $schema, $accommodation, $types, $rows, $bookings );
 		$filename = sanitize_file_name( 'zgloszenia-event-' . $event_id . '-' . current_time( 'Y-m-d' ) . '.csv' );
 
 		header( 'Content-Type: text/csv; charset=utf-8' );

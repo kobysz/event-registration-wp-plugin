@@ -35,8 +35,8 @@ final class BookingLabelColumnsTest extends WP_UnitTestCase {
 		$this->assertContains( 'room_label', $cols );
 	}
 
-	public function test_db_version_is_six(): void {
-		$this->assertSame( 6, Migrations::DB_VERSION );
+	public function test_label_columns_ship_with_current_schema_version(): void {
+		$this->assertSame( 7, Migrations::DB_VERSION );
 	}
 
 	public function test_insert_stores_label_snapshot(): void {

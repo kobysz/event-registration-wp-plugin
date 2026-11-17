@@ -10,6 +10,7 @@ declare( strict_types=1 );
 namespace EvReg\Domain\Capacity;
 
 use EvReg\Domain\Accommodation\AccommodationConfig;
+use EvReg\Domain\Accommodation\NightsConfig;
 use EvReg\Domain\Registration\RegistrationTypeCollection;
 
 /**
@@ -29,6 +30,9 @@ final class OccupancyReport {
 	 * @param AccommodationConfig        $accommodation Konfiguracja noclegów (inwentarz + etykiety).
 	 * @param array<string,int>          $statusCounts  Liczba zgłoszeń per status.
 	 * @param float                      $priceTotal    Suma kwot zgłoszeń zajmujących miejsce.
+	 * @param NightsConfig|null          $nights        Konfiguracja trybu „doby” rozstrzygnięta u wejścia;
+	 *                                                  null = tryb klasyczny (brak wierszy dób).
+	 * @param NightOccupancy|null        $nightTaken    Zajętość dób; null = zero miejsc zajętych.
 	 */
 	public function __construct(
 		private readonly OccupancySnapshot $taken,
@@ -36,7 +40,9 @@ final class OccupancyReport {
 		private readonly RegistrationTypeCollection $types,
 		private readonly AccommodationConfig $accommodation,
 		private readonly array $statusCounts = array(),
-		private readonly float $priceTotal = 0.0
+		private readonly float $priceTotal = 0.0,
+		private readonly ?NightsConfig $nights = null,
+		private readonly ?NightOccupancy $nightTaken = null
 	) {
 	}
 
@@ -94,6 +100,42 @@ final class OccupancyReport {
 				'taken'        => $taken,
 				'capacity'     => $item->capacity,
 				'free'         => max( 0, $item->capacity - $taken ),
+			);
+		}
+
+		return $rows;
+	}
+
+	/**
+	 * Obłożenie per doba (tryb „doby”), w kolejności konfiguracji; poza tym trybem pusta lista.
+	 *
+	 * Doba jest jedynym wymiarem pojemności tego trybu, więc `limit` to jej liczba miejsc,
+	 * a NIE pojemność slotu klasycznego — ta jest tu bez znaczenia i {@see self::slots()}
+	 * zwraca w tym trybie pustą listę (inwentarz klasyczny nie istnieje). `taken` liczy
+	 * MIEJSCA (para zajmuje dwa), `pairsTaken` zgłoszenia z osobą towarzyszącą, a `pairCap`
+	 * jest null, gdy doba nie ogranicza par.
+	 *
+	 * @return array<int,array{key:string,label:string,limit:int,taken:int,free:int,pairsTaken:int,pairCap:int|null}>
+	 */
+	public function nights(): array {
+		if ( null === $this->nights || ! $this->nights->isNights() ) {
+			return array();
+		}
+
+		$taken = $this->nightTaken;
+		$rows  = array();
+
+		foreach ( $this->nights->nights() as $night ) {
+			$seats = null === $taken ? 0 : $taken->seatsFor( $night->key );
+
+			$rows[] = array(
+				'key'        => $night->key,
+				'label'      => $night->label,
+				'limit'      => $night->seats,
+				'taken'      => $seats,
+				'free'       => max( 0, $night->seats - $seats ),
+				'pairsTaken' => null === $taken ? 0 : $taken->pairsFor( $night->key ),
+				'pairCap'    => $night->companionCap,
 			);
 		}
 

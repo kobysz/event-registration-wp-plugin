@@ -24,13 +24,15 @@ final class ReservationResult {
 	 * @param string|null $token                Token zgłoszenia, jeśli dotyczy.
 	 * @param bool        $accommodationGranted Czy przyznano zakwaterowanie.
 	 * @param string|null $reason               Kod powodu odrzucenia/listy rezerwowej.
+	 * @param string      $blockingNight        Klucz doby, która zablokowała wybór ('' poza trybem „doby”).
 	 */
 	private function __construct(
 		public readonly string $code,
 		public readonly ?int $registrationId,
 		public readonly ?string $token,
 		public readonly bool $accommodationGranted,
-		public readonly ?string $reason
+		public readonly ?string $reason,
+		public readonly string $blockingNight = ''
 	) {
 	}
 
@@ -70,9 +72,12 @@ final class ReservationResult {
 	 * Buduje wynik dla zgłoszenia NIEzapisanego, bo wybrany slot noclegu nie ma już miejsca.
 	 * Celowo osobny od rejected(): zgłaszający się ma poprawić wybór, nie odbić się od limitu
 	 * całego wydarzenia.
+	 *
+	 * @param string $night_key Klucz blokującej doby w trybie „doby”; '' na ścieżce klasycznej
+	 *                          (parametr opcjonalny — wywołania klasyczne zostają bez zmian).
 	 */
-	public static function accommodationFull(): self {
-		return new self( 'accommodation_full', null, null, false, 'accommodation_full' );
+	public static function accommodationFull( string $night_key = '' ): self {
+		return new self( 'accommodation_full', null, null, false, 'accommodation_full', $night_key );
 	}
 
 	/**

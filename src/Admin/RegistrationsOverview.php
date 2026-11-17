@@ -10,10 +10,12 @@ declare( strict_types=1 );
 namespace EvReg\Admin;
 
 use EvReg\Domain\Accommodation\AccommodationConfig;
+use EvReg\Domain\Accommodation\NightsConfig;
 use EvReg\Domain\Capacity\CapacityLimits;
 use EvReg\Domain\Capacity\OccupancyReport;
 use EvReg\Domain\Registration\RegistrationStatus;
 use EvReg\Domain\Registration\RegistrationTypeCollection;
+use EvReg\Domain\Schema\SchemaException;
 use EvReg\Persistence\EventConfigRepository;
 use EvReg\Persistence\RegistrationRepository;
 
@@ -38,7 +40,23 @@ final class RegistrationsOverview {
 			return;
 		}
 
-		$report = self::report( $event_id );
+		try {
+			$report = self::report( $event_id );
+		} catch ( SchemaException $e ) {
+			// Niepoprawna konfiguracja noclegów nie może zabić całego ekranu listy —
+			// organizator ma zobaczyć, co poprawić, i dalej móc czytać zgłoszenia.
+			printf(
+				'<div class="notice notice-error"><p>%s</p></div>',
+				esc_html(
+					sprintf(
+						/* translators: %s: komunikat błędu konfiguracji. */
+						__( 'Nie można policzyć obłożenia: konfiguracja noclegów tego wydarzenia jest niepoprawna (%s).', 'event-registration' ),
+						$e->getMessage()
+					)
+				)
+			);
+			return;
+		}
 
 		printf(
 			'<h2>%s</h2>',
@@ -54,17 +72,27 @@ final class RegistrationsOverview {
 		self::render_summary( $report );
 		self::render_types( $report );
 		self::render_slots( $report );
+		self::render_nights( $report );
 	}
 
 	/**
 	 * Składa zestawienie obłożenia dla eventu.
 	 *
 	 * @param int $event_id ID eventu.
+	 *
+	 * @throws SchemaException Gdy konfiguracja noclegów jest niepoprawna (łapane w render()).
 	 */
 	private static function report( int $event_id ): OccupancyReport {
-		$config        = ( new EventConfigRepository() )->get( $event_id );
-		$types         = RegistrationTypeCollection::fromArray( is_array( $config['types'] ) ? $config['types'] : array() );
-		$accommodation = AccommodationConfig::fromArray( is_array( $config['accommodation'] ) ? $config['accommodation'] : array() );
+		$config            = ( new EventConfigRepository() )->get( $event_id );
+		$types             = RegistrationTypeCollection::fromArray( is_array( $config['types'] ) ? $config['types'] : array() );
+		$accommodation_raw = is_array( $config['accommodation'] ) ? $config['accommodation'] : array();
+
+		// Rozgałęzienie trybu stoi PRZED AccommodationConfig::fromArray (jak w ReservationService):
+		// ta rzuca na niespójnym inwentarzu, a event w trybie „doby” może nieść zapomniane dane
+		// klasyczne. W trybie „doby” inwentarz klasyczny jest bez znaczenia, więc nie czytamy go
+		// wcale — pojemność ma jeden wymiar i jest nim doba.
+		$nights        = NightsConfig::fromArray( $accommodation_raw );
+		$accommodation = AccommodationConfig::fromArray( $nights->isNights() ? array() : $accommodation_raw );
 		$settings      = is_array( $config['settings'] ) ? $config['settings'] : array();
 		$global_cap    = isset( $settings['global_cap'] ) && null !== $settings['global_cap'] ? (int) $settings['global_cap'] : null;
 
@@ -86,7 +114,9 @@ final class RegistrationsOverview {
 			$types,
 			$accommodation,
 			$counts,
-			$repository->sumPriceTotal( $event_id )
+			$repository->sumPriceTotal( $event_id ),
+			$nights->isNights() ? $nights : null,
+			$nights->isNights() ? $repository->nightOccupancy( $event_id, RegistrationStatus::occupyingValues() ) : null
 		);
 	}
 
@@ -167,6 +197,63 @@ final class RegistrationsOverview {
 		}
 
 		self::close_table();
+	}
+
+	/**
+	 * Renderuje tabelę obłożenia dób (tryb „doby”): miejsca oraz pary i ich limit.
+	 *
+	 * Osobna tabela zamiast wiersza w „Noclegach (miejsca)": tam limitem jest pojemność
+	 * slotu klasycznego, która w tym trybie nie istnieje. W trybie klasycznym ta tabela
+	 * nie wychodzi wcale (report()->nights() jest wtedy puste).
+	 *
+	 * @param OccupancyReport $report Zestawienie obłożenia.
+	 */
+	private static function render_nights( OccupancyReport $report ): void {
+		$nights = $report->nights();
+
+		if ( array() === $nights ) {
+			return;
+		}
+
+		self::open_table( __( 'Doby (miejsca)', 'event-registration' ), __( 'Obłożenie', 'event-registration' ) );
+
+		foreach ( $nights as $night ) {
+			printf(
+				'<tr><td>%s</td><td>%s</td></tr>',
+				esc_html( $night['label'] ),
+				esc_html(
+					self::occupancy_text(
+						array(
+							'taken' => $night['taken'],
+							'limit' => $night['limit'],
+							'free'  => $night['free'],
+						)
+					) . ' · ' . self::pairs_text( $night['pairsTaken'], $night['pairCap'] )
+				)
+			);
+		}
+
+		self::close_table();
+	}
+
+	/**
+	 * Formatuje „pary: zajęte z limitu" albo „pary: zajęte (bez limitu)".
+	 *
+	 * @param int      $taken Zgłoszenia z osobą towarzyszącą w dobie.
+	 * @param int|null $cap   Limit takich zgłoszeń albo null (bez limitu).
+	 */
+	private static function pairs_text( int $taken, ?int $cap ): string {
+		if ( null === $cap ) {
+			/* translators: %s: liczba zgłoszeń z osobą towarzyszącą. */
+			return sprintf( __( 'pary: %s (bez limitu)', 'event-registration' ), number_format_i18n( $taken ) );
+		}
+
+		return sprintf(
+			/* translators: 1: zgłoszenia z osobą towarzyszącą, 2: limit takich zgłoszeń. */
+			__( 'pary: %1$s z %2$s', 'event-registration' ),
+			number_format_i18n( $taken ),
+			number_format_i18n( $cap )
+		);
 	}
 
 	/**

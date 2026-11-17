@@ -11,6 +11,7 @@ namespace EvReg\Frontend;
 
 use EvReg\Domain\Accommodation\AccommodationConfig;
 use EvReg\Domain\Accommodation\SlotAvailability;
+use EvReg\Domain\Registration\RegistrationStatus;
 use EvReg\Domain\Schema\SchemaException;
 use EvReg\Persistence\EventConfigRepository;
 use EvReg\Persistence\RegistrationRepository;
@@ -74,13 +75,26 @@ final class Shortcode {
 			return '<p class="evreg-unavailable">' . esc_html__( 'Rejestracja jest niedostępna.', 'event-registration' ) . '</p>';
 		}
 
+		// Tryb „doby” rozstrzygamy RAZ, tu, u wejścia, i wstrzykujemy niżej. Niepoprawna
+		// konfiguracja dób (np. zduplikowany klucz) nie renderuje noclegu — degradujemy do
+		// istniejącego komunikatu niedostępności zamiast wywalać całą stronę.
+		try {
+			$nights = NightsResolver::forSchema( $schema );
+		} catch ( SchemaException ) {
+			return '<p class="evreg-unavailable">' . esc_html__( 'Rejestracja jest niedostępna.', 'event-registration' ) . '</p>';
+		}
+
 		self::enqueueStyles();
 		wp_enqueue_script( 'evreg-public' );
 
 		$result = SubmitHandler::resultFor( $event_id );
 		$notice = null === $result ? '' : self::resultNotice( $result );
 
-		return $notice . ( new FormRenderer( self::availability( $event_id ) ) )->render( $schema, $event_id, $result );
+		$renderer = null === $nights
+			? new FormRenderer( self::availability( $event_id ) )
+			: new FormRenderer( null, ( new RegistrationRepository() )->nightOccupancy( $event_id, RegistrationStatus::occupyingValues() ), $nights );
+
+		return $notice . $renderer->render( $schema, $event_id, $result );
 	}
 
 	/**
@@ -174,6 +188,7 @@ final class Shortcode {
 			'spam'         => __( 'Nie udało się wysłać zgłoszenia. Spróbuj ponownie.', 'event-registration' ),
 			'config_error' => __( 'Formularz jest nieprawidłowo skonfigurowany.', 'event-registration' ),
 			'invalid'      => __( 'Popraw zaznaczone pola.', 'event-registration' ),
+			'error'        => __( 'Nie udało się zapisać zgłoszenia z powodu błędu po naszej stronie. Nic nie zostało zapisane — spróbuj ponownie za chwilę lub skontaktuj się z organizatorem.', 'event-registration' ),
 		);
 		$text = $map[ $result->code() ] ?? '';
 

@@ -9,8 +9,8 @@ use WP_UnitTestCase;
 
 final class MailQueueMigrationTest extends WP_UnitTestCase {
 
-	public function test_db_version_is_five(): void {
-		$this->assertSame( 6, Migrations::DB_VERSION );
+	public function test_mail_queue_ships_with_current_schema_version(): void {
+		$this->assertSame( 7, Migrations::DB_VERSION );
 	}
 
 	public function test_mail_queue_has_headers_column(): void {

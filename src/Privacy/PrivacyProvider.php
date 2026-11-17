@@ -14,6 +14,7 @@ use EvReg\Domain\Accommodation\AccommodationConfig;
 use EvReg\Domain\Export\RegistrationExportMapper;
 use EvReg\Domain\Registration\RegistrationTypeCollection;
 use EvReg\Frontend\EventFormLoader;
+use EvReg\Frontend\NightsResolver;
 use EvReg\Persistence\EventConfigRepository;
 use EvReg\Persistence\MailQueueRepository;
 use EvReg\Persistence\RegistrationRepository;
@@ -96,7 +97,6 @@ final class PrivacyProvider {
 			$schema   = $loader->load( $event_id );
 			$config   = $config_repo->get( $event_id );
 			$types    = RegistrationTypeCollection::fromArray( is_array( $config['types'] ) ? $config['types'] : array() );
-			$acc      = AccommodationConfig::fromArray( is_array( $config['accommodation'] ) ? $config['accommodation'] : array() );
 
 			$data = array(
 				array(
@@ -154,11 +154,31 @@ final class PrivacyProvider {
 						'value' => $cells[ $i ] ?? '',
 					);
 				}
-				$acc_cells = $mapper->accommodationCells( $repo->findAccommodationBooking( $id ), $acc );
-				$data[]    = array(
-					'name'  => __( 'Nocleg', 'event-registration' ),
-					'value' => trim( $acc_cells['package'] . ' ' . $acc_cells['room'] . ' ' . $acc_cells['roommate'] ),
-				);
+				$raw = is_array( $config['accommodation'] ) ? $config['accommodation'] : array();
+
+				// Tryb czytamy z SUROWEJ konfiguracji noclegu, tą samą drogą co
+				// ReservationService, eksport CSV i kolejka maili. Ze schematu nie da się go
+				// odczytać wiarygodnie: event dobowy, któremu organizator usunął pole noclegu
+				// z formularza, nie ma w schemacie śladu trybu — eksport wpadłby w gałąź
+				// klasyczną i zameldował pusty nocleg dla zgłoszenia, które DEMONSTRACYJNIE ma
+				// wiersze dób. Eksport zaniżający to, co wtyczka o kimś przechowuje, jest
+				// gorszy niż brak eksportu.
+				if ( NightsResolver::isNightsRaw( $raw ) ) {
+					// Tryb „doby”: etykiety z zapisanych wierszy, bez AccommodationConfig
+					// (rzuca na zapomnianym inwentarzu klasycznym, a żądanie osoby, której dane
+					// dotyczą, nie może paść na błędzie konfiguracji).
+					$data[] = array(
+						'name'  => __( 'Doby', 'event-registration' ),
+						'value' => $mapper->nightsCell( $repo->bookingNightsFor( array( $id ) )[ $id ] ?? array() ),
+					);
+				} else {
+					$acc       = AccommodationConfig::fromArray( $raw );
+					$acc_cells = $mapper->accommodationCells( $repo->findAccommodationBooking( $id ), $acc );
+					$data[]    = array(
+						'name'  => __( 'Nocleg', 'event-registration' ),
+						'value' => trim( $acc_cells['package'] . ' ' . $acc_cells['room'] . ' ' . $acc_cells['roommate'] ),
+					);
+				}
 			}
 
 			// Historia maili (spec §6: recipient/subject/dane wysyłki).

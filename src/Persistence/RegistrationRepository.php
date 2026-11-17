@@ -10,6 +10,7 @@ declare( strict_types=1 );
 namespace EvReg\Persistence;
 
 use EvReg\Domain\Accommodation\AccommodationSelection;
+use EvReg\Domain\Capacity\NightOccupancy;
 use EvReg\Domain\Capacity\OccupancySnapshot;
 use EvReg\Domain\Registration\RegistrationStatus;
 
@@ -35,6 +36,13 @@ final class RegistrationRepository {
 	 */
 	private function bookings(): string {
 		return Migrations::table( 'accommodation_bookings' );
+	}
+
+	/**
+	 * Zwraca pełną nazwę tabeli dób zgłoszeń.
+	 */
+	private function bookingNights(): string {
+		return Migrations::table( 'booking_nights' );
 	}
 
 	/**
@@ -538,6 +546,158 @@ final class RegistrationRepository {
 		global $wpdb;
 
 		$wpdb->delete( $this->bookings(), array( 'registration_id' => $id ), array( '%d' ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+	}
+
+	/**
+	 * Kasuje CAŁY nocleg zgłoszenia: wiersz bookingu klasycznego ORAZ wiersze dób.
+	 *
+	 * Jedna metoda, żeby nie dało się skasować połowy. Nocleg zgłoszenia ma jeden
+	 * z dwóch kształtów zależnie od trybu eventu, a ścieżki cyklu życia, które go
+	 * zwalniają (anulowanie, twarde usunięcie), trybu NIE znają i znać nie muszą —
+	 * kształt, którego zgłoszenie nie ma, kasuje się bez skutku.
+	 *
+	 * @param int $id ID zgłoszenia.
+	 */
+	public function deleteAccommodationFor( int $id ): void {
+		$this->deleteAccommodationBooking( $id );
+		$this->deleteBookingNights( $id );
+	}
+
+	/**
+	 * Zajętość dób eventu: miejsca i pary (seats >= 2) per doba, tylko dla statusów zajmujących miejsce.
+	 *
+	 * @param int           $event_id   ID eventu.
+	 * @param array<string> $statuses   Statusy zajmujące miejsce.
+	 * @param int           $exclude_id ID zgłoszenia pomijanego w liczeniu (0 = brak).
+	 */
+	public function nightOccupancy( int $event_id, array $statuses, int $exclude_id = 0 ): NightOccupancy {
+		global $wpdb;
+
+		if ( array() === $statuses ) {
+			return new NightOccupancy( array(), array() );
+		}
+
+		$statuses    = array_values( $statuses );
+		$in          = implode( ',', array_fill( 0, count( $statuses ), '%s' ) );
+		$args        = array_merge( array( $event_id ), $statuses );
+		$exclude_sql = '';
+		if ( $exclude_id > 0 ) {
+			$exclude_sql = ' AND r.id != %d';
+			$args[]      = $exclude_id;
+		}
+
+		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.PreparedSQLPlaceholders.ReplacementsWrongNumber, WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare -- $in oraz $args mają zmienną, ale dopasowaną liczbę elementów.
+		$rows = $wpdb->get_results( $wpdb->prepare( "SELECT n.night_key, SUM(n.seats) AS seats, SUM(CASE WHEN n.seats >= 2 THEN 1 ELSE 0 END) AS pairs FROM {$this->bookingNights()} n INNER JOIN {$this->registrations()} r ON n.registration_id = r.id WHERE r.event_id = %d AND r.status IN ($in)" . $exclude_sql . ' GROUP BY n.night_key', $args ), ARRAY_A );
+
+		$seats = array();
+		$pairs = array();
+		foreach ( (array) $rows as $row ) {
+			$key           = (string) $row['night_key'];
+			$seats[ $key ] = (int) $row['seats'];
+			$pairs[ $key ] = (int) $row['pairs'];
+		}
+
+		return new NightOccupancy( $seats, $pairs );
+	}
+
+	/**
+	 * Zastępuje komplet dób zgłoszenia podanym zbiorem (kasowanie + wstawienie w jednym wywołaniu).
+	 *
+	 * Zwraca liczbę faktycznie wstawionych wierszy. Wołający MUSI porównać ją z liczbą próśb
+	 * (count( $nights )) i w razie różnicy wycofać transakcję: nieudany INSERT nie rzuca wyjątku,
+	 * a niedoliczona doba oznaczałaby niedoliczone miejsca.
+	 *
+	 * @param int                                                             $registration_id ID zgłoszenia.
+	 * @param array<int,array{key:string,label:string,seats:int,price:float}> $nights          Doby do zapisania.
+	 * @return int Liczba wstawionych wierszy.
+	 */
+	public function replaceBookingNights( int $registration_id, array $nights ): int {
+		global $wpdb;
+
+		$this->deleteBookingNights( $registration_id );
+
+		$written = 0;
+		foreach ( $nights as $night ) {
+			$result = $wpdb->insert( // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+				$this->bookingNights(),
+				array(
+					'registration_id' => $registration_id,
+					'night_key'       => $night['key'],
+					'night_label'     => $night['label'],
+					'seats'           => $night['seats'],
+					'price'           => $night['price'],
+				),
+				array( '%d', '%s', '%s', '%d', '%f' )
+			);
+			if ( 1 === $result ) {
+				++$written;
+			}
+		}
+
+		return $written;
+	}
+
+	/**
+	 * Kasuje wszystkie doby zgłoszenia.
+	 *
+	 * @param int $registration_id ID zgłoszenia.
+	 */
+	public function deleteBookingNights( int $registration_id ): void {
+		global $wpdb;
+
+		$wpdb->delete( $this->bookingNights(), array( 'registration_id' => $registration_id ), array( '%d' ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+	}
+
+	/**
+	 * Bulk-pobiera doby wielu zgłoszeń.
+	 *
+	 * @param array<int,int> $registration_ids ID zgłoszeń.
+	 * @return array<int,array<int,array{key:string,label:string,price:float,seats:int}>> Mapa registration_id => doby.
+	 */
+	public function bookingNightsFor( array $registration_ids ): array {
+		global $wpdb;
+
+		$ids = array_values( array_unique( array_map( 'intval', $registration_ids ) ) );
+		if ( array() === $ids ) {
+			return array();
+		}
+
+		$in   = implode( ',', array_fill( 0, count( $ids ), '%d' ) );
+		$rows = $wpdb->get_results(
+			// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare,WordPress.DB.PreparedSQLPlaceholders.ReplacementsWrongNumber -- $in ma zmienną, ale dopasowaną liczbę placeholderów.
+			$wpdb->prepare( "SELECT registration_id, night_key, night_label, seats, price FROM {$this->bookingNights()} WHERE registration_id IN ($in) ORDER BY id ASC", $ids ),
+			ARRAY_A
+		); // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+
+		$map = array();
+		foreach ( (array) $rows as $row ) {
+			$map[ (int) $row['registration_id'] ][] = array(
+				'key'   => (string) $row['night_key'],
+				'label' => (string) $row['night_label'],
+				'price' => (float) $row['price'],
+				'seats' => (int) $row['seats'],
+			);
+		}
+		return $map;
+	}
+
+	/**
+	 * Czy event ma jakikolwiek nocleg (booking klasyczny albo doba) — predykat blokady zmiany trybu.
+	 *
+	 * @param int $event_id ID eventu.
+	 */
+	public function eventHasAccommodation( int $event_id ): bool {
+		global $wpdb;
+
+		$statuses = RegistrationStatus::occupyingValues();
+		$in       = implode( ',', array_fill( 0, count( $statuses ), '%s' ) );
+		$args     = array_merge( array( $event_id ), $statuses );
+
+		// Obie połówki EXISTS są skorelowane z r, więc filtr statusu na r obejmuje oba rodzaje wierszy.
+		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQLPlaceholders.ReplacementsWrongNumber, WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare -- $in oraz $args mają zmienną, ale dopasowaną liczbę elementów.
+		$found = $wpdb->get_var( $wpdb->prepare( "SELECT 1 FROM {$this->registrations()} r WHERE r.event_id = %d AND r.status IN ($in) AND ( EXISTS ( SELECT 1 FROM {$this->bookings()} b WHERE b.registration_id = r.id ) OR EXISTS ( SELECT 1 FROM {$this->bookingNights()} n WHERE n.registration_id = r.id ) ) LIMIT 1", $args ) );
+
+		return null !== $found;
 	}
 
 	/**
