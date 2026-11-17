@@ -298,6 +298,186 @@ final class EditCompanionRoomRuleTest extends WP_UnitTestCase {
 		$this->assertSame( 0, (int) $this->repository->findById( $this->registration_id )['companion'] );
 	}
 
+	public function test_hidden_accommodation_edit_ticking_the_companion_into_a_one_bed_room_is_refused(): void {
+		// Edycja, która pola noclegu NIE PODAŁA (warunek widoczności przestał pasować),
+		// noclegu nie kasuje — editAnswers reinstaluje wybór ZAPISANY i przelicza go NOWĄ
+		// flagą towarzyszącej. Reguła spójności pary musi więc sądzić POKÓJ ZAPISANY:
+		// sądzona po wyborze z żądania widzi „bez noclegu” i puszcza dwie osoby do pokoju
+		// jednoosobowego, z jednym miejscem na slocie i rachunkiem ×1, pod „zaktualizowano”.
+		$this->addSingleRoom();
+		$this->makeAccommodationConditional();
+		$this->repository->deleteAccommodationBooking( $this->registration_id );
+		$this->repository->insertAccommodationBooking(
+			$this->registration_id,
+			new AccommodationSelection( 'n18', 'single' ),
+			100.0,
+			1,
+			'Noc 18/19',
+			'Jednoosobowy'
+		);
+
+		$_POST['registration']         = $this->registration_id;
+		$_REQUEST['_wpnonce']          = wp_create_nonce( 'evreg_edit_' . $this->registration_id );
+		$_POST['evreg_field']          = array(
+			// Typ `obserwator` wyłącza warunek pola noclegu: pole wypada z formularza,
+			// więc Validator nie zwraca jego wartości, choć POST ją niesie.
+			'__type' => 'obserwator',
+			'email'  => 'jan@example.com',
+			'nocleg' => array( 'slot' => 'n18|single', 'roommate' => '' ),
+		);
+		$_POST['evreg_companion']      = '1';
+		$_POST['evreg_companion_name'] = 'Anna Kowalska';
+
+		$redirect = null;
+		ob_start();
+		try {
+			$redirect = $this->catchRedirect();
+		} finally {
+			$html = (string) ob_get_clean();
+		}
+
+		$this->assertNull( $redirect, 'Sprzeczna para na POKOJU ZAPISANYM nie powinna przekierowywać (inline re-render).' );
+		$this->assertStringContainsString( 'Ten pokój jest jednoosobowy', $html );
+
+		// Zgłoszenie w bazie nietknięte: flaga, typ, slot, miejsca i cena.
+		$row     = $this->repository->findById( $this->registration_id );
+		$booking = $this->repository->findAccommodationBooking( $this->registration_id );
+		$this->assertSame( 0, (int) $row['companion'] );
+		$this->assertSame( 'uczestnik', (string) $row['type_key'] );
+		$this->assertNotNull( $booking );
+		$this->assertSame( 'single', (string) $booking['room_type_key'] );
+		$this->assertSame( 1, (int) $booking['seats'] );
+		$this->assertSame( 100.0, (float) $booking['price'] );
+	}
+
+	public function test_hidden_accommodation_edit_unticking_the_companion_from_a_two_bed_room_is_refused(): void {
+		// Druga strona tej samej dziury: pokój dwuosobowy zostaje, a flaga schodzi. Bez
+		// reguły edycja przechodzi i zostawia JEDNEJ osobie dwa łóżka i rachunek ×2.
+		$this->makeAccommodationConditional();
+		$this->repository->updateRegistration(
+			$this->registration_id,
+			'uczestnik',
+			'jan@example.com',
+			'Jan',
+			(string) wp_json_encode(
+				array(
+					'__type' => 'uczestnik',
+					'email'  => 'jan@example.com',
+					'nocleg' => array( 'package' => 'n18', 'room' => 'double', 'roommate' => '' ),
+				)
+			),
+			460.0, // typ 100 + nocleg 180 × 2 miejsca.
+			1,
+			'Anna Kowalska'
+		);
+		$this->repository->deleteAccommodationBooking( $this->registration_id );
+		$this->repository->insertAccommodationBooking(
+			$this->registration_id,
+			new AccommodationSelection( 'n18', 'double' ),
+			360.0,
+			2,
+			'Noc 18/19',
+			'Dwuosobowy'
+		);
+
+		$_POST['registration'] = $this->registration_id;
+		$_REQUEST['_wpnonce']  = wp_create_nonce( 'evreg_edit_' . $this->registration_id );
+		$_POST['evreg_field']  = array(
+			'__type' => 'obserwator',
+			'email'  => 'jan@example.com',
+			'nocleg' => array( 'slot' => 'n18|double', 'roommate' => '' ),
+		);
+		// Checkbox towarzyszącej NIE przychodzi: flaga 1 → 0.
+
+		$redirect = null;
+		ob_start();
+		try {
+			$redirect = $this->catchRedirect();
+		} finally {
+			$html = (string) ob_get_clean();
+		}
+
+		$this->assertNull( $redirect, 'Zdjęcie flagi z pokoju dwuosobowego nie powinno przekierowywać.' );
+		$this->assertStringContainsString( 'Ten pokój jest dwuosobowy', $html );
+
+		$row     = $this->repository->findById( $this->registration_id );
+		$booking = $this->repository->findAccommodationBooking( $this->registration_id );
+		$this->assertSame( 1, (int) $row['companion'] );
+		$this->assertSame( 460.0, (float) $row['price_total'] );
+		$this->assertNotNull( $booking );
+		$this->assertSame( 2, (int) $booking['seats'] );
+		$this->assertSame( 360.0, (float) $booking['price'] );
+	}
+
+	public function test_hidden_accommodation_edit_touching_neither_the_slot_nor_the_flag_still_passes(): void {
+		// Granica reguły, świadoma decyzja z B-occupancy: pokój dostał liczbę osób PO
+		// zapisaniu zgłoszenia, więc edycja nieruszająca ani slotu, ani flagi MUSI przejść
+		// także wtedy, gdy pola noclegu w ogóle nie podała. Inaczej poprawka adresu
+		// e-mail odbiłaby się od reguły, której ta edycja nie dotyczy.
+		$this->makeAccommodationConditional(); // pokój `double` ma occupancy 2, flaga = 0.
+
+		$_POST['registration'] = $this->registration_id;
+		$_REQUEST['_wpnonce']  = wp_create_nonce( 'evreg_edit_' . $this->registration_id );
+		$_POST['evreg_field']  = array(
+			'__type' => 'obserwator',
+			'email'  => 'nowy@example.com',
+			'nocleg' => array( 'slot' => 'n18|double', 'roommate' => '' ),
+		);
+
+		$redirect = $this->catchRedirect();
+
+		$this->assertNotNull( $redirect, 'Edycja nieruszająca noclegu ani flagi powinna przejść (PRG).' );
+		$this->assertStringContainsString( 'evreg_msg=edited', $redirect->location );
+		$this->assertSame( 'nowy@example.com', (string) $this->repository->findById( $this->registration_id )['email'] );
+		$booking = $this->repository->findAccommodationBooking( $this->registration_id );
+		$this->assertNotNull( $booking, 'Booking musi przeżyć edycję, która noclegu nie podała.' );
+		$this->assertSame( 1, (int) $booking['seats'] );
+		$this->assertSame( 180.0, (float) $booking['price'] );
+	}
+
+	/**
+	 * Dokłada drugi typ zgłoszenia i warunek widoczności na polu noclegu.
+	 *
+	 * Wybór typu `obserwator` przestaje pasować do warunku, więc pole noclegu wypada
+	 * z formularza i edycja przychodzi BEZ PODANEJ odpowiedzi na nocleg (B21) — przy
+	 * zachowanym wyborze zapisanym. Taka edycja jest jedyną, na której reguła spójności
+	 * pary musi sądzić pokój z bookingu, a nie z żądania.
+	 */
+	private function makeAccommodationConditional(): void {
+		( new EventConfigRepository() )->save(
+			$this->event_id,
+			array(
+				'schema' => array(
+					'version'  => 1,
+					'sections' => array(
+						array(
+							'key'    => 'dane',
+							'title'  => 'Dane',
+							'fields' => array(
+								array( 'key' => '__type', 'type' => 'radio', 'label' => 'Typ' ),
+								array( 'key' => 'email', 'type' => 'email', 'label' => 'E-mail', 'required' => true ),
+								array(
+									'key'       => 'nocleg',
+									'type'      => 'accommodation',
+									'label'     => 'Nocleg',
+									'condition' => array(
+										'field'    => '__type',
+										'operator' => 'equals',
+										'value'    => 'uczestnik',
+									),
+								),
+							),
+						),
+					),
+				),
+				'types'  => array(
+					array( 'key' => 'uczestnik', 'label' => 'Uczestnik', 'price' => 100.0 ),
+					array( 'key' => 'obserwator', 'label' => 'Obserwator', 'price' => 50.0 ),
+				),
+			)
+		);
+	}
+
 	/**
 	 * Dokłada do eventu pokój jednoosobowy obok istniejącego dwuosobowego.
 	 */

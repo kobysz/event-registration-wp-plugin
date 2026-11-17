@@ -18,7 +18,6 @@ use EvReg\Frontend\NightsResolver;
 use EvReg\Frontend\SubmissionAssembler;
 use EvReg\Persistence\EventConfigRepository;
 use EvReg\Persistence\RegistrationRepository;
-use EvReg\Services\ReservationRequest;
 use EvReg\Services\ReservationService;
 
 defined( 'ABSPATH' ) || exit;
@@ -317,11 +316,27 @@ final class RegistrationsScreen {
 			$previous_slot = null === $booking
 				? ''
 				: (string) $booking['package_key'] . '|' . (string) $booking['room_type_key'];
-			$new_slot      = null === $request->selection ? '' : $request->selection->slotKey();
+
+			// O POKOJU, który ta edycja daje zgłoszeniu, rozstrzyga ten sam skrót, którym idzie
+			// editAnswers: wybór PODANY wygrywa, a edycja, która odpowiedzi na pole noclegu nie
+			// podała (warunek widoczności ukrył pole), zostaje przy wyborze ZAPISANYM. Dopiero
+			// po B21 te dwa fakty się rozchodzą — wcześniej taka edycja nocleg niszczyła, więc
+			// sprzeczności nie było jak zbudować. Sądzenie reguły po samym `$request->selection`
+			// czytałoby ukryte pole jako „bez noclegu" i puszczało parę, którą reguła istnieje
+			// żeby odrzucić: dwie osoby w pokoju jednoosobowym (jedno miejsce, rachunek ×1) albo
+			// jedną w dwuosobowym (dwa łóżka, rachunek ×2) — po cichu, pod „zaktualizowano".
+			$supplied      = $request->accommodationAnswered( nights_mode: false );
+			$previous_room = null === $booking ? null : (string) $booking['room_type_key'];
+			$new_room      = $supplied
+				? ( null === $request->selection ? null : $request->selection->roomKey )
+				: $previous_room;
+			$new_slot      = $supplied
+				? ( null === $request->selection ? '' : $request->selection->slotKey() )
+				: $previous_slot;
 			$changed       = $previous_slot !== $new_slot || (bool) ( $row['companion'] ?? false ) !== $request->companion;
 
 			if ( $changed ) {
-				$mismatch = self::companionRoomMismatch( $schema, $request );
+				$mismatch = self::companionRoomMismatch( $schema, $new_room, $request->companion );
 
 				if ( null !== $mismatch ) {
 					$key    = $schema->accommodationFieldKey();
@@ -387,11 +402,16 @@ final class RegistrationsScreen {
 	 * Bliźniak `SubmitHandler::companionRoomMismatch` — dwie powierzchnie, dwa wyzwalacze;
 	 * sąd siedzi w jednym miejscu (`RoomType::companionMismatch`).
 	 *
-	 * @param FormSchema         $schema  Złożony schemat formularza.
-	 * @param ReservationRequest $request Zbudowane żądanie rezerwacji.
+	 * Pokój dostaje z zewnątrz, a nie z żądania: na ścieżce publicznej to zawsze pokój
+	 * z submisji, w adminie — pokój, który zgłoszenie po tej edycji realnie dostanie
+	 * (podany albo, gdy pole było ukryte, zapisany). Patrz wyzwalacz w handle_edit().
+	 *
+	 * @param FormSchema  $schema    Złożony schemat formularza.
+	 * @param string|null $room_key  Klucz pokoju po tej edycji (null = bez noclegu).
+	 * @param bool        $companion Czy zgłoszenie ma osobę towarzyszącą.
 	 */
-	private static function companionRoomMismatch( FormSchema $schema, ReservationRequest $request ): ?string {
-		if ( null === $request->selection ) {
+	private static function companionRoomMismatch( FormSchema $schema, ?string $room_key, bool $companion ): ?string {
+		if ( null === $room_key ) {
 			return null;
 		}
 
@@ -405,9 +425,9 @@ final class RegistrationsScreen {
 			return null;
 		}
 
-		$room = AccommodationConfig::fromArray( $field->config )->room( $request->selection->roomKey );
+		$room = AccommodationConfig::fromArray( $field->config )->room( $room_key );
 
-		return null === $room ? null : $room->companionMismatch( $request->companion );
+		return null === $room ? null : $room->companionMismatch( $companion );
 	}
 
 	/**
