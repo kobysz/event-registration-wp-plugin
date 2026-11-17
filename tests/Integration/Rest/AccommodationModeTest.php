@@ -114,26 +114,46 @@ final class AccommodationModeTest extends WP_UnitTestCase {
 		return false !== $acquired;
 	}
 
-	public function test_the_mode_check_and_the_save_both_run_under_the_event_lock(): void {
+	/**
+	 * Identyfikator transakcji TEGO połączenia, czyli tego, na którym biegnie żądanie.
+	 * Zmienia się przy każdym COMMIT/ROLLBACK, więc ta sama wartość w dwóch punktach
+	 * żądania znaczy: to JEDNA transakcja, nie dwie pod rząd.
+	 */
+	private function current_trx_id(): ?string {
+		global $wpdb;
+
+		$trx = $wpdb->get_var( 'SELECT trx_id FROM information_schema.innodb_trx WHERE trx_mysql_thread_id = CONNECTION_ID()' ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+
+		return null === $trx ? null : (string) $trx;
+	}
+
+	public function test_the_mode_check_and_the_save_run_in_one_locked_transaction(): void {
 		$this->seed_lock_row();
 
 		// Dwie sondy w dwóch punktach jednego żądania: pierwszy odczyt
 		// _evreg_accommodation to sprawdzenie trybu, pierwszy zapis meta to save().
-		// Zamek zwalnia się tylko na COMMIT/ROLLBACK, więc „zajęty w obu punktach”
-		// znaczy: jedna transakcja objęła sprawdzenie i zapis.
+		// Każda mierzy DWIE rzeczy: czy zamek eventu jest zajęty (z innego połączenia)
+		// ORAZ identyfikator transakcji tego połączenia. Sam zamek w obu punktach nie
+		// wystarcza — kształt „begin; lock; sprawdź; commit; begin; lock; zapisz; commit”
+		// też trzyma go w obu punktach i NADAL ma wyścig B17 w szczelinie między
+		// transakcjami. Dopiero ten sam trx_id dowodzi jednej transakcji.
 		$free_during_check = null;
 		$free_during_save  = null;
+		$trx_during_check  = null;
+		$trx_during_save   = null;
 
-		$check_probe = function ( $short_circuit, $object_id, $meta_key ) use ( &$free_during_check ) {
+		$check_probe = function ( $short_circuit, $object_id, $meta_key ) use ( &$free_during_check, &$trx_during_check ) {
 			if ( null === $free_during_check && '_evreg_accommodation' === $meta_key && $this->event_id === $object_id ) {
+				$trx_during_check  = $this->current_trx_id();
 				$free_during_check = $this->lock_is_free();
 			}
 
 			return $short_circuit;
 		};
 
-		$save_probe = function ( $short_circuit ) use ( &$free_during_save ) {
+		$save_probe = function ( $short_circuit ) use ( &$free_during_save, &$trx_during_save ) {
 			if ( null === $free_during_save ) {
+				$trx_during_save  = $this->current_trx_id();
 				$free_during_save = $this->lock_is_free();
 			}
 
@@ -147,8 +167,15 @@ final class AccommodationModeTest extends WP_UnitTestCase {
 		remove_filter( 'update_post_metadata', $save_probe, 10 );
 
 		$this->assertSame( 200, $response->get_status() );
+		// Kontrola dodatnia obu sond: zamek MUSI dać się wziąć, gdy nikt go nie trzyma,
+		// a trx_id MUSI być czymś odczytanym — inaczej „zajęty”/„równe” przechodzi
+		// pusto przy zepsutej sondzie.
+		$this->assertNotNull( $trx_during_check, 'Sonda nie odczytała identyfikatora transakcji — bez tego porównanie trx_id nic nie dowodzi.' );
+		$this->assertNotNull( $trx_during_save, 'Sonda nie odczytała identyfikatora transakcji — bez tego porównanie trx_id nic nie dowodzi.' );
 		$this->assertSame( false, $free_during_check, 'Sprawdzenie trybu musi biec pod zamkiem eventu — sonda z innego połączenia nie może go wziąć.' );
-		$this->assertSame( false, $free_during_save, 'Zapis konfiguracji musi biec pod tym samym zamkiem — inaczej rezerwacja wciśnie się między sprawdzenie a zapis.' );
+		$this->assertSame( false, $free_during_save, 'Zapis konfiguracji musi biec pod zamkiem eventu — sonda z innego połączenia nie może go wziąć.' );
+		$this->assertSame( $trx_during_check, $trx_during_save, 'Sprawdzenie i zapis muszą leżeć w JEDNEJ transakcji — dwie kolejne transakcje zostawiają szczelinę, w którą wciśnie się rezerwacja.' );
+		$this->assertTrue( $this->lock_is_free(), 'Po zakończeniu żądania zamek eventu musi być wolny (kontrola dodatnia sondy).' );
 	}
 
 	public function test_the_event_lock_is_released_when_the_save_throws(): void {
