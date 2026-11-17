@@ -32,10 +32,25 @@ final class PromoteFromWaitlistTest extends WP_UnitTestCase {
 		$this->service    = new ReservationService( $this->repository, $config );
 		$this->event_id   = self::factory()->post->create( array( 'post_type' => 'evreg_event' ) );
 
-		// Typ z limitem 1 miejsca.
+		// Typ z limitem 1 miejsca. Schema niesie pole typu `accommodation` o kluczu
+		// `nocleg` — awans czyta spod niego życzenie zapisane w odpowiedziach zgłoszenia,
+		// które na liście rezerwowej nie ma bookingu.
 		$config->save(
 			$this->event_id,
 			array(
+				'schema'   => array(
+					'version'  => 1,
+					'sections' => array(
+						array(
+							'key'    => 'dane',
+							'title'  => 'Dane',
+							'fields' => array(
+								array( 'key' => '__type', 'type' => 'radio', 'label' => 'Typ' ),
+								array( 'key' => 'nocleg', 'type' => 'accommodation', 'label' => 'Nocleg' ),
+							),
+						),
+					),
+				),
 				'types'    => array( array( 'key' => 'uczestnik', 'label' => 'Uczestnik', 'price' => 0.0, 'capacity' => 1 ) ),
 				'settings' => array( 'waitlist_enabled' => true ),
 			)
@@ -49,7 +64,14 @@ final class PromoteFromWaitlistTest extends WP_UnitTestCase {
 		parent::tearDown();
 	}
 
-	private function seed( string $status, string $token ): int {
+	/**
+	 * Zapisuje zgłoszenie o podanym statusie.
+	 *
+	 * @param string              $status  Status zgłoszenia.
+	 * @param string              $token   Token (32 znaki) — służy też jako lokalna część e-maila.
+	 * @param array<string,mixed> $answers Odpowiedzi do kolumny `data`; puste dają `{}`.
+	 */
+	private function seed( string $status, string $token, array $answers = array() ): int {
 		return $this->repository->insertRegistration(
 			array(
 				'event_id'    => $this->event_id,
@@ -58,11 +80,64 @@ final class PromoteFromWaitlistTest extends WP_UnitTestCase {
 				'email'       => $token . '@example.com',
 				'name'        => 'Jan',
 				'token'       => $token,
-				'data'        => '{}',
+				// Rzutowanie na obiekt trzyma kształt `{}` dla pustych odpowiedzi.
+				'data'        => (string) wp_json_encode( (object) $answers ),
 				'price_total' => 0.0,
 				'expires_at'  => null,
 			)
 		);
+	}
+
+	/**
+	 * Konfiguruje event z jednym slotem noclegowym (typ bez limitu, żeby miejsce na
+	 * wydarzeniu nigdy nie było tym, co blokuje awans).
+	 *
+	 * @param int   $capacity   Pojemność slotu w miejscach.
+	 * @param float $bed_price  Cena łóżka w aktualnym cenniku.
+	 * @param float $type_price Cena typu zgłoszenia.
+	 * @param int   $occupancy  Liczba osób w pokoju (0 = nieustawione).
+	 * @param bool  $companions Czy nocleg dopuszcza osobę towarzyszącą.
+	 */
+	private function configure_accommodation(
+		int $capacity = 2,
+		float $bed_price = 150.0,
+		float $type_price = 100.0,
+		int $occupancy = 0,
+		bool $companions = false
+	): void {
+		// Pokój pyta o współlokatora, żeby zapisane życzenie mogło nieść tę preferencję
+		// — dokładnie jak zgłoszenie wysłane przez formularz.
+		$room = array( 'key' => 'single', 'label' => 'Jednoosobowy', 'roommate_field' => true );
+
+		if ( 0 !== $occupancy ) {
+			$room['occupancy'] = $occupancy;
+		}
+
+		( new EventConfigRepository() )->save(
+			$this->event_id,
+			array(
+				'types'         => array( array( 'key' => 'uczestnik', 'label' => 'Uczestnik', 'price' => $type_price ) ),
+				'accommodation' => array(
+					'packages'          => array( array( 'key' => 'n18', 'label' => 'Noc 18/19' ) ),
+					'rooms'             => array( $room ),
+					'inventory'         => array( array( 'package' => 'n18', 'room' => 'single', 'capacity' => $capacity, 'price' => $bed_price ) ),
+					'companion_enabled' => $companions,
+				),
+				'settings'      => array( 'waitlist_enabled' => true ),
+			)
+		);
+	}
+
+	/**
+	 * Liczba wierszy bookingu zgłoszenia.
+	 *
+	 * @param int $id ID zgłoszenia.
+	 */
+	private function booking_count( int $id ): int {
+		global $wpdb;
+
+		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.DirectDatabaseQuery
+		return (int) $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM ' . Migrations::table( 'accommodation_bookings' ) . ' WHERE registration_id = %d', $id ) );
 	}
 
 	private function mail_count( string $template_key ): int {
@@ -227,5 +302,208 @@ final class PromoteFromWaitlistTest extends WP_UnitTestCase {
 		$this->assertSame( 'occupancy_mismatch', $result->code );
 		$this->assertSame( 'waitlist', $this->repository->findById( $waitlisted )['status'] );
 		$this->assertNotNull( $this->repository->findAccommodationBooking( $waitlisted ) );
+	}
+
+	public function test_promotion_grants_the_bed_wished_on_the_waitlist(): void {
+		// Zgłoszenie na liście rezerwowej NIE ma bookingu (waitlista nie zajmuje miejsca),
+		// więc jego życzenie mieszka wyłącznie w odpowiedziach — awans musi je ponowić.
+		$this->configure_accommodation( 2, 100.0 );
+
+		$id = $this->seed(
+			'waitlist',
+			str_repeat( 'g', 32 ),
+			array(
+				'__type' => 'uczestnik',
+				'nocleg' => array(
+					'package'  => 'n18',
+					'room'     => 'single',
+					'roommate' => 'Ola',
+				),
+			)
+		);
+
+		// Cennik zmieniony, gdy zgłoszenie czekało: awans wycenia po BIEŻĄCYM cenniku,
+		// jak ścieżka dobowa — nie po cenie sprzed tygodni.
+		$this->configure_accommodation( 2, 150.0 );
+
+		$result = $this->service->promoteFromWaitlist( $id );
+
+		$this->assertSame( 'promoted', $result->code );
+		$this->assertSame( 'pending', $this->repository->findById( $id )['status'] );
+
+		$booking = $this->repository->findAccommodationBooking( $id );
+		$this->assertNotNull( $booking, 'Życzenie z listy rezerwowej musi dostać booking.' );
+		$this->assertSame( 'n18', $booking['package_key'] );
+		$this->assertSame( 'single', $booking['room_type_key'] );
+		$this->assertSame( 1, (int) $booking['seats'] );
+		$this->assertSame( '150.00', $booking['price'] );
+		$this->assertSame( 'Ola', $booking['roommate_pref'] );
+		$this->assertSame( 'Noc 18/19', $booking['package_label'] );
+		$this->assertSame( 'Jednoosobowy', $booking['room_label'] );
+		$this->assertSame( '250.00', $this->repository->findById( $id )['price_total'] );
+	}
+
+	public function test_promotion_reads_the_legacy_answer_shape(): void {
+		// Wiersze zapisane przed naprawą kształtu JSON trzymają nazwy właściwości obiektu.
+		// Czytelnik rozumiejący tylko klucze kanoniczne nie znalazłby tu życzenia.
+		$this->configure_accommodation( 2, 150.0 );
+
+		$id = $this->seed(
+			'waitlist',
+			str_repeat( 'k', 32 ),
+			array(
+				'nocleg' => array(
+					'packageKey'   => 'n18',
+					'roomKey'      => 'single',
+					'roommatePref' => 'Ola',
+				),
+			)
+		);
+
+		$result = $this->service->promoteFromWaitlist( $id );
+
+		$this->assertSame( 'promoted', $result->code );
+
+		$booking = $this->repository->findAccommodationBooking( $id );
+		$this->assertNotNull( $booking, 'Starszy kształt zapisanej odpowiedzi też jest życzeniem.' );
+		$this->assertSame( 'n18', $booking['package_key'] );
+		$this->assertSame( 'single', $booking['room_type_key'] );
+		$this->assertSame( 'Ola', $booking['roommate_pref'] );
+		$this->assertSame( '250.00', $this->repository->findById( $id )['price_total'] );
+	}
+
+	public function test_promotion_without_a_free_bed_reports_the_loss(): void {
+		$this->configure_accommodation( 1, 150.0 );
+
+		// Jedyne łóżko zajęte przez potwierdzone zgłoszenie (status zajmujący miejsce).
+		$taken = $this->seed( 'confirmed', str_repeat( 'h', 32 ) );
+		$this->repository->insertAccommodationBooking(
+			$taken,
+			new AccommodationSelection( 'n18', 'single' ),
+			150.0,
+			1,
+			'Noc 18/19',
+			'Jednoosobowy'
+		);
+
+		$id = $this->seed(
+			'waitlist',
+			str_repeat( 'i', 32 ),
+			array(
+				'nocleg' => array(
+					'package' => 'n18',
+					'room'    => 'single',
+				),
+			)
+		);
+
+		$result = $this->service->promoteFromWaitlist( $id );
+
+		// Nocleg NIGDY nie blokuje awansu: promujemy i mówimy o utracie łóżka.
+		$this->assertSame( 'promoted_no_accommodation', $result->code );
+		$this->assertSame( 'pending', $this->repository->findById( $id )['status'] );
+		$this->assertSame( 0, $this->booking_count( $id ), 'Bez przyznania nie wolno zapisać bookingu — slot zostałby przesprzedany.' );
+		$this->assertSame( '100.00', $this->repository->findById( $id )['price_total'] );
+	}
+
+	public function test_promotion_of_a_slot_gone_from_the_inventory_reports_the_loss(): void {
+		$this->configure_accommodation( 2, 150.0 );
+
+		$id = $this->seed(
+			'waitlist',
+			str_repeat( 'm', 32 ),
+			array(
+				'nocleg' => array(
+					'package' => 'n18',
+					'room'    => 'single',
+				),
+			)
+		);
+
+		// Organizator wycofał slot z inwentarza po zawaitlistowaniu (config-drift).
+		( new EventConfigRepository() )->save(
+			$this->event_id,
+			array(
+				'accommodation' => array(
+					'packages'  => array( array( 'key' => 'n18', 'label' => 'Noc 18/19' ) ),
+					'rooms'     => array( array( 'key' => 'single', 'label' => 'Jednoosobowy' ) ),
+					'inventory' => array(),
+				),
+			)
+		);
+
+		$result = $this->service->promoteFromWaitlist( $id );
+
+		$this->assertSame( 'promoted_no_accommodation', $result->code );
+		$this->assertSame( 'pending', $this->repository->findById( $id )['status'] );
+		$this->assertSame( 0, $this->booking_count( $id ) );
+		$this->assertSame( '100.00', $this->repository->findById( $id )['price_total'] );
+	}
+
+	public function test_promotion_of_an_empty_accommodation_answer_is_a_plain_promotion(): void {
+		// Pusty ciąg to „bez noclegu", nie życzenie — inaczej awans raportowałby utratę
+		// łóżka, o które ta osoba nigdy nie prosiła.
+		$this->configure_accommodation();
+
+		$id = $this->seed(
+			'waitlist',
+			str_repeat( 'j', 32 ),
+			array(
+				'__type' => 'uczestnik',
+				'nocleg' => '',
+			)
+		);
+
+		$result = $this->service->promoteFromWaitlist( $id );
+
+		$this->assertSame( 'promoted', $result->code );
+		$this->assertSame( 0, $this->booking_count( $id ) );
+		$this->assertSame( '100.00', $this->repository->findById( $id )['price_total'] );
+	}
+
+	public function test_promotion_does_not_revive_an_accommodation_dropped_on_purpose(): void {
+		// „Bez noclegu" zapisuje się jako null (walidator zwraca pustą wartość), więc
+		// odczyt życzenia musi to czytać jako brak wyboru — inaczej awans wskrzesiłby
+		// nocleg, który admin albo zgłaszający się świadomie zdjął.
+		$this->configure_accommodation();
+
+		$id = $this->seed(
+			'waitlist',
+			str_repeat( 'o', 32 ),
+			array(
+				'__type' => 'uczestnik',
+				'nocleg' => null,
+			)
+		);
+
+		$result = $this->service->promoteFromWaitlist( $id );
+
+		$this->assertSame( 'promoted', $result->code );
+		$this->assertSame( 0, $this->booking_count( $id ) );
+		$this->assertSame( '100.00', $this->repository->findById( $id )['price_total'] );
+	}
+
+	public function test_promotion_refuses_a_wished_room_that_now_requires_companion(): void {
+		// Ta sama sprzeczność, co przy życzeniu z zapisanego bookingu, i ta sama szkoda:
+		// seats=2 i cena ×2 przy companion=0. Pochodzenie życzenia (wiersz czy JSON)
+		// nie może zmieniać wyroku — rozstrzyga admin, edytując odpowiedzi.
+		$this->configure_accommodation( 10, 150.0, 100.0, 2, true );
+
+		$id = $this->seed(
+			'waitlist',
+			str_repeat( 'n', 32 ),
+			array(
+				'nocleg' => array(
+					'package' => 'n18',
+					'room'    => 'single',
+				),
+			)
+		);
+
+		$result = $this->service->promoteFromWaitlist( $id );
+
+		$this->assertSame( 'occupancy_mismatch', $result->code );
+		$this->assertSame( 'waitlist', $this->repository->findById( $id )['status'] );
+		$this->assertSame( 0, $this->booking_count( $id ) );
 	}
 }

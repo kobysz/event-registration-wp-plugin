@@ -552,6 +552,13 @@ final class ReservationService {
 	 * nie wstawia bookingu przy braku grantu). price_total jest przeliczane na promocji tak
 	 * samo jak w reserve(): typ + (nocleg przyznany ? cena pozycji×seats : 0).
 	 *
+	 * Gdy bookingu NIE MA — a zgłoszenie z listy rezerwowej go nie ma, bo waitlista nie
+	 * zajmuje miejsca — życzenie czytamy z odpowiedzi (`accommodationWish()`), jak robi to
+	 * ścieżka dobowa (`nightWish()`). Nocleg NIGDY nie blokuje samego awansu: brak miejsca
+	 * albo slot zniknięty z inwentarza daje promoted_no_accommodation, bo odmowa zostawiłaby
+	 * człowieka na liście rezerwowej mimo wolnego miejsca na wydarzeniu. Wycena idzie po
+	 * BIEŻĄCYM cenniku — ta sama reguła, co w trybie „doby”.
+	 *
 	 * @param int $id ID zgłoszenia.
 	 *
 	 * @throws \Throwable Gdy operacja w transakcji się nie powiedzie (ROLLBACK przed ponownym rzuceniem).
@@ -592,15 +599,26 @@ final class ReservationService {
 			return AdminActionResult::invalidStatus();
 		}
 
-		$booking   = $this->repository->findAccommodationBooking( $id );
-		$selection = null === $booking
-			? null
-			: new AccommodationSelection( (string) $booking['package_key'], (string) $booking['room_type_key'], (string) ( $booking['roommate_pref'] ?? '' ) );
+		$selection = $this->storedSelection( $this->repository->findAccommodationBooking( $id ) );
+
+		// Bez bookingu życzenie mieszka tylko w odpowiedziach (B12) — i tak wygląda KAŻDE
+		// zwykłe zgłoszenie z listy rezerwowej, bo waitlista nie zajmuje miejsca, więc
+		// reserve() nie zapisuje mu bookingu. Bez tego odczytu awans nie miałby czego
+		// przyznać: człowiek wracał do obiegu bez łóżka, mimo wolnych miejsc, a kod
+		// promoted_no_accommodation nie mógł odpalić. Odczyt kolumny `data` z już pobranego
+		// wiersza nie dotyka bazy, więc stoi tu, obok odczytu bookingu i przed transakcją —
+		// niczego nie wkłada między lockEvent i pierwszy odczyt zajętości (jak nightWish()).
+		if ( null === $selection ) {
+			$selection = $this->accommodationWish( $config, (string) $row['data'] );
+		}
+
 		$companion = (bool) ( $row['companion'] ?? false );
 
 		// Pokój mógł zmienić liczbę osób po zawaitlistowaniu. Promowanie zgłoszenia
 		// niespójnego z nową konfiguracją dałoby seats/cenę dla innej liczby osób,
 		// niż zapisano w zgłoszeniu — admin musi to rozstrzygnąć edycją odpowiedzi.
+		// Dotyczy też życzenia odczytanego z odpowiedzi: szkoda jest ta sama (dwa łóżka
+		// i podwójny rachunek dla jednej osoby), więc pochodzenie życzenia nie zmienia wyroku.
 		if ( null !== $selection ) {
 			$room = $accommodation->room( $selection->roomKey );
 			if ( null !== $room && null !== $room->companionMismatch( $companion ) ) {
@@ -691,8 +709,8 @@ final class ReservationService {
 	 * zgłoszenia → zapis dób → cena → markPending → COMMIT → hook POZA try/catch.
 	 *
 	 * Życzenie dób czyta z odpowiedzi (JSON), bo zgłoszenie z listy rezerwowej NIE ma wierszy
-	 * dób — nie zajmuje miejsc. To przewaga nad trybem klasycznym, w którym waitlista gubi
-	 * wybrany nocleg (znana luka B12): tutaj awans ma co ponownie rozstrzygnąć.
+	 * dób — nie zajmuje miejsc. Ścieżka klasyczna czyta swoje życzenie tak samo
+	 * (`accommodationWish()`), odkąd B12 jest zamknięte.
 	 *
 	 * Nocleg NIGDY nie blokuje samego awansu: gdy doba nie ma już miejsca albo zniknęła
 	 * z konfiguracji, promujemy i mówimy o utracie kodem promoted_no_accommodation — odmowa
@@ -931,7 +949,7 @@ final class ReservationService {
 	 * wypada z `data` i zapis odpowiedzi skasowałby zapisaną odpowiedź na nie. Dla zgłoszenia
 	 * zajmującego miejsce księgą jest booking/wiersze dób, ale zgłoszenie z LISTY REZERWOWEJ
 	 * wierszy nie ma — jego życzenie mieszka TYLKO tutaj i przepadłoby bezpowrotnie, a awans
-	 * (`nightWish`, a po B12 także ścieżka klasyczna) nie miałby już czego przyznać.
+	 * (`nightWish`, a na ścieżce klasycznej `accommodationWish`) nie miałby już czego przyznać.
 	 *
 	 * Przeniesiona wartość idzie VERBATIM: czytający rozumieją każdy zapisany kształt (lista
 	 * kluczy, goły klucz, obiekt selekcji), a normalizacja przy okazji niezwiązanej edycji
@@ -991,6 +1009,37 @@ final class ReservationService {
 			(string) $booking['room_type_key'],
 			(string) ( $booking['roommate_pref'] ?? '' )
 		);
+	}
+
+	/**
+	 * Czyta życzenie noclegu zapisane w odpowiedziach zgłoszenia (JSON), tryb klasyczny.
+	 *
+	 * Bliźniak `nightWish()` dla pakietów i pokoi, z tego samego powodu: zgłoszenie z LISTY
+	 * REZERWOWEJ nie ma bookingu, bo waitlista nie zajmuje miejsca, więc wybór dokonany przy
+	 * rezerwacji przeżywa wyłącznie tutaj. Klucz pola bierze `accommodationFieldKey()`
+	 * z SUROWEJ schemy — ten sam rozstrzygacz i to samo uzasadnienie (patrz jego docblock).
+	 *
+	 * Oba zapisane kształty rozumie `AccommodationSelection::normalizeArray()`: żywe
+	 * instalacje niosą zarówno klucze kanoniczne, jak i starsze nazwy właściwości obiektu,
+	 * a czytelnik rozumiejący tylko jedne po cichu nie znalazłby życzenia w drugich.
+	 *
+	 * Wartość nie będąca tablicą nie jest wyborem — klasyczny wybór to zawsze para
+	 * pakiet+pokój. W szczególności pusty ciąg znaczy „bez noclegu”: wzięty za życzenie
+	 * kazałby awansowi raportować utratę łóżka, o które nikt nie prosił. `fromArray()`
+	 * odrzuca tak samo parę niepełną.
+	 *
+	 * @param array<string,array<mixed>> $config    Konfiguracja eventu (schema niesie klucz pola noclegu).
+	 * @param string                     $data_json Odpowiedzi zgłoszenia jako JSON.
+	 */
+	private function accommodationWish( array $config, string $data_json ): ?AccommodationSelection {
+		$answers = json_decode( $data_json, true );
+		$key     = $this->accommodationFieldKey( is_array( $config['schema'] ) ? $config['schema'] : array() );
+
+		if ( ! is_array( $answers ) || null === $key || ! isset( $answers[ $key ] ) || ! is_array( $answers[ $key ] ) ) {
+			return null;
+		}
+
+		return AccommodationSelection::fromArray( AccommodationSelection::normalizeArray( $answers[ $key ] ) );
 	}
 
 	/**
