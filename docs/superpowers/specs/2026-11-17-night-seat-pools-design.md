@@ -75,15 +75,47 @@ albo `nights`.
 - **`nights`** — nowy model: doby z ceną i dwoma limitami, wielokrotny wybór, zero typów
   pokoi i zero pakietów.
 
+Przy przełączeniu na `nights` klasyczna konfiguracja (pakiety, pokoje, inwentarz)
+**zostaje zapisana**, tylko ukryta w UI — żeby powrót nie był destrukcyjny. Z tego
+wynika nośny inwariant:
+
+> **W trybie `nights` nic nie konstruuje `AccommodationConfig`.**
+
+`AccommodationConfig::fromArray` jest dziś wołane w kilkunastu miejscach (renderer,
+`SubmissionAssembler`, trzy ścieżki `ReservationService`, `PlaceholderFactory`,
+`PrivacyProvider`, panel obłożenia, edycja w adminie) i **rzuca `SchemaException` na
+niespójnym inwentarzu**, a większość tych miejsc wyjątku nie łapie. Nieaktualne dane
+klasyczne pod eventem w trybie `nights` mogłyby więc wysadzić publiczny formularz —
+w trybie, w którym operator nie widzi już UI inwentarza, żeby to naprawić. Dlatego
+wspólne flagi (`companion_enabled`, `allow_none`, `companion_counts_event`) czyta
+`NightsConfig`, bez parsowania pakietów, pokoi i inwentarza. Rozgałęzienie po `mode`
+siedzi w każdym z tych wejść — osiem `if`-ów na wejściu, nie przeplot dwóch semantyk
+w jednym wyrażeniu.
+
 Tryb jest przełącznikiem eventu, nie właściwością pakietu. Powód jest konkretny:
 zgodność w tył staje się **brakiem zmian**, a nie warstwą, którą trzeba by testować
 w każdej ścieżce transakcyjnej. Każde rozwidlenie w kodzie to jedno `if` na wejściu,
 nie splot dwóch semantyk w jednym wyrażeniu.
 
-Przełączenie trybu na evencie, który ma już rezerwacje, jest **blokowane** (admin nie
-pozwala): zapisane bookingi klasyczne nie mają dób, a dobowe nie mają pakietu i pokoju,
-więc pojemność po przełączeniu czytałaby pustkę. Event zmienia tryb, dopóki nie ma
-zgłoszeń z noclegiem — i tylko wtedy.
+Przełączenie trybu na evencie, który ma już rezerwacje, jest **blokowane**: zapisane
+bookingi klasyczne nie mają dób, a dobowe nie mają pakietu i pokoju, więc pojemność po
+przełączeniu czytałaby pustkę.
+
+**Blokada jest po stronie serwera, nie w Reakcie** (inwariant: serwer jest arbitrem).
+`EventConfigController` odrzuca zapis zmieniający `mode` kodem 409 — tym samym wzorcem,
+którym już odrzuca pustą pełną podmianę i18n i szablonów maili. React tylko pokazuje
+powód i wyłącza przełącznik.
+
+**Predykat blokady:** istnieje choć jeden wiersz bookingu klasycznego albo wiersz doby
+dla tego eventu. Oba rodzaje wierszy istnieją tylko dla żywych rezerwacji (anulowanie je
+kasuje), więc event z samymi anulowanymi zgłoszeniami **nie jest** zablokowany na zawsze
+— to był realny wariant pułapki.
+
+Zakładka potrzebuje dwóch nowych faktów z serwera: stanu blokady i liczby rezerwacji per
+doba (do ostrzeżenia przy usuwaniu doby). Oba dochodzą do **istniejącego payloadu**
+`EventConfigController` jako blok `stats`, nie nowym endpointem — admin ładuje dziś
+konfigurację trzema równoległymi requestami i czwarty tylko pogorszyłby sprawę
+z mergowaniem stanu.
 
 ## Model konfiguracji (tryb `nights`)
 
@@ -100,7 +132,6 @@ array(
         ),
         array( 'key' => 'n1920', 'label' => '19/20 grudnia', 'price' => 150.0, 'seats' => 65, 'companion_cap' => 28 ),
     ),
-    'roommate_field' => true,  // pytaj o preferowanego współlokatora (gdy brak towarzyszącej)
     // companion_enabled, companion_counts_event, allow_none — jak dziś
     // packages / rooms / inventory — nieużywane w tym trybie
 )
@@ -121,10 +152,11 @@ doby, ujemne `seats`, `price` lub `companion_cap`.
 1. **Osoba towarzysząca** — checkbox + imię i nazwisko (dziś działa, bez zmian).
 2. **Doby** — checkbox per doba, wielokrotny wybór. Zero zaznaczeń = bez noclegu
    (wymaga `allow_none`; gdy nocleg jest obowiązkowy, walidacja żąda choć jednej doby).
-3. **Preferowany współlokator** — opcjonalne pole tekstowe, pokazywane tylko gdy
-   towarzysząca NIE jest zaznaczona i `roommate_field` jest włączone. W tym trybie ma
-   więcej sensu niż dziś: operator kwateruje ręcznie, więc preferencja jest dla niego
-   realną wskazówką.
+**Preferowanego współlokatora w tym trybie NIE MA** (v1). Operator kwateruje ręcznie,
+więc preferencja byłaby dla niego użyteczna — ale `roommate_pref` mieszka dziś na wierszu
+bookingu, którego w tym trybie nie ma, więc musiałby dostać drugi dom na zgłoszeniu
+i rozgałęzić pięć czytających miejsc (CSV, detal, eksporter i eraser prywatności, edycja).
+Nikt o to pole nie prosił; wraca jako osobna mała zmiana, jeśli będzie potrzebne.
 
 Typu pokoju uczestnik **nie wybiera** — stąd jedna cena za miejsce za dobę. To była
 świadoma decyzja zamawiającego: różnicowanie ceny per typ pokoju wymagałoby wyboru,
@@ -153,7 +185,10 @@ bez zmian, wraz z dzisiejszą regułą `companion_counts_event`.
 
 ## Cena
 
-`cena = Σ price(doba) × s` po zaznaczonych dobach. Bramkowanie ceny przyznaniem noclegu
+`cena = cena_typu_zgłoszenia + Σ price(doba) × s` po zaznaczonych dobach. Cena typu
+liczy się **raz**, niezależnie od osoby towarzyszącej — dokładnie jak dziś w
+`PriceCalculator::total()`; towarzysząca płaci za łóżka, nie za wstęp.
+Bramkowanie ceny przyznaniem noclegu
 (B7) zostaje: cena noclegu liczy się tylko dla dób faktycznie przyznanych — a skoro
 zaznaczenie jest przyjmowane w całości albo odrzucane, przyznane są wszystkie albo żadna.
 
@@ -179,17 +214,31 @@ CREATE TABLE {prefix}evreg_booking_nights (
   eventu, tą samą drogą co dziś.
 - **Klucz na `registration_id`, nie na bookingu.** W trybie `nights` nie ma wiersza
   w `evreg_accommodation_bookings` — nie ma pakietu ani pokoju, które by go wypełniły.
-  Doby **są** rezerwacją noclegu. `UNIQUE(registration_id, night_key)` daje idempotencję
-  zapisu.
+  `UNIQUE(registration_id, night_key)` daje idempotencję zapisu.
+- **Wiersze dób to księga PRZYZNANYCH miejsc, nie zapis życzenia.** Zbiór dób, o który
+  ktoś poprosił, mieszka w JSON-ie odpowiedzi (niżej). Rozdział jest nośny: zgłoszenie
+  z listy rezerwowej **nie ma** wierszy dób (nie zajmuje miejsc), ale pamięta swoje doby,
+  więc awans ma co ponownie rozstrzygnąć — inaczej niż w trybie `classic`, gdzie
+  waitlista gubi wybrany nocleg (znana luka B12).
+- **Cykl życia:** wiersze powstają w transakcji przyznającej nocleg, giną przy anulowaniu
+  (`cancel`, jak dziś ginie booking), przy zmianie zbioru dób w edycji i przy twardym
+  usunięciu zgłoszenia. Zapytanie liczące **zawsze** dołącza `evreg_registrations`
+  i filtruje statusy zajmujące miejsce — kasowanie przy anulowaniu to drugi zamek,
+  nie jedyny.
 - **`night_label` i `price` to snapshoty**, jak `package_label`/`room_label` od 0.1.14:
   zmiana nazwy albo ceny doby nie może przepisać historii ani przeliczyć zajętości w tył.
+- **Zbiór dób idzie też do JSON-a odpowiedzi**, jako **zwykła lista kluczy**
+  (`["n1819","n1920"]`), nie obiekt. Dwa powody: formularz edycji w adminie prefilluje
+  się wyłącznie z JSON-a (`render_edit`), więc bez tego każda doba renderowałaby się
+  niezaznaczona, a pusty zbiór jest legalnym „bez noclegu" — pierwsza niezwiązana edycja
+  (poprawka telefonu) skasowałaby wiersze dób i obniżyła cenę, po cichu. Drugi powód to
+  awans z waitlisty, który potrzebuje życzenia. **Lista, nie obiekt**, bo tryb `classic`
+  ma w tym miejscu błąd, którego nie dziedziczymy (backlog B15).
 - Eraser prywatności **nie tyka** tych wierszy: nie ma w nich danych osobowych, a ich
   usunięcie rozjechałoby zajętość (ta sama zasada, dla której eraser zostawia status,
   typ, cenę i daty). Twarde usunięcie zgłoszenia je kasuje.
 - `Uninstaller::TABLES` dostaje nową nazwę (cztery tabele → pięć).
-- `roommate_pref` zostaje tam, gdzie jest dziś — w `evreg_accommodation_bookings` go nie
-  będzie, więc w trybie `nights` wędruje na zgłoszenie (kolumna `roommate_pref` na
-  `evreg_registrations`, `varchar(191) NULL`). To druga i ostatnia zmiana schematu.
+- **To jedyna zmiana schematu.** Żadnej nowej kolumny na istniejących tabelach.
 
 ## Domena
 
@@ -210,11 +259,16 @@ Czysto, bez WordPressa, w `src/Domain/Accommodation/` i `src/Domain/Capacity/`:
   sprawą prezentacji, nie domeny.
 - **`NightOccupancy`** (nowy): zajętość per doba, dwie liczby —
   `seatsFor( string $night ): int`, `pairsFor( string $night ): int`.
-- **`NightPrice`** (nowy, czysty): `total( NightsConfig $config, NightSelection $selection, int $seats ): float`.
+- **`PriceCalculator`** dostaje **drugą metodę**
+  `totalForNights( RegistrationType $type, NightsConfig $config, NightSelection $selection, int $seats ): float`.
+  Osobnej klasy na cenę dób NIE ma: reguła „cena typu zgłoszenia liczy się raz,
+  niezależnie od osoby towarzyszącej" ma jeden dom i dokładanie drugiego punktu
+  składania ceny obok niego skończyłoby się rozjazdem. Istniejące `total()`
+  zostaje nietknięte.
 
 `CapacityCalculator`, `CapacityLimits`, `OccupancySnapshot`, `SlotAvailability`,
-`RoomOccupancy`, `RoomType`, `Package`, `InventoryItem` i `PriceCalculator`
-**zostają nietknięte** — służą trybowi `classic`.
+`RoomOccupancy`, `RoomType`, `Package`, `InventoryItem` i dotychczasowe
+`PriceCalculator::total()` **zostają nietknięte** — służą trybowi `classic`.
 
 ## Ścieżki transakcyjne
 
@@ -314,6 +368,11 @@ zmian** — obsługuje drugi tryb.
 - **Druga kopia arytmetyki.** `NightCapacity` i `NightPrice` to jedyne domy swoich
   reguł; `form.js` jest ich lustrem i niczym więcej.
 - **Przełączenie trybu pod istniejącymi rezerwacjami.**
+- **Konstruowanie `AccommodationConfig` w trybie `nights`** (patrz inwariant wyżej).
+- **Zapisanie zbioru dób jako obiektu w JSON-ie odpowiedzi.** Tryb `classic` ma tam
+  obiekt selekcji z kluczami `packageKey`/`roomKey`, podczas gdy formularz edycji czyta
+  `package`/`room` — stąd wybór noclegu renderuje się tam niezaznaczony (backlog B15).
+  Lista kluczy nie dziedziczy tego błędu.
 - **Zmiana namespace'u pól formularza.** `evreg_field[...]` zostaje (inwariant 3B).
 
 ## Ograniczenia

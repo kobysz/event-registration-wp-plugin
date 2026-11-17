@@ -411,3 +411,37 @@ na/z atrybutu zapasowego (`data-evreg-required`), żeby stan dał się odtworzy�
 ponownym pokazaniu. Serwer i tak jest arbitrem i już jest świadomy warunków
 (`SubmissionAssembler` buduje `Validator` z `VisibilityResolver`, więc pole schowane
 warunkowo nie jest wymagane po stronie serwera), czyli zmiana jest czysto kliencka.
+
+---
+
+## B15 — Edycja zgłoszenia w adminie renderuje nocleg jako niezaznaczony
+
+**Priorytet:** średni, ale to **żywy błąd w wydanej wersji**, nie dług projektowy.
+
+**Stan:** `ReservationService` zapisuje odpowiedzi jako
+`wp_json_encode( $request->data )`, a `$data` to `$values` z walidacji, gdzie wpis pola
+noclegu jest **obiektem** `AccommodationSelection` (tak go zwraca
+`AccommodationValidator::validate` → `FieldOutcome::valid( $selection )`). Obiekt nie
+implementuje `JsonSerializable`, więc `wp_json_encode` zapisuje nazwy właściwości:
+`{"packageKey":"p1","roomKey":"single","roommatePref":""}`.
+
+Czytające miejsca oczekują kluczy z `AccommodationSelection::toArray()`, czyli
+`package`/`room`/`roommate`:
+- `RegistrationEditForm::renderAccommodation` (`$current` z `$value['package']`),
+- `RegistrationsScreen::render_answers` (fallback `package_key`/`room_type_key`).
+
+`RegistrationsScreen::render_edit` prefilluje formularz **wyłącznie** z
+`json_decode( $row['data'] )` (dokłada tylko `evreg_companion*` z kolumn), więc przy
+edycji zgłoszenia z noclegiem **żadna pozycja noclegu nie jest zaznaczona**. Detal to
+maskuje, bo woli wiersz bookingu.
+
+**Skutek:** admin otwiera edycję, widzi nocleg jako niewybrany i albo dostaje błąd
+walidacji (gdy pole jest wymagane), albo zapisuje zgłoszenie **bez noclegu** — co
+w `editAnswers` kasuje booking i przelicza cenę w dół. Cicho.
+
+**Szkic:** zapisywać `->toArray()` zamiast obiektu (np. normalizacja w
+`SubmissionAssembler` przed złożeniem `AssembledSubmission`), a czytające miejsca na czas
+przejściowy przyjmować **oba** kształty (stare wiersze w bazie mają już złe klucze).
+Test: round-trip zapis → `render_edit` → zaznaczona właściwa pozycja. Osobna zmiana od
+pul dobowych; tryb `nights` świadomie zapisuje listę kluczy, nie obiekt, żeby tego nie
+odziedziczyć.
