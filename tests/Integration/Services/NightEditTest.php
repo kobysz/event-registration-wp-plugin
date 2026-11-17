@@ -507,6 +507,46 @@ final class NightEditTest extends WP_UnitTestCase {
 		$this->assertSame( 2, $this->occupancy()->seatsFor( 'n1920' ) );
 	}
 
+	public function test_edit_from_the_rendered_form_is_refused_when_a_stored_night_vanished(): void {
+		// Bliźniak testu wyżej na ścieżce wyboru PODANEGO — tej, którą składa ekran edycji.
+		// `renderNights` iteruje bieżącą konfigurację, więc zniknięta doba nie ma checkboxa
+		// i NIE MOŻE wrócić w POST-cie; NightSelection normalizuje się do dób istniejących.
+		// Bez odmowy po nazwie zwykła poprawka danych skasowałaby wiersz znikniętej doby,
+		// zwolniła jej miejsce i obniżyła cenę, meldując „zaktualizowane”. Dwie połowy tej
+		// samej funkcji nie mogą dawać na ten sam fakt dwóch przeciwnych odpowiedzi.
+		$id     = $this->reserve( 'half@example.com', array( 'n1819', 'n1920' ) );
+		$before = $this->nightsOf( $id );
+		// 100 (typ) + 80 + 90.
+		$this->assertSame( '270.00', $this->repository->findById( $id )['price_total'] );
+
+		// Admin usunął n1920 z konfiguracji; zapisany wiersz zgłoszenia został.
+		$this->configure(
+			array(
+				array(
+					'key'   => 'n1819',
+					'label' => '18/19 XI',
+					'price' => 80.0,
+					'seats' => 4,
+				),
+			)
+		);
+
+		// Dokładnie to, co wysyła wyrenderowany formularz: jedyna doba, jaką pokazuje.
+		$request = $this->request( 'half@example.com', array( 'n1819' ) );
+		$this->assertNotNull( $request->nights, 'To żądanie MUSI nieść wybór dób.' );
+
+		$result = $this->service->editAnswers( $id, $request );
+
+		$this->assertSame( 'accommodation_full', $result->code );
+		$this->assertSame( 'n1920', $result->reason, 'Odmowa musi nazwać dobę, która zniknęła.' );
+
+		// Nic się nie ruszyło: ani wiersze, ani miejsca, ani cena.
+		$this->assertSame( $before, $this->nightsOf( $id ) );
+		$this->assertSame( '270.00', $this->repository->findById( $id )['price_total'] );
+		$this->assertSame( 1, $this->occupancy()->seatsFor( 'n1819' ) );
+		$this->assertSame( 1, $this->occupancy()->seatsFor( 'n1920' ) );
+	}
+
 	public function test_dropping_the_companion_without_a_selection_rewrites_the_seats(): void {
 		// Kierunek nieszkodliwy dla pojemności (zwalnia miejsce), ale przypięty, żeby nie
 		// zmienił się po cichu: zostawienie wierszy z seats=2 trzymałoby miejsce dla

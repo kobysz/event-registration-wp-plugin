@@ -1155,11 +1155,17 @@ final class ReservationService {
 			// miejsca na tych samych dobach, zamiast udawać rezygnację z noclegu.
 			$selection = $request->nights ?? NightSelection::fromKeys( $stored_keys, $nights_config );
 
-			// Klucze, które muszą się rozstrzygnąć wobec konfiguracji. Przy wyborze podanym
-			// bierzemy je z żądania — ten NightSelection powstał z odczytu ekranu edycji
-			// i może nieść dobę, której dzisiejsza konfiguracja już nie ma, a odmowa ma ją
-			// nazwać. Przy niepodanym bierzemy klucze ZAPISANE, bo $selection zbudowaliśmy
-			// sami z bieżącej konfiguracji i zniknięta doba wypadłaby z niego po cichu.
+			// Doby ŻĄDANE tą edycją. Przy wyborze podanym bierzemy je z żądania — to jest
+			// nowy zbiór, o który operator poprosił. Przy niepodanym bierzemy klucze
+			// ZAPISANE, bo $selection zbudowaliśmy sami z bieżącej konfiguracji i zniknięta
+			// doba wypadłaby z niego po cichu.
+			//
+			// UWAGA: na ŻADNEJ z dwóch gałęzi ten zbiór nie wystarczy sam jako lista dób do
+			// rozstrzygnięcia wobec konfiguracji. Przy wyborze podanym doba zniknięta
+			// z konfiguracji nie ma w nim jak się znaleźć (formularz jej nie renderuje,
+			// a NightSelection normalizuje ją do niebytu), więc pętla odmowy niżej dokłada
+			// doby zapisane, których konfiguracja już nie zna. Obie gałęzie muszą odmawiać
+			// tej samej sytuacji po nazwie.
 			$requested_keys = $supplied ? $selection->keys() : array_values( array_unique( $stored_keys ) );
 
 			$sorted_stored = $stored_keys;
@@ -1220,7 +1226,33 @@ final class ReservationService {
 					// w międzyczasie. Odmawiamy wprost i nazywamy dobę, zamiast cicho pominąć —
 					// także gdy to doba ZAPISANA przy zgłoszeniu zniknęła z konfiguracji, bo
 					// ciche jej pominięcie zabrałoby zgłoszeniu nocleg i obniżyło cenę.
-					foreach ( $requested_keys as $key ) {
+					//
+					// Przy wyborze PODANYM żądane klucze NIE WYSTARCZĄ jako zbiór do
+					// rozstrzygnięcia. `renderNights` iteruje bieżącą konfigurację, więc
+					// zniknięta doba nie ma checkboxa i nie może wrócić w POST-cie, a
+					// NightSelection i tak znormalizowałby ją do niebytu — żądane klucze
+					// nigdy o niej nie powiedzą. Dokładamy więc doby ZAPISANE, których
+					// dzisiejsza konfiguracja już nie zna: inaczej poprawka numeru telefonu
+					// skasowałaby wiersz takiej doby, zwolniła jej miejsce i obniżyła cenę
+					// pod komunikatem „zaktualizowane”. Gałąź wyboru NIEPODANEGO odmawia
+					// w tej samej sytuacji po nazwie i te dwie połowy jednej funkcji nie
+					// mogą dawać przeciwnych odpowiedzi na ten sam fakt.
+					//
+					// Doba zapisana, którą konfiguracja ZNA, a której w żądaniu nie ma, to
+					// świadome odznaczenie i tu się nie pojawia — tak samo jak wybór podany
+					// i pusty (świadoma rezygnacja) nie wchodzi w tę gałąź wcale, bo ma
+					// $granted === false.
+					$resolve_keys = $requested_keys;
+
+					if ( $supplied ) {
+						foreach ( $stored_keys as $stored_key ) {
+							if ( null === $nights_config->night( $stored_key ) && ! in_array( $stored_key, $resolve_keys, true ) ) {
+								$resolve_keys[] = $stored_key;
+							}
+						}
+					}
+
+					foreach ( $resolve_keys as $key ) {
 						$night = $nights_config->night( $key );
 
 						if ( null === $night ) {
