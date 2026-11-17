@@ -78,8 +78,6 @@ final class ReservationService {
 	 *                    rzuci po COMMIT (wiersz pozostaje zatwierdzony).
 	 */
 	public function reserve( int $event_id, ReservationRequest $request ): ReservationResult {
-		global $wpdb;
-
 		$config            = $this->config->get( $event_id );
 		$types             = RegistrationTypeCollection::fromArray( is_array( $config['types'] ) ? $config['types'] : array() );
 		$settings          = is_array( $config['settings'] ) ? $config['settings'] : array();
@@ -96,7 +94,7 @@ final class ReservationService {
 
 		$accommodation = AccommodationConfig::fromArray( $accommodation_raw );
 
-		$wpdb->query( 'START TRANSACTION' );
+		$this->repository->beginTransaction();
 
 		try {
 			// KRYTYCZNA KOLEJNOŚĆ: lockEvent() (SELECT ... FOR UPDATE) MUSI wykonać się
@@ -108,7 +106,7 @@ final class ReservationService {
 			$this->repository->lockEvent( $event_id );
 
 			if ( $this->repository->activeRegistrationExists( $event_id, $request->email ) ) {
-				$wpdb->query( 'ROLLBACK' );
+				$this->repository->rollback();
 				return ReservationResult::duplicate();
 			}
 
@@ -130,7 +128,7 @@ final class ReservationService {
 			);
 
 			if ( Outcome::Rejected === $decision->outcome ) {
-				$wpdb->query( 'ROLLBACK' );
+				$this->repository->rollback();
 				return ReservationResult::rejected( (string) $decision->reason );
 			}
 
@@ -143,7 +141,7 @@ final class ReservationService {
 			if ( Outcome::Accepted === $decision->outcome
 				&& null !== $request->selection
 				&& ! $decision->accommodationGranted ) {
-				$wpdb->query( 'ROLLBACK' );
+				$this->repository->rollback();
 				return ReservationResult::accommodationFull();
 			}
 
@@ -188,13 +186,13 @@ final class ReservationService {
 				);
 			}
 
-			$wpdb->query( 'COMMIT' );
+			$this->repository->commit();
 
 			$result = $is_waitlist
 				? ReservationResult::waitlisted( $id, $token, (string) $decision->reason )
 				: ReservationResult::reserved( $id, $token, $decision->accommodationGranted, $decision->reason );
 		} catch ( \Throwable $e ) {
-			$wpdb->query( 'ROLLBACK' );
+			$this->repository->rollback();
 			throw $e;
 		}
 
@@ -240,8 +238,6 @@ final class ReservationService {
 		array $settings,
 		RegistrationTypeCollection $types
 	): ReservationResult {
-		global $wpdb;
-
 		// UWAGA: tutaj `nights === null` znaczy „nie poproszono o nocleg” i pusty zbiór jest
 		// tym samym co brak wyboru — nowe zgłoszenie nie ma żadnego stanu, który mógłby na
 		// tym stracić. W editAnswersNights() ten sam null czyta się INACZEJ („wybór nie
@@ -250,7 +246,7 @@ final class ReservationService {
 		$selection = $request->nights ?? NightSelection::fromKeys( array(), $nights_config );
 		$seats     = $request->companion ? 2 : 1;
 
-		$wpdb->query( 'START TRANSACTION' );
+		$this->repository->beginTransaction();
 
 		try {
 			// KRYTYCZNA KOLEJNOŚĆ (jak w reserve()): lockEvent() (SELECT ... FOR UPDATE) MUSI
@@ -262,7 +258,7 @@ final class ReservationService {
 			$this->repository->lockEvent( $event_id );
 
 			if ( $this->repository->activeRegistrationExists( $event_id, $request->email ) ) {
-				$wpdb->query( 'ROLLBACK' );
+				$this->repository->rollback();
 				return ReservationResult::duplicate();
 			}
 
@@ -287,7 +283,7 @@ final class ReservationService {
 			);
 
 			if ( Outcome::Rejected === $decision->outcome ) {
-				$wpdb->query( 'ROLLBACK' );
+				$this->repository->rollback();
 				return ReservationResult::rejected( (string) $decision->reason );
 			}
 
@@ -307,7 +303,7 @@ final class ReservationService {
 					$night = $nights_config->night( $key );
 
 					if ( null === $night ) {
-						$wpdb->query( 'ROLLBACK' );
+						$this->repository->rollback();
 						return ReservationResult::accommodationFull( $key );
 					}
 
@@ -330,7 +326,7 @@ final class ReservationService {
 				);
 
 				if ( null !== $blocking ) {
-					$wpdb->query( 'ROLLBACK' );
+					$this->repository->rollback();
 					return ReservationResult::accommodationFull( $blocking );
 				}
 			}
@@ -386,13 +382,13 @@ final class ReservationService {
 				}
 			}
 
-			$wpdb->query( 'COMMIT' );
+			$this->repository->commit();
 
 			$result = $is_waitlist
 				? ReservationResult::waitlisted( $id, $token, (string) $decision->reason )
 				: ReservationResult::reserved( $id, $token, $granted, $decision->reason );
 		} catch ( \Throwable $e ) {
-			$wpdb->query( 'ROLLBACK' );
+			$this->repository->rollback();
 			throw $e;
 		}
 
@@ -503,8 +499,6 @@ final class ReservationService {
 	 * @throws \Throwable Gdy operacja w transakcji się nie powiedzie (ROLLBACK przed ponownym rzuceniem).
 	 */
 	public function cancel( int $id ): AdminActionResult {
-		global $wpdb;
-
 		$row = $this->repository->findById( $id );
 
 		if ( null === $row ) {
@@ -521,14 +515,14 @@ final class ReservationService {
 			return AdminActionResult::invalidStatus();
 		}
 
-		$wpdb->query( 'START TRANSACTION' );
+		$this->repository->beginTransaction();
 
 		try {
 			$this->repository->markCancelled( $id );
 			$this->repository->deleteAccommodationFor( $id );
-			$wpdb->query( 'COMMIT' );
+			$this->repository->commit();
 		} catch ( \Throwable $e ) {
-			$wpdb->query( 'ROLLBACK' );
+			$this->repository->rollback();
 			throw $e;
 		}
 
@@ -566,8 +560,6 @@ final class ReservationService {
 	 * @throws \Throwable Gdy operacja w transakcji się nie powiedzie (ROLLBACK przed ponownym rzuceniem).
 	 */
 	public function promoteFromWaitlist( int $id ): AdminActionResult {
-		global $wpdb;
-
 		$row = $this->repository->findById( $id );
 
 		if ( null === $row ) {
@@ -647,7 +639,7 @@ final class ReservationService {
 
 		$accommodation_lost = $wish_dropped;
 
-		$wpdb->query( 'START TRANSACTION' );
+		$this->repository->beginTransaction();
 
 		try {
 			// KRYTYCZNA KOLEJNOŚĆ: lockEvent PRZED occupancy (jak reserve). NIE ZMIENIAJ.
@@ -671,7 +663,7 @@ final class ReservationService {
 			);
 
 			if ( Outcome::Accepted !== $decision->outcome ) {
-				$wpdb->query( 'ROLLBACK' );
+				$this->repository->rollback();
 				return AdminActionResult::rejected( null === $decision->reason ? null : (string) $decision->reason );
 			}
 
@@ -707,9 +699,9 @@ final class ReservationService {
 			$expires_at = gmdate( 'Y-m-d H:i:s', strtotime( self::PENDING_TTL, time() ) );
 			$this->repository->markPending( $id, $expires_at );
 
-			$wpdb->query( 'COMMIT' );
+			$this->repository->commit();
 		} catch ( \Throwable $e ) {
-			$wpdb->query( 'ROLLBACK' );
+			$this->repository->rollback();
 			throw $e;
 		}
 
@@ -757,8 +749,6 @@ final class ReservationService {
 		array $config,
 		RegistrationTypeCollection $types
 	): AdminActionResult {
-		global $wpdb;
-
 		$event_id = (int) $row['event_id'];
 		$settings = is_array( $config['settings'] ) ? $config['settings'] : array();
 		$type     = $types->get( (string) $row['type_key'] );
@@ -785,7 +775,7 @@ final class ReservationService {
 		$granted            = false;
 		$accommodation_lost = false;
 
-		$wpdb->query( 'START TRANSACTION' );
+		$this->repository->beginTransaction();
 
 		try {
 			// KRYTYCZNA KOLEJNOŚĆ: lockEvent PRZED pierwszym odczytem zajętości — zgłoszeń
@@ -813,7 +803,7 @@ final class ReservationService {
 			);
 
 			if ( Outcome::Accepted !== $decision->outcome ) {
-				$wpdb->query( 'ROLLBACK' );
+				$this->repository->rollback();
 				return AdminActionResult::rejected( null === $decision->reason ? null : (string) $decision->reason );
 			}
 
@@ -872,9 +862,9 @@ final class ReservationService {
 
 			$this->repository->markPending( $id, gmdate( 'Y-m-d H:i:s', strtotime( self::PENDING_TTL, time() ) ) );
 
-			$wpdb->query( 'COMMIT' );
+			$this->repository->commit();
 		} catch ( \Throwable $e ) {
-			$wpdb->query( 'ROLLBACK' );
+			$this->repository->rollback();
 			throw $e;
 		}
 
@@ -1080,8 +1070,6 @@ final class ReservationService {
 	 * @throws \Throwable ROLLBACK i ponowne rzucenie przy błędzie w transakcji.
 	 */
 	public function editAnswers( int $id, ReservationRequest $request ): AdminActionResult {
-		global $wpdb;
-
 		$row = $this->repository->findById( $id );
 		if ( null === $row ) {
 			return AdminActionResult::notFound();
@@ -1113,7 +1101,7 @@ final class ReservationService {
 			return AdminActionResult::invalidStatus();
 		}
 
-		$wpdb->query( 'START TRANSACTION' );
+		$this->repository->beginTransaction();
 
 		try {
 			$occupies = in_array( $status, array( RegistrationStatus::Pending, RegistrationStatus::Confirmed ), true );
@@ -1169,11 +1157,11 @@ final class ReservationService {
 				);
 
 				if ( Outcome::Accepted !== $decision->outcome ) {
-					$wpdb->query( 'ROLLBACK' );
+					$this->repository->rollback();
 					return AdminActionResult::capacityFull();
 				}
 				if ( null !== $gate_selection && ! $decision->accommodationGranted ) {
-					$wpdb->query( 'ROLLBACK' );
+					$this->repository->rollback();
 					return AdminActionResult::accommodationFull();
 				}
 			}
@@ -1209,9 +1197,9 @@ final class ReservationService {
 				);
 			}
 
-			$wpdb->query( 'COMMIT' );
+			$this->repository->commit();
 		} catch ( \Throwable $e ) {
-			$wpdb->query( 'ROLLBACK' );
+			$this->repository->rollback();
 			throw $e;
 		}
 
@@ -1271,8 +1259,6 @@ final class ReservationService {
 		array $config,
 		RegistrationTypeCollection $types
 	): AdminActionResult {
-		global $wpdb;
-
 		$event_id = (int) $row['event_id'];
 		$settings = is_array( $config['settings'] ) ? $config['settings'] : array();
 		$type     = $types->get( $request->typeKey );
@@ -1299,7 +1285,7 @@ final class ReservationService {
 		$supplied = null !== $request->nights;
 		$seats    = $request->companion ? 2 : 1;
 
-		$wpdb->query( 'START TRANSACTION' );
+		$this->repository->beginTransaction();
 
 		try {
 			$occupies = in_array( $status, array( RegistrationStatus::Pending, RegistrationStatus::Confirmed ), true );
@@ -1372,7 +1358,7 @@ final class ReservationService {
 			}
 
 			if ( ! $unchanged && array() !== $vanished ) {
-				$wpdb->query( 'ROLLBACK' );
+				$this->repository->rollback();
 				return AdminActionResult::accommodationGone( $vanished[0] );
 			}
 
@@ -1407,7 +1393,7 @@ final class ReservationService {
 				// listą rezerwową decide() zwraca Waitlisted, co też musi blokować (inaczej
 				// edycja przepełniłaby pełny typ).
 				if ( Outcome::Accepted !== $decision->outcome ) {
-					$wpdb->query( 'ROLLBACK' );
+					$this->repository->rollback();
 					return AdminActionResult::capacityFull();
 				}
 
@@ -1424,7 +1410,7 @@ final class ReservationService {
 						$night = $nights_config->night( $key );
 
 						if ( null === $night ) {
-							$wpdb->query( 'ROLLBACK' );
+							$this->repository->rollback();
 							return AdminActionResult::accommodationGone( $key );
 						}
 
@@ -1446,7 +1432,7 @@ final class ReservationService {
 					);
 
 					if ( null !== $blocking ) {
-						$wpdb->query( 'ROLLBACK' );
+						$this->repository->rollback();
 						return AdminActionResult::accommodationFull( $blocking );
 					}
 				}
@@ -1502,9 +1488,9 @@ final class ReservationService {
 				}
 			}
 
-			$wpdb->query( 'COMMIT' );
+			$this->repository->commit();
 		} catch ( \Throwable $e ) {
-			$wpdb->query( 'ROLLBACK' );
+			$this->repository->rollback();
 			throw $e;
 		}
 
@@ -1526,8 +1512,6 @@ final class ReservationService {
 	 * @throws \Throwable Gdy operacja w transakcji się nie powiedzie (ROLLBACK przed ponownym rzuceniem).
 	 */
 	public function deleteRegistration( int $id ): AdminActionResult {
-		global $wpdb;
-
 		$row = $this->repository->findById( $id );
 
 		if ( null === $row ) {
@@ -1538,15 +1522,15 @@ final class ReservationService {
 			return AdminActionResult::invalidStatus();
 		}
 
-		$wpdb->query( 'START TRANSACTION' );
+		$this->repository->beginTransaction();
 
 		try {
 			$this->repository->deleteAccommodationFor( $id );
 			$this->repository->deleteMailQueueByRegistration( $id );
 			$this->repository->hardDelete( $id );
-			$wpdb->query( 'COMMIT' );
+			$this->repository->commit();
 		} catch ( \Throwable $e ) {
-			$wpdb->query( 'ROLLBACK' );
+			$this->repository->rollback();
 			throw $e;
 		}
 
