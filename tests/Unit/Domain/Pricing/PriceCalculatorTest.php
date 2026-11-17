@@ -129,4 +129,47 @@ final class PriceCalculatorTest extends TestCase {
 
 		$this->assertSame( 133.33, $total );
 	}
+
+	public function test_stored_nights_price_the_type_plus_the_saved_snapshots(): void {
+		// Zapisane wiersze dób niosą cenę z chwili rezerwacji — zmiana cennika nie
+		// przepisuje historii. Cena typu liczy się raz, jak w totalForNights().
+		$total = $this->calculator->totalFromStoredNights(
+			new RegistrationType( 'uczestnik', 'Uczestnik', 100.0 ),
+			array(
+				array( 'key' => 'n1819', 'label' => '18/19', 'price' => 80.0, 'seats' => 1 ),
+				array( 'key' => 'n1920', 'label' => '19/20', 'price' => 90.0, 'seats' => 1 ),
+			)
+		);
+
+		$this->assertSame( 270.0, $total );
+	}
+
+	public function test_stored_nights_snapshots_already_carry_the_seat_multiplier(): void {
+		// Wiersz pary ma cenę za dwa miejsca — mnożnika NIE stosujemy drugi raz.
+		$total = $this->calculator->totalFromStoredNights(
+			new RegistrationType( 'uczestnik', 'Uczestnik', 100.0 ),
+			array(
+				array( 'key' => 'n1819', 'label' => '18/19', 'price' => 160.0, 'seats' => 2 ),
+				array( 'key' => 'n1920', 'label' => '19/20', 'price' => 180.0, 'seats' => 2 ),
+			)
+		);
+
+		$this->assertSame( 440.0, $total );
+	}
+
+	public function test_no_stored_nights_prices_the_type_only(): void {
+		$this->assertSame(
+			100.0,
+			$this->calculator->totalFromStoredNights( new RegistrationType( 'uczestnik', 'Uczestnik', 100.0 ), array() )
+		);
+	}
+
+	public function test_stored_nights_total_is_rounded_like_the_rest(): void {
+		$total = $this->calculator->totalFromStoredNights(
+			new RegistrationType( 'uczestnik', 'Uczestnik', 100.0 ),
+			array( array( 'key' => 'n1819', 'label' => '18/19', 'price' => 33.333, 'seats' => 1 ) )
+		);
+
+		$this->assertSame( 133.33, $total );
+	}
 }

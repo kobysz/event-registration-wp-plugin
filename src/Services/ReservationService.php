@@ -242,6 +242,11 @@ final class ReservationService {
 	): ReservationResult {
 		global $wpdb;
 
+		// UWAGA: tutaj `nights === null` znaczy „nie poproszono o nocleg” i pusty zbiór jest
+		// tym samym co brak wyboru — nowe zgłoszenie nie ma żadnego stanu, który mógłby na
+		// tym stracić. W editAnswersNights() ten sam null czyta się INACZEJ („wybór nie
+		// został podany”, więc zapisane doby zostają), bo tam pusty zbiór skasowałby wiersze
+		// istniejącej rezerwacji. Asymetria jest zamierzona — nie ujednolicaj jej.
 		$selection = $request->nights ?? NightSelection::fromKeys( array(), $nights_config );
 		$seats     = $request->companion ? 2 : 1;
 
@@ -856,14 +861,21 @@ final class ReservationService {
 		$answers = json_decode( $data_json, true );
 		$key     = $this->accommodationFieldKey( is_array( $config['schema'] ) ? $config['schema'] : array() );
 
-		if ( ! is_array( $answers ) || null === $key || ! isset( $answers[ $key ] ) || ! is_array( $answers[ $key ] ) ) {
+		if ( ! is_array( $answers ) || null === $key || ! isset( $answers[ $key ] ) ) {
 			return array();
 		}
 
+		// Goły klucz traktujemy jak jednoelementowe życzenie. Zapis przez reserveNights()
+		// jest zawsze listą, ale wartość zapisana inaczej (inna powierzchnia, ręczna
+		// poprawka) nie może zniknąć po cichu: odczytana jako „brak życzenia” dałaby czyste
+		// `promoted`, więc operator nie dowiedziałby się o utracie noclegu.
+		$wish = is_array( $answers[ $key ] ) ? $answers[ $key ] : array( $answers[ $key ] );
 		$keys = array();
 
-		foreach ( $answers[ $key ] as $value ) {
-			if ( is_scalar( $value ) ) {
+		foreach ( $wish as $value ) {
+			// Pusty ciąg to „bez noclegu”, nie klucz doby — inaczej zgłoszenie, które
+			// o nocleg nie prosiło, raportowałoby utratę noclegu na awansie.
+			if ( is_scalar( $value ) && '' !== (string) $value ) {
 				$keys[] = (string) $value;
 			}
 		}
@@ -1104,6 +1116,15 @@ final class ReservationService {
 			return AdminActionResult::invalidStatus();
 		}
 
+		// UWAGA: tutaj `nights === null` znaczy „wybór dób NIE został podany”, a NIE
+		// „zrezygnowano z noclegu” — i to celowo INNE czytanie niż w reserveNights()
+		// (patrz komentarz tam; nie ujednolicaj tego, asymetria jest tu sensem).
+		// Edycja składana z formularza, który pola noclegu nie renderuje, nie niesie
+		// wyboru; potraktowana jak pusty zbiór skasowałaby wszystkie wiersze dób,
+		// zwolniła miejsca i obniżyła cenę, meldując „zapisano”. Świadoma rezygnacja
+		// przychodzi jako PODANY, pusty NightSelection — te dwa przypadki muszą dać
+		// się rozróżnić, więc zapamiętujemy, czy wybór w ogóle przyszedł.
+		$supplied  = null !== $request->nights;
 		$selection = $request->nights ?? NightSelection::fromKeys( array(), $nights_config );
 		$seats     = $request->companion ? 2 : 1;
 
@@ -1126,8 +1147,12 @@ final class ReservationService {
 			sort( $stored_keys );
 			sort( $new_keys );
 
-			$unchanged = $stored_keys === $new_keys
-				&& (bool) ( $row['companion'] ?? false ) === $request->companion;
+			// Niepodany wybór idzie ścieżką „nic się nie zmieniło”: wiersze, miejsca i cena
+			// zostają, bramka dób jest pomijana. NIE odmawiamy — poprawka niezwiązanego pola
+			// musi się zapisać.
+			$unchanged = ! $supplied
+				|| ( $stored_keys === $new_keys
+					&& (bool) ( $row['companion'] ?? false ) === $request->companion );
 
 			// Zgłoszenie z listy rezerwowej nie zajmuje miejsc, więc nie dostaje wierszy dób.
 			$granted = $occupies && ! $selection->isEmpty();
@@ -1198,9 +1223,10 @@ final class ReservationService {
 			// Przy braku zmiany zbioru i flagi część noclegowa ceny pochodzi ze SNAPSHOTÓW
 			// w wierszach dób, nie z dzisiejszego cennika (po to kolumna price w wierszu
 			// istnieje: zmiana ceny doby nie przepisuje historii). Część za typ przeliczamy
-			// zawsze, bo edycja mogła zmienić typ zgłoszenia.
+			// zawsze, bo edycja mogła zmienić typ zgłoszenia. Obie formuły mieszkają
+			// w PriceCalculator, żeby nie mogły się rozejść.
 			$price = $unchanged
-				? round( $type->price + $this->storedNightsTotal( $stored ), 2 )
+				? $this->pricing->totalFromStoredNights( $type, $stored )
 				: $this->pricing->totalForNights(
 					$type,
 					$nights_config,
@@ -1248,20 +1274,6 @@ final class ReservationService {
 		return AdminActionResult::edited();
 	}
 
-	/**
-	 * Suma zapisanych cen dób zgłoszenia (snapshoty, nie dzisiejszy cennik).
-	 *
-	 * @param array<int,array{key:string,label:string,price:float,seats:int}> $nights Wiersze dób zgłoszenia.
-	 */
-	private function storedNightsTotal( array $nights ): float {
-		$total = 0.0;
-
-		foreach ( $nights as $night ) {
-			$total += $night['price'];
-		}
-
-		return $total;
-	}
 
 	/**
 	 * Trwale usuwa anulowane zgłoszenie wraz z noclegiem i osieroconymi wierszami kolejki.

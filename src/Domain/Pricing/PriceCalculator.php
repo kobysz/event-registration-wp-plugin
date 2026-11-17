@@ -82,4 +82,30 @@ final class PriceCalculator {
 
 		return round( $total, 2 );
 	}
+
+	/**
+	 * Wylicza cenę zgłoszenia w trybie „doby” z ZAPISANYCH wierszy dób.
+	 *
+	 * Ta sama reguła co totalForNights() — cena typu raz, plus każda doba — tylko że
+	 * część noclegowa pochodzi ze snapshotów zapisanych przy rezerwacji, nie z dzisiejszej
+	 * konfiguracji. Po to kolumna `price` w wierszu doby istnieje: zmiana cennika nie może
+	 * przepisać historii, więc edycja, która nie rusza zbioru dób ani osoby towarzyszącej,
+	 * nie przelicza noclegu po nowych cenach (cenę typu przelicza, bo edycja mogła go
+	 * zmienić). Mnożnik miejsc jest już w zapisanej cenie — NIE stosujemy go drugi raz.
+	 *
+	 * Mieszka tutaj, a nie w warstwie serwisu, żeby każde składanie ceny zostało w jednej
+	 * klasie i obie formuły nie mogły się rozejść.
+	 *
+	 * @param RegistrationType                                                $type   Wybrany typ zgłoszenia.
+	 * @param array<int,array{key:string,label:string,price:float,seats:int}> $nights Zapisane wiersze dób zgłoszenia.
+	 */
+	public function totalFromStoredNights( RegistrationType $type, array $nights ): float {
+		$total = $type->price;
+
+		foreach ( $nights as $night ) {
+			$total += $night['price'];
+		}
+
+		return round( $total, 2 );
+	}
 }

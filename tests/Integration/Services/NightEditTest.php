@@ -172,6 +172,27 @@ final class NightEditTest extends WP_UnitTestCase {
 	}
 
 	/**
+	 * Buduje żądanie edycji BEZ wyboru dób (`nights === null`), czyli dokładnie takie,
+	 * jakie składa dziś `SubmissionAssembler` — ósmy argument, bez dziewiątego.
+	 *
+	 * @param string $email Adres e-mail.
+	 */
+	private function requestWithoutNights( string $email ): ReservationRequest {
+		$request = new ReservationRequest(
+			$email,
+			'Jan',
+			'uczestnik',
+			array(
+				'__type' => 'uczestnik',
+				'email'  => $email,
+			)
+		);
+		$this->assertNull( $request->nights, 'To żądanie MUSI nie nieść wyboru dób.' );
+
+		return $request;
+	}
+
+	/**
 	 * Rezerwuje zgłoszenie i zwraca jego ID.
 	 *
 	 * @param string        $email     Adres e-mail.
@@ -188,10 +209,11 @@ final class NightEditTest extends WP_UnitTestCase {
 	/**
 	 * Wstawia zgłoszenie na liście rezerwowej z życzeniem dób w odpowiedziach.
 	 *
-	 * @param string        $email Adres e-mail.
-	 * @param array<string> $wish  Klucze wymarzonych dób.
+	 * @param string               $email Adres e-mail.
+	 * @param array<string>|string $wish  Klucze wymarzonych dób (goły klucz = kształt zapisany
+	 *                                    przez powierzchnię, która nie znormalizowała listy).
 	 */
-	private function seedWaitlist( string $email, array $wish ): int {
+	private function seedWaitlist( string $email, $wish ): int {
 		static $counter = 0;
 		++$counter;
 
@@ -333,9 +355,49 @@ final class NightEditTest extends WP_UnitTestCase {
 		$this->assertSame( 1, $this->occupancy()->seatsFor( 'n1920' ) );
 	}
 
-	public function test_edit_can_drop_the_accommodation_entirely(): void {
-		$id = $this->reserve( 'quitter@example.com', array( 'n1819', 'n1920' ), true );
+	public function test_edit_without_a_night_selection_keeps_the_rows_and_the_price(): void {
+		// `nights === null` znaczy „wybór dób NIE został podany" (tak składa żądanie każda
+		// dzisiejsza powierzchnia), a nie „zrezygnowano z noclegu". Edycja niezwiązanego
+		// pola nie może skasować wierszy dób, zwolnić miejsc i obniżyć ceny — i nie może
+		// zostać odrzucona, bo zmiana numeru telefonu musi się zapisać.
+		$id     = $this->reserve( 'phone@example.com', array( 'n1819', 'n1920' ), true );
+		$before = $this->nightsOf( $id );
+		$this->assertSame( '440.00', $this->repository->findById( $id )['price_total'] );
+
+		// Cennik w międzyczasie wzrósł — niezwiązana edycja nie przelicza po nowym.
+		$this->configure(
+			array(
+				array(
+					'key'   => 'n1819',
+					'label' => '18/19 XI',
+					'price' => 500.0,
+					'seats' => 4,
+				),
+				array(
+					'key'   => 'n1920',
+					'label' => '19/20 XI',
+					'price' => 600.0,
+					'seats' => 4,
+				),
+			)
+		);
+
+		$result = $this->service->editAnswers( $id, $this->requestWithoutNights( 'zmiana@example.com' ) );
+
+		$this->assertSame( 'edited', $result->code );
+		$this->assertSame( 'zmiana@example.com', $this->repository->findById( $id )['email'] );
+		$this->assertSame( '440.00', $this->repository->findById( $id )['price_total'] );
+		$this->assertSame( $before, $this->nightsOf( $id ) );
 		$this->assertSame( 2, $this->occupancy()->seatsFor( 'n1819' ) );
+		$this->assertSame( 2, $this->occupancy()->seatsFor( 'n1920' ) );
+	}
+
+	public function test_edit_with_an_empty_selection_still_drops_the_accommodation(): void {
+		// Druga strona tej samej monety: wybór PODANY i pusty to świadoma rezygnacja,
+		// więc wiersze giną. Oba przypadki muszą dać się rozróżnić. Bez osoby
+		// towarzyszącej, żeby jedyną zmianą edycji był sam zbiór dób.
+		$id = $this->reserve( 'quitter@example.com', array( 'n1819', 'n1920' ) );
+		$this->assertSame( 1, $this->occupancy()->seatsFor( 'n1819' ) );
 
 		$result = $this->service->editAnswers( $id, $this->request( 'quitter@example.com', array() ) );
 
@@ -344,6 +406,31 @@ final class NightEditTest extends WP_UnitTestCase {
 		$this->assertSame( '100.00', $this->repository->findById( $id )['price_total'] );
 		$this->assertSame( 0, $this->occupancy()->seatsFor( 'n1819' ) );
 		$this->assertSame( 0, $this->occupancy()->seatsFor( 'n1920' ) );
+	}
+
+	public function test_edit_that_drops_the_companion_rewrites_the_seats(): void {
+		// Zbiór dób bez zmian, ale flaga towarzyszącej spada: to JEST przesunięcie.
+		// Bez połowy predykatu pilnującej flagi zostałyby wiersze z seats=2 i podwójny
+		// rachunek — dwa miejsca na dobę trzymane dla jednej osoby.
+		$id = $this->reserve( 'splitter@example.com', array( 'n1819', 'n1920' ), true );
+		// 100 (typ raz) + 2×80 + 2×90.
+		$this->assertSame( '440.00', $this->repository->findById( $id )['price_total'] );
+		$this->assertSame( 2, $this->occupancy()->seatsFor( 'n1819' ) );
+
+		$result = $this->service->editAnswers( $id, $this->request( 'splitter@example.com', array( 'n1819', 'n1920' ) ) );
+
+		$this->assertSame( 'edited', $result->code );
+
+		$rows = $this->nightsOf( $id );
+		$this->assertCount( 2, $rows );
+		$this->assertSame( 1, $rows[0]['seats'] );
+		$this->assertSame( 1, $rows[1]['seats'] );
+		$this->assertSame( 80.0, $rows[0]['price'] );
+		$this->assertSame( 90.0, $rows[1]['price'] );
+		$this->assertSame( '270.00', $this->repository->findById( $id )['price_total'] );
+		$this->assertSame( 1, $this->occupancy()->seatsFor( 'n1819' ) );
+		$this->assertSame( 1, $this->occupancy()->seatsFor( 'n1920' ) );
+		$this->assertSame( 0, $this->occupancy()->pairsFor( 'n1819' ) );
 	}
 
 	public function test_cancel_frees_the_seats(): void {
@@ -414,6 +501,70 @@ final class NightEditTest extends WP_UnitTestCase {
 		$this->assertSame( '100.00', $this->repository->findById( $id )['price_total'] );
 		$this->assertSame( 0, $this->occupancy()->seatsFor( 'n1819' ) );
 		$this->assertSame( 1, $this->occupancy()->seatsFor( 'n1920' ) );
+	}
+
+	public function test_promotion_without_accommodation_clears_a_stale_night_row(): void {
+		// Zgłoszenie z listy rezerwowej nie powinno mieć wierszy dób, ale wiersz sprzed
+		// zawaitlistowania (albo po przerwanym anulowaniu) stałby się REALNĄ zajętością
+		// w chwili, gdy markPending() przenosi zgłoszenie w status zajmujący miejsce —
+		// i doba zostałaby przesprzedana, bo awans jej nie przyznał.
+		$this->configure(
+			array(
+				array(
+					'key'   => 'n1819',
+					'label' => '18/19 XI',
+					'price' => 80.0,
+					'seats' => 4,
+				),
+				array(
+					'key'   => 'n1920',
+					'label' => '19/20 XI',
+					'price' => 90.0,
+					'seats' => 1,
+				),
+			)
+		);
+
+		$this->reserve( 'holder@example.com', array( 'n1920' ) );
+		$id = $this->seedWaitlist( 'stale@example.com', array( 'n1819', 'n1920' ) );
+		$this->repository->replaceBookingNights(
+			$id,
+			array(
+				array(
+					'key'   => 'n1819',
+					'label' => '18/19 XI',
+					'seats' => 1,
+					'price' => 80.0,
+				),
+			)
+		);
+		$this->assertCount( 1, $this->nightsOf( $id ) );
+
+		$result = $this->service->promoteFromWaitlist( $id );
+
+		$this->assertSame( 'promoted_no_accommodation', $result->code );
+		$this->assertSame( 'pending', $this->repository->findById( $id )['status'] );
+		// Widmowy wiersz skasowany PRZED markPending() — doba nie jest zajęta.
+		$this->assertSame( array(), $this->repository->bookingNightsFor( array( $id ) ) );
+		$this->assertSame( 0, $this->occupancy()->seatsFor( 'n1819' ) );
+		$this->assertSame( '100.00', $this->repository->findById( $id )['price_total'] );
+	}
+
+	public function test_promotion_reads_a_scalar_wish_as_one_night(): void {
+		// Życzenie zapisane jako goły klucz (nie lista) nie może zniknąć po cichu:
+		// wyglądałoby jak „brak życzenia", więc awans zgłosiłby czyste `promoted`,
+		// a utrata noclegu byłaby dla operatora niewidoczna.
+		$id = $this->seedWaitlist( 'scalar@example.com', 'n1819' );
+
+		$result = $this->service->promoteFromWaitlist( $id );
+
+		$this->assertSame( 'promoted', $result->code );
+
+		$rows = $this->nightsOf( $id );
+		$this->assertCount( 1, $rows );
+		$this->assertSame( 'n1819', $rows[0]['key'] );
+		$this->assertSame( '180.00', $this->repository->findById( $id )['price_total'] );
+		$this->assertSame( 1, $this->occupancy()->seatsFor( 'n1819' ) );
 	}
 
 	public function test_promotion_of_a_vanished_night_promotes_without_accommodation(): void {
