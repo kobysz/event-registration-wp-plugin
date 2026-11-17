@@ -62,6 +62,80 @@ final class ReservationService {
 	}
 
 	/**
+	 * Składa limity pojemności ze wspólnych ustawień eventu i części zależnej od trybu.
+	 *
+	 * JEDYNE miejsce czytające `global_cap` i `waitlist_enabled`: sześć ścieżek
+	 * transakcyjnych budowało ten obiekt osobno, a rozjazd między kopiami już raz
+	 * kosztował błąd (B5 — jedną ścieżkę poprawiono, pozostałych nie). Część zależną
+	 * od trybu wnoszą classicLimits()/nightsLimits(), bo tylko one wiedzą, skąd biorą
+	 * się limity slotów i reguła companion_counts_event.
+	 *
+	 * @param array<mixed>               $settings               Ustawienia eventu.
+	 * @param RegistrationTypeCollection $types                  Typy zgłoszeń eventu.
+	 * @param array<string,int>          $slot_caps              Limity slotów „pakiet|pokój”.
+	 * @param bool                       $companion_counts_event Czy towarzysząca wlicza się do limitu wydarzenia.
+	 * @param array<string,int>          $slot_seats             Liczba osób w pokoju per slot.
+	 */
+	private function limits(
+		array $settings,
+		RegistrationTypeCollection $types,
+		array $slot_caps,
+		bool $companion_counts_event,
+		array $slot_seats
+	): CapacityLimits {
+		return new CapacityLimits(
+			isset( $settings['global_cap'] ) && null !== $settings['global_cap'] ? (int) $settings['global_cap'] : null,
+			$types->capacities(),
+			$slot_caps,
+			(bool) ( $settings['waitlist_enabled'] ?? true ),
+			$companion_counts_event,
+			$slot_seats
+		);
+	}
+
+	/**
+	 * Limity trybu klasycznego: limity slotów i liczby osób w pokoju z inwentarza.
+	 *
+	 * @param array<mixed>               $settings      Ustawienia eventu.
+	 * @param RegistrationTypeCollection $types         Typy zgłoszeń eventu.
+	 * @param AccommodationConfig        $accommodation Inwentarz noclegowy eventu.
+	 */
+	private function classicLimits(
+		array $settings,
+		RegistrationTypeCollection $types,
+		AccommodationConfig $accommodation
+	): CapacityLimits {
+		return $this->limits(
+			$settings,
+			$types,
+			$accommodation->capacities(),
+			$accommodation->companionCountsEvent(),
+			$accommodation->slotOccupancies()
+		);
+	}
+
+	/**
+	 * Limity trybu „doby”: bez limitów slotów, bo doba nie jest slotem klasycznym.
+	 *
+	 * Puste limity slotów i puste liczby osób w pokoju znaczą, że decide() dostaje
+	 * selection=null i rozstrzyga po limicie wydarzenia i typu — pojemność dób bada
+	 * osobno NightCapacity. Wspólne flagi czyta z NightsConfig, bo ścieżka dobowa
+	 * NIGDY nie buduje AccommodationConfig (jego fromArray rzuca na niespójnym
+	 * inwentarzu klasycznym, który event w trybie „doby” może zalegać).
+	 *
+	 * @param array<mixed>               $settings      Ustawienia eventu.
+	 * @param RegistrationTypeCollection $types         Typy zgłoszeń eventu.
+	 * @param NightsConfig               $nights_config Konfiguracja trybu „doby”.
+	 */
+	private function nightsLimits(
+		array $settings,
+		RegistrationTypeCollection $types,
+		NightsConfig $nights_config
+	): CapacityLimits {
+		return $this->limits( $settings, $types, array(), $nights_config->companionCountsEvent(), array() );
+	}
+
+	/**
 	 * Rezerwuje miejsce dla zgłoszenia w ramach jednej transakcji z blokadą per event.
 	 *
 	 * Kolejność: START → lockEvent → guard duplikatu → zajętość → decyzja →
@@ -110,14 +184,7 @@ final class ReservationService {
 				return ReservationResult::duplicate();
 			}
 
-			$limits = new CapacityLimits(
-				isset( $settings['global_cap'] ) && null !== $settings['global_cap'] ? (int) $settings['global_cap'] : null,
-				$types->capacities(),
-				$accommodation->capacities(),
-				(bool) ( $settings['waitlist_enabled'] ?? true ),
-				$accommodation->companionCountsEvent(),
-				$accommodation->slotOccupancies()
-			);
+			$limits = $this->classicLimits( $settings, $types, $accommodation );
 
 			$decision = $this->calculator->decide(
 				$limits,
@@ -263,16 +330,8 @@ final class ReservationService {
 			}
 
 			// Limit wydarzenia i limit typu rozstrzygają PRZED bramką dób, dokładnie jak dziś —
-			// łącznie z regułą companion_counts_event. Doba nie jest slotem klasycznym, więc
-			// limity slotów są puste, a decide() dostaje selection=null i wraca po limicie typu.
-			$limits = new CapacityLimits(
-				isset( $settings['global_cap'] ) && null !== $settings['global_cap'] ? (int) $settings['global_cap'] : null,
-				$types->capacities(),
-				array(),
-				(bool) ( $settings['waitlist_enabled'] ?? true ),
-				$nights_config->companionCountsEvent(),
-				array()
-			);
+			// łącznie z regułą companion_counts_event (patrz nightsLimits()).
+			$limits = $this->nightsLimits( $settings, $types, $nights_config );
 
 			$decision = $this->calculator->decide(
 				$limits,
@@ -645,14 +704,7 @@ final class ReservationService {
 			// KRYTYCZNA KOLEJNOŚĆ: lockEvent PRZED occupancy (jak reserve). NIE ZMIENIAJ.
 			$this->repository->lockEvent( $event_id );
 
-			$limits = new CapacityLimits(
-				isset( $settings['global_cap'] ) && null !== $settings['global_cap'] ? (int) $settings['global_cap'] : null,
-				$types->capacities(),
-				$accommodation->capacities(),
-				(bool) ( $settings['waitlist_enabled'] ?? true ),
-				$accommodation->companionCountsEvent(),
-				$accommodation->slotOccupancies()
-			);
+			$limits = $this->classicLimits( $settings, $types, $accommodation );
 
 			$decision = $this->calculator->decide(
 				$limits,
@@ -782,17 +834,9 @@ final class ReservationService {
 			// ORAZ dób (inwariant 3A, uzasadnienie w reserve()). NIE ZMIENIAJ KOLEJNOŚCI.
 			$this->repository->lockEvent( $event_id );
 
-			// Doba nie jest slotem klasycznym, więc limity slotów są puste, a decide() dostaje
-			// selection=null i rozstrzyga po limicie wydarzenia i typu — jak reserveNights(),
-			// łącznie z regułą companion_counts_event.
-			$limits = new CapacityLimits(
-				isset( $settings['global_cap'] ) && null !== $settings['global_cap'] ? (int) $settings['global_cap'] : null,
-				$types->capacities(),
-				array(),
-				(bool) ( $settings['waitlist_enabled'] ?? true ),
-				$nights_config->companionCountsEvent(),
-				array()
-			);
+			// Limit wydarzenia i typu jak w reserveNights(), łącznie z regułą
+			// companion_counts_event (patrz nightsLimits()).
+			$limits = $this->nightsLimits( $settings, $types, $nights_config );
 
 			$decision = $this->calculator->decide(
 				$limits,
@@ -1139,14 +1183,7 @@ final class ReservationService {
 			$gate_selection = $unchanged ? null : $selection;
 
 			if ( $occupies ) {
-				$limits = new CapacityLimits(
-					isset( $settings['global_cap'] ) && null !== $settings['global_cap'] ? (int) $settings['global_cap'] : null,
-					$types->capacities(),
-					$accommodation->capacities(),
-					(bool) ( $settings['waitlist_enabled'] ?? true ),
-					$accommodation->companionCountsEvent(),
-					$accommodation->slotOccupancies()
-				);
+				$limits = $this->classicLimits( $settings, $types, $accommodation );
 
 				$decision = $this->calculator->decide(
 					$limits,
@@ -1372,14 +1409,7 @@ final class ReservationService {
 			$rows    = array();
 
 			if ( $occupies ) {
-				$limits = new CapacityLimits(
-					isset( $settings['global_cap'] ) && null !== $settings['global_cap'] ? (int) $settings['global_cap'] : null,
-					$types->capacities(),
-					array(),
-					(bool) ( $settings['waitlist_enabled'] ?? true ),
-					$nights_config->companionCountsEvent(),
-					array()
-				);
+				$limits = $this->nightsLimits( $settings, $types, $nights_config );
 
 				$decision = $this->calculator->decide(
 					$limits,
