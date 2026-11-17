@@ -1,5 +1,10 @@
 # Pule noclegowe per doba — plan implementacji
 
+> **PLAN NIEAKTUALNY — NIE WYKONUJ.** Opisuje odrzucony model (pule per
+> `doba × typ pokoju`, pakowanie łóżek). Aktualny plan powstaje z
+> `docs/superpowers/specs/2026-11-17-night-seat-pools-design.md`.
+
+
 > **Dla pracujących agentowo:** WYMAGANY SUB-SKILL: użyj superpowers:subagent-driven-development
 > (rekomendowane) albo superpowers:executing-plans, żeby wykonać ten plan task po tasku.
 > Kroki mają składnię checkboxów (`- [ ]`) do odhaczania.

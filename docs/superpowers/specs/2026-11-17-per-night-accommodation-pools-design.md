@@ -1,5 +1,12 @@
 # Pule noclegowe per doba — projekt
 
+> **SPEC NIEAKTUALNY — ZASTĄPIONY.** Model „pule per (doba × typ pokoju)" został
+> odrzucony po rozmowie zamawiającego z PM-em: wybór noclegu staje się wielokrotnym
+> wyborem dób, a limit liczy MIEJSCA na dobę, bez wymiaru typu pokoju. Aktualny projekt:
+> `docs/superpowers/specs/2026-11-17-night-seat-pools-design.md`.
+> Ten plik zostaje dla zapisu trzech odrzuconych modeli i powodów ich odrzucenia.
+
+
 **Data:** 2026-11-17
 **Status:** spec do zatwierdzenia
 
