@@ -200,6 +200,68 @@ final class ReservationService {
 	}
 
 	/**
+	 * Pierwszy klucz doby, którego konfiguracja eventu już nie zna (null = wszystkie znane).
+	 *
+	 * JEDEN dom pytania „czy ta doba jeszcze istnieje”. Odpowiedź na nie mają ścieżki
+	 * RÓŻNĄ (rezerwacja odmawia accommodationFull, edycja accommodationGone, awans
+	 * zdejmuje nocleg i melduje utratę), więc metoda tylko nazywa dobę i nie rozstrzyga
+	 * za wołającego. Pytać trzeba o konfigurację odczytaną pod blokadą — admin mógł ją
+	 * zmienić między renderem a submitem.
+	 *
+	 * @param NightsConfig $nights_config Konfiguracja trybu „doby”.
+	 * @param string[]     $keys          Klucze dób do sprawdzenia, w kolejności wyboru.
+	 */
+	private function unknownNight( NightsConfig $nights_config, array $keys ): ?string {
+		foreach ( $keys as $key ) {
+			if ( null === $nights_config->night( $key ) ) {
+				return $key;
+			}
+		}
+
+		return null;
+	}
+
+	/**
+	 * Wiersze dób do zapisu, ze SNAPSHOTEM etykiety i ceny z podanej konfiguracji.
+	 *
+	 * `label` i `price` w wierszu są snapshotami: niosą stan konfiguracji z chwili zapisu,
+	 * żeby zmiana nazwy albo ceny doby nie przepisywała historii ani nie przeliczała
+	 * zajętości. Dlatego pobiera je ta jedna metoda, w chwili zapisu, i nikt nie wyprowadza
+	 * ich z konfiguracji ponownie później.
+	 *
+	 * Klucz nieznany konfiguracji jest POMIJANY — o odmowie rozstrzyga wołający pytaniem
+	 * unknownNight() przed zapisem, bo tylko on wie, jakim kodem odmówić. Ostatnią siatką
+	 * jest i tak porównanie liczby dób ŻĄDANYCH z liczbą zapisanych u wołającego: wiersz
+	 * pominięty tutaj nie przejdzie po cichu jako niedoliczone miejsca.
+	 *
+	 * @param NightsConfig $nights_config Konfiguracja trybu „doby”.
+	 * @param string[]     $keys          Klucze dób do zapisania, w kolejności wyboru.
+	 * @param int          $seats         Miejsca zajmowane w każdej dobie (2 z osobą towarzyszącą).
+	 *
+	 * @return array<int,array{key:string,label:string,seats:int,price:float}>
+	 */
+	private function nightRows( NightsConfig $nights_config, array $keys, int $seats ): array {
+		$rows = array();
+
+		foreach ( $keys as $key ) {
+			$night = $nights_config->night( $key );
+
+			if ( null === $night ) {
+				continue;
+			}
+
+			$rows[] = array(
+				'key'   => $night->key,
+				'label' => $night->label,
+				'seats' => $seats,
+				'price' => $night->price * $seats,
+			);
+		}
+
+		return $rows;
+	}
+
+	/**
 	 * Rezerwuje miejsce dla zgłoszenia w ramach jednej transakcji z blokadą per event.
 	 *
 	 * Kolejność: START → lockEvent → guard duplikatu → zajętość → decyzja →
@@ -410,21 +472,14 @@ final class ReservationService {
 				// z przyznanym noclegiem, bez wiersza i bez opłaty, choć `data` niesie
 				// życzenie. Ścieżka klasyczna odrzuca nieznany slot wprost — tutaj
 				// odmawiamy tak samo i nazywamy dobę, żeby wybór dał się poprawić.
-				foreach ( $selection->keys() as $key ) {
-					$night = $nights_config->night( $key );
+				$unknown = $this->unknownNight( $nights_config, $selection->keys() );
 
-					if ( null === $night ) {
-						$this->repository->rollback();
-						return ReservationResult::accommodationFull( $key );
-					}
-
-					$rows[] = array(
-						'key'   => $night->key,
-						'label' => $night->label,
-						'seats' => $seats,
-						'price' => $night->price * $seats,
-					);
+				if ( null !== $unknown ) {
+					$this->repository->rollback();
+					return ReservationResult::accommodationFull( $unknown );
 				}
+
+				$rows = $this->nightRows( $nights_config, $selection->keys(), $seats );
 
 				// Bramka dób — po blokadzie, na świeżo policzonej zajętości dób.
 				// Odmowa jest całościowa: jedna ciasna doba przepada cały wybór i NIE
@@ -889,21 +944,9 @@ final class ReservationService {
 			$rows = array();
 
 			if ( $wished && ! $vanished ) {
-				foreach ( $selection->keys() as $key ) {
-					$night = $nights_config->night( $key );
-
-					// Nie może być null: $selection powstał z tej samej konfiguracji.
-					if ( null === $night ) {
-						continue;
-					}
-
-					$rows[] = array(
-						'key'   => $night->key,
-						'label' => $night->label,
-						'seats' => $seats,
-						'price' => $night->price * $seats,
-					);
-				}
+				// Doba nieznana konfiguracji nie może tu wystąpić: $selection powstał
+				// z tej samej konfiguracji, a nightRows() pomija ją tak jak dawna pętla.
+				$rows = $this->nightRows( $nights_config, $selection->keys(), $seats );
 
 				$granted = null === $this->blockingNightUnderLock( $nights_config, $event_id, $id, $selection, $companion );
 			}
@@ -1403,24 +1446,18 @@ final class ReservationService {
 			// Świadoma rezygnacja i zniknięta doba to RÓŻNE FAKTY i tylko pierwszy ma prawo
 			// coś zniszczyć. Rozróżnia je właśnie to, czy zapisane klucze dają się jeszcze
 			// rozstrzygnąć: świadome odznaczenie dób, które nadal istnieją, zostawia każdy
-			// zapisany klucz rozstrzygalnym, więc $vanished jest puste i rezygnacja działa
+			// zapisany klucz rozstrzygalnym, więc $vanished jest nullem i rezygnacja działa
 			// dokładnie tak, jak ją przypina jej test.
 			//
 			// Warunek `! $unchanged` nie jest ozdobą: edycja, która nie rusza ani zbioru dób,
 			// ani flagi towarzyszącej, NIE DOTYKA wierszy ani ceny (niżej: cena ze snapshotów,
 			// zapis wierszy pominięty), więc zniknięta doba nic tam nie traci i odmowa byłaby
 			// odmową fałszywą — zablokowałaby poprawkę numeru telefonu, nie chroniąc niczego.
-			$vanished = array();
+			$vanished = $this->unknownNight( $nights_config, $stored_keys );
 
-			foreach ( $stored_keys as $stored_key ) {
-				if ( null === $nights_config->night( $stored_key ) && ! in_array( $stored_key, $vanished, true ) ) {
-					$vanished[] = $stored_key;
-				}
-			}
-
-			if ( ! $unchanged && array() !== $vanished ) {
+			if ( ! $unchanged && null !== $vanished ) {
 				$this->repository->rollback();
-				return AdminActionResult::accommodationGone( $vanished[0] );
+				return AdminActionResult::accommodationGone( $vanished );
 			}
 
 			// Zgłoszenie z listy rezerwowej nie zajmuje miejsc, więc nie dostaje wierszy dób.
@@ -1449,26 +1486,19 @@ final class ReservationService {
 					// Budowa wierszy ze snapshotem etykiety i ceny, z konfiguracji odczytanej
 					// TUTAJ, pod blokadą.
 					//
-					// Zwrot null jest tu już NIEOSIĄGALNY: przy wyborze podanym klucze
+					// Nieznana doba jest tu już NIEOSIĄGALNA: przy wyborze podanym klucze
 					// pochodzą ze znormalizowanego NightSelection, a przy niepodanym są to
 					// klucze zapisane, które brama $vanished wyżej właśnie rozstrzygnęła.
-					// Zostaje jako zawężenie typu (night() zwraca ?Night) i ostatni bezpiecznik
-					// — nigdy jako dom reguły, żeby nie było dwóch odpowiedzi na jeden fakt.
-					foreach ( $requested_keys as $key ) {
-						$night = $nights_config->night( $key );
+					// Pytanie zostaje jako ostatni bezpiecznik — nigdy jako dom reguły,
+					// żeby nie było dwóch odpowiedzi na jeden fakt.
+					$unknown = $this->unknownNight( $nights_config, $requested_keys );
 
-						if ( null === $night ) {
-							$this->repository->rollback();
-							return AdminActionResult::accommodationGone( $key );
-						}
-
-						$rows[] = array(
-							'key'   => $night->key,
-							'label' => $night->label,
-							'seats' => $seats,
-							'price' => $night->price * $seats,
-						);
+					if ( null !== $unknown ) {
+						$this->repository->rollback();
+						return AdminActionResult::accommodationGone( $unknown );
 					}
+
+					$rows = $this->nightRows( $nights_config, $requested_keys, $seats );
 
 					// Bramka dób z wykluczeniem samego zgłoszenia — inaczej jego własne miejsca
 					// blokowałyby jego własną edycję. Odmowa jest całościowa.
