@@ -273,6 +273,10 @@ final class PromoteFromWaitlistTest extends WP_UnitTestCase {
 		// Organizator oznaczył pokój jako dwuosobowy PO tym, jak ktoś zapisał się solo
 		// na listę rezerwową. Bez odmowy ten człowiek dostałby seats=2 i cenę ×2 przy
 		// companion=0 — czyli dwa łóżka i podwójny rachunek dla jednej osoby.
+		// Wybór pochodzi z ZAPISANEGO bookingu, czyli z łóżka realnie przyznanego: ciche
+		// zdjęcie zniszczyłoby przydział, więc awans odmawia i rozstrzyga admin. To samo
+		// życzenie zapisane tylko w odpowiedziach promuje się z utratą noclegu — patrz
+		// test_promotion_of_a_wished_room_that_now_requires_companion_reports_the_loss.
 		( new EventConfigRepository() )->save(
 			$this->event_id,
 			array(
@@ -483,10 +487,14 @@ final class PromoteFromWaitlistTest extends WP_UnitTestCase {
 		$this->assertSame( '100.00', $this->repository->findById( $id )['price_total'] );
 	}
 
-	public function test_promotion_refuses_a_wished_room_that_now_requires_companion(): void {
-		// Ta sama sprzeczność, co przy życzeniu z zapisanego bookingu, i ta sama szkoda:
-		// seats=2 i cena ×2 przy companion=0. Pochodzenie życzenia (wiersz czy JSON)
-		// nie może zmieniać wyroku — rozstrzyga admin, edytując odpowiedzi.
+	public function test_promotion_of_a_wished_room_that_now_requires_companion_reports_the_loss(): void {
+		// Ta sama szkoda, co przy wyborze z bookingu (seats=2 i cena ×2 przy companion=0),
+		// więc łóżka nie przyznajemy — ale życzenie nie jest przydziałem, który trzeba
+		// chronić odmową. Zdejmujemy je i mówimy o utracie, jak przy pełnym slocie:
+		// odmowa zamieniłaby jedno oznaczenie pokoju jako dwuosobowego w N ręcznych edycji
+		// i trzymała ludzi na liście rezerwowej mimo wolnych miejsc na wydarzeniu.
+		// Druga strona tej reguły (booking → odmowa) stoi w
+		// test_promote_refused_when_room_now_requires_companion.
 		$this->configure_accommodation( 10, 150.0, 100.0, 2, true );
 
 		$id = $this->seed(
@@ -502,8 +510,9 @@ final class PromoteFromWaitlistTest extends WP_UnitTestCase {
 
 		$result = $this->service->promoteFromWaitlist( $id );
 
-		$this->assertSame( 'occupancy_mismatch', $result->code );
-		$this->assertSame( 'waitlist', $this->repository->findById( $id )['status'] );
-		$this->assertSame( 0, $this->booking_count( $id ) );
+		$this->assertSame( 'promoted_no_accommodation', $result->code );
+		$this->assertSame( 'pending', $this->repository->findById( $id )['status'] );
+		$this->assertSame( 0, $this->booking_count( $id ), 'Niespójnego pokoju nie wolno przyznać — dwa łóżka i podwójny rachunek dla jednej osoby.' );
+		$this->assertSame( '100.00', $this->repository->findById( $id )['price_total'] );
 	}
 }

@@ -554,10 +554,12 @@ final class ReservationService {
 	 *
 	 * Gdy bookingu NIE MA — a zgłoszenie z listy rezerwowej go nie ma, bo waitlista nie
 	 * zajmuje miejsca — życzenie czytamy z odpowiedzi (`accommodationWish()`), jak robi to
-	 * ścieżka dobowa (`nightWish()`). Nocleg NIGDY nie blokuje samego awansu: brak miejsca
-	 * albo slot zniknięty z inwentarza daje promoted_no_accommodation, bo odmowa zostawiłaby
-	 * człowieka na liście rezerwowej mimo wolnego miejsca na wydarzeniu. Wycena idzie po
-	 * BIEŻĄCYM cenniku — ta sama reguła, co w trybie „doby”.
+	 * ścieżka dobowa (`nightWish()`). Takie życzenie NIGDY nie blokuje samego awansu: brak
+	 * miejsca, slot zniknięty z inwentarza albo pokój oznaczony w międzyczasie jako dwuosobowy
+	 * dają promoted_no_accommodation, bo odmowa zostawiłaby człowieka na liście rezerwowej
+	 * mimo wolnego miejsca na wydarzeniu. Odmowa (occupancyMismatch) zostaje wyłącznie dla
+	 * wyboru odtworzonego z ZAPISANEGO bookingu — patrz komentarz przy tej bramce. Wycena
+	 * idzie po BIEŻĄCYM cenniku — ta sama reguła, co w trybie „doby”.
 	 *
 	 * @param int $id ID zgłoszenia.
 	 *
@@ -600,6 +602,7 @@ final class ReservationService {
 		}
 
 		$selection = $this->storedSelection( $this->repository->findAccommodationBooking( $id ) );
+		$from_wish = false;
 
 		// Bez bookingu życzenie mieszka tylko w odpowiedziach (B12) — i tak wygląda KAŻDE
 		// zwykłe zgłoszenie z listy rezerwowej, bo waitlista nie zajmuje miejsca, więc
@@ -610,23 +613,39 @@ final class ReservationService {
 		// niczego nie wkłada między lockEvent i pierwszy odczyt zajętości (jak nightWish()).
 		if ( null === $selection ) {
 			$selection = $this->accommodationWish( $config, (string) $row['data'] );
+			$from_wish = null !== $selection;
 		}
 
-		$companion = (bool) ( $row['companion'] ?? false );
+		$companion    = (bool) ( $row['companion'] ?? false );
+		$wish_dropped = false;
 
-		// Pokój mógł zmienić liczbę osób po zawaitlistowaniu. Promowanie zgłoszenia
-		// niespójnego z nową konfiguracją dałoby seats/cenę dla innej liczby osób,
-		// niż zapisano w zgłoszeniu — admin musi to rozstrzygnąć edycją odpowiedzi.
-		// Dotyczy też życzenia odczytanego z odpowiedzi: szkoda jest ta sama (dwa łóżka
-		// i podwójny rachunek dla jednej osoby), więc pochodzenie życzenia nie zmienia wyroku.
+		// Pokój mógł zmienić liczbę osób po zawaitlistowaniu. Przyznanie go takiemu
+		// zgłoszeniu dałoby seats/cenę dla innej liczby osób, niż w nim zapisano (dwa łóżka
+		// i podwójny rachunek dla jednej osoby), więc nie wolno go przyznać ŻADNĄ ścieżką.
+		//
+		// Rozstrzygnięcie rozchodzi się jednak wg POCHODZENIA wyboru, bo życzenie i przyznane
+		// łóżko to różne fakty. BOOKING to łóżko, które system realnie przyznał i zapisał:
+		// ciche zdjęcie niszczyłoby przydział, więc awans odmawia i rozstrzyga admin (edycją
+		// odpowiedzi). ŻYCZENIE z odpowiedzi nie było nigdy przyznane: zdejmujemy je i mówimy
+		// o utracie kodem promoted_no_accommodation — dokładnie jak przy pełnym slocie i jak
+		// robi to ścieżka dobowa z dobą zniknięciem z konfiguracji. Odmowa zamieniłaby JEDNĄ
+		// zmianę konfiguracji (oznaczenie pokoju jako dwuosobowego) w N ręcznych edycji
+		// i trzymała ludzi na liście rezerwowej mimo wolnych miejsc na wydarzeniu.
 		if ( null !== $selection ) {
 			$room = $accommodation->room( $selection->roomKey );
 			if ( null !== $room && null !== $room->companionMismatch( $companion ) ) {
-				return AdminActionResult::occupancyMismatch();
+				if ( ! $from_wish ) {
+					return AdminActionResult::occupancyMismatch();
+				}
+
+				// Bookingu do skasowania nie ma: wybór pochodzi z życzenia WŁAŚNIE dlatego,
+				// że findAccommodationBooking() nic nie zwrócił.
+				$selection    = null;
+				$wish_dropped = true;
 			}
 		}
 
-		$accommodation_lost = false;
+		$accommodation_lost = $wish_dropped;
 
 		$wpdb->query( 'START TRANSACTION' );
 
