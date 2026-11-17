@@ -1,4 +1,9 @@
 <?php
+/**
+ * Bramka pojemności w trybie „doby”.
+ *
+ * @package EvReg
+ */
 
 declare( strict_types=1 );
 
@@ -10,6 +15,9 @@ use EvReg\Domain\Capacity\NightCapacity;
 use EvReg\Domain\Capacity\NightOccupancy;
 use PHPUnit\Framework\TestCase;
 
+/**
+ * Bramka wskazuje pierwszą dobę bez miejsca albo bez limitu par.
+ */
 final class NightCapacityTest extends TestCase {
 
 	/**
@@ -110,6 +118,18 @@ final class NightCapacityTest extends TestCase {
 
 		$this->assertNull( NightCapacity::blockingNight( $config, $taken, $this->sel( $config, array( 'n1' ) ), false ) );
 		$this->assertSame( 'n1', NightCapacity::blockingNight( $config, $taken, $this->sel( $config, array( 'n1' ) ), true ) );
+	}
+
+	public function test_companion_cap_blocks_on_the_second_night_of_a_selection(): void {
+		$config = $this->configWith(
+			array(
+				'n1' => array( 'seats' => 72, 'companion_cap' => 31 ),
+				'n2' => array( 'seats' => 65, 'companion_cap' => 28 ),
+			)
+		);
+		$taken  = new NightOccupancy( array( 'n1' => 10, 'n2' => 10 ), array( 'n1' => 5, 'n2' => 28 ) );
+
+		$this->assertSame( 'n2', NightCapacity::blockingNight( $config, $taken, $this->sel( $config, array( 'n1', 'n2' ) ), true ) );
 	}
 
 	public function test_leading_example(): void {
