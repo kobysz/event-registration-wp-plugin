@@ -18,7 +18,7 @@ so keep entries user-facing and concise.
 - The mode cannot be switched once an event has accommodation registrations.
 
 ### Fixed
-- Editing a submission is now refused, naming the night, when one of its booked nights has since been removed from the event. Before, the night, its seat and its price quietly disappeared the next time anyone saved that submission.
+- Editing a submission is now refused, naming the night, when any of its booked nights has since been removed from the event — including when the removed night was its only one. Before, the night, its seat and its price quietly disappeared the next time anyone saved that submission. The refusal explains that the night is gone rather than full, and says to either restore it in the event's accommodation settings or untick every night to drop the accommodation on purpose. An edit that touches neither the nights nor the companion box still saves, since it changes nothing about the accommodation.
 - Ticking a night that no longer exists alongside one that does is now refused instead of being accepted without the missing night.
 - The CSV export and the privacy data export now report the booked nights even when the accommodation field has been taken off the form.
 - The translations tab no longer asks for translations of packages and room types on an event that uses nights (and the other way round).

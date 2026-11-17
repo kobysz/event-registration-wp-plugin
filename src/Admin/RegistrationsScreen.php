@@ -169,6 +169,7 @@ final class RegistrationsScreen {
 			'not_found'                 => array( 'error', __( 'Nie znaleziono zgłoszenia.', 'event-registration' ) ),
 			'capacity_full'             => array( 'error', __( 'Brak wolnych miejsc dla wybranego typu zgłoszenia.', 'event-registration' ) ),
 			'accommodation_full'        => array( 'error', __( 'Brak wolnych miejsc dla wybranego noclegu.', 'event-registration' ) ),
+			'accommodation_gone'        => array( 'error', __( 'Doba zapisana w tym zgłoszeniu nie istnieje już w konfiguracji wydarzenia, więc edycja nie została zapisana.', 'event-registration' ) ),
 			'config_error'              => array( 'error', __( 'Konfiguracja noclegów tego wydarzenia jest niepoprawna — popraw ją w ustawieniach wydarzenia.', 'event-registration' ) ),
 			'export_no_event'           => array( 'error', __( 'Wybierz event, aby wyeksportować zgłoszenia.', 'event-registration' ) ),
 		);
@@ -179,13 +180,27 @@ final class RegistrationsScreen {
 
 		$text = $messages[ $code ][1];
 
-		// Tryb „doby”: odmowa niesie KLUCZ blokującej doby — identyfikator wewnętrzny,
-		// którego organizator nie ma czytać. Zamieniamy go na zdanie z etykietą doby.
-		if ( 'accommodation_full' === $code && null !== $nights ) {
+		// Tryb „doby”: odmowa niesie KLUCZ doby — identyfikator wewnętrzny, którego
+		// organizator nie ma czytać. Zamieniamy go na zdanie o konkretnej dobie.
+		//
+		// Dwa kody, bo dwa różne fakty i dwie różne rady. accommodation_full mówi o dobie
+		// PEŁNEJ: ona jest w konfiguracji, ma etykietę i da się ją na formularzu odznaczyć.
+		// accommodation_gone mówi o dobie USUNIĘTEJ z konfiguracji: tamtej rady nie wolno
+		// jej dać, bo doby nie ma w formularzu i nie da się odznaczyć czegoś, czego nie
+		// widać; nie ma też etykiety (nightLabel() degraduje wtedy do klucza), więc klucz
+		// jest tu jedynym i właściwym identyfikatorem — po nim operator znajdzie dobę
+		// w konfiguracji wydarzenia.
+		if ( in_array( $code, array( 'accommodation_full', 'accommodation_gone' ), true ) ) {
 			// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- odczyt kodu wyniku z PRG, widok read-only.
 			$night = isset( $_GET['evreg_night'] ) ? sanitize_text_field( wp_unslash( (string) $_GET['evreg_night'] ) ) : '';
 
-			if ( '' !== $night ) {
+			if ( '' !== $night && 'accommodation_gone' === $code ) {
+				$text = sprintf(
+					/* translators: %s: klucz doby noclegowej usuniętej z konfiguracji. */
+					__( 'Doba o kluczu „%s” jest zapisana w tym zgłoszeniu, ale nie ma jej już w konfiguracji wydarzenia — edycja nie została zapisana, więc nocleg, miejsce i cena zgłoszenia pozostają bez zmian. Przywróć tę dobę w ustawieniach noclegów wydarzenia, albo — jeśli nocleg ma przepaść — odznacz w tym formularzu wszystkie doby i zapisz ponownie.', 'event-registration' ),
+					$night
+				);
+			} elseif ( '' !== $night && null !== $nights ) {
 				$text = sprintf(
 					/* translators: %s: etykieta doby noclegowej. */
 					__( 'Doba „%s” nie ma już tyle wolnych miejsc. Odznacz ją albo wybierz inne doby.', 'event-registration' ),
@@ -884,9 +899,11 @@ final class RegistrationsScreen {
 				);
 				break;
 			case 'accommodation_full':
-				// Odmowa niesie KLUCZ blokującej doby — przenosimy go przez PRG, żeby ekran
-				// edycji nazwał ją etykietą (render_notice). Na ścieżce klasycznej reason
-				// jest null i komunikat zostaje dzisiejszy.
+			case 'accommodation_gone':
+				// Odmowa niesie KLUCZ doby — przenosimy go przez PRG, żeby ekran edycji
+				// nazwał ją etykietą (doba pełna) albo samym kluczem (doba usunięta
+				// z konfiguracji, która etykiety już nie ma) — patrz render_notice().
+				// Na ścieżce klasycznej reason jest null i komunikat zostaje dzisiejszy.
 				$extra = array(
 					'action' => 'edit',
 					'id'     => $id,

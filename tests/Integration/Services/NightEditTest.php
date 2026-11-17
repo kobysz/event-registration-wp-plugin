@@ -494,7 +494,7 @@ final class NightEditTest extends WP_UnitTestCase {
 
 		$result = $this->service->editAnswers( $id, $this->requestWithoutNights( 'vanish@example.com' ) );
 
-		$this->assertSame( 'accommodation_full', $result->code );
+		$this->assertSame( 'accommodation_gone', $result->code );
 		// Pierwsza zapisana doba zgłoszenia, czyli ta, którą odmowa ma nazwać.
 		$this->assertSame( 'n1819', $result->reason );
 
@@ -537,7 +537,7 @@ final class NightEditTest extends WP_UnitTestCase {
 
 		$result = $this->service->editAnswers( $id, $request );
 
-		$this->assertSame( 'accommodation_full', $result->code );
+		$this->assertSame( 'accommodation_gone', $result->code );
 		$this->assertSame( 'n1920', $result->reason, 'Odmowa musi nazwać dobę, która zniknęła.' );
 
 		// Nic się nie ruszyło: ani wiersze, ani miejsca, ani cena.
@@ -568,6 +568,79 @@ final class NightEditTest extends WP_UnitTestCase {
 		$this->assertSame( 1, $this->occupancy()->seatsFor( 'n1819' ) );
 		$this->assertSame( 1, $this->occupancy()->seatsFor( 'n1920' ) );
 		$this->assertSame( 0, $this->occupancy()->pairsFor( 'n1819' ) );
+	}
+
+	public function test_unrelated_edit_still_saves_when_a_stored_night_vanished(): void {
+		// Granica bramy dób znikniętych, żeby nie odmawiała na zapas. Edycja, która nie
+		// rusza ani zbioru dób, ani flagi towarzyszącej, NIE DOTYKA wierszy ani ceny (cena
+		// idzie ze snapshotów, zapis wierszy jest pomijany), więc zniknięta doba nic tam nie
+		// traci i odmowa byłaby odmową fałszywą — zablokowałaby poprawkę e-maila, nie
+		// chroniąc niczego. Zgłoszenie zostaje ze swoim noclegiem, miejscem i ceną.
+		$id     = $this->reserve( 'untouched@example.com', array( 'n1920' ) );
+		$before = $this->nightsOf( $id );
+
+		$this->configure(
+			array(
+				array(
+					'key'   => 'n1819',
+					'label' => '18/19 XI',
+					'price' => 80.0,
+					'seats' => 4,
+				),
+			)
+		);
+
+		$result = $this->service->editAnswers( $id, $this->requestWithoutNights( 'nowy@example.com' ) );
+
+		$this->assertSame( 'edited', $result->code );
+		$this->assertSame( 'nowy@example.com', $this->repository->findById( $id )['email'] );
+		$this->assertSame( $before, $this->nightsOf( $id ) );
+		$this->assertSame( '190.00', $this->repository->findById( $id )['price_total'] );
+		$this->assertSame( 1, $this->occupancy()->seatsFor( 'n1920' ) );
+	}
+
+	public function test_empty_selection_is_refused_when_the_only_stored_night_vanished(): void {
+		// Najdostępniejszy wariant tej samej szkody, i ten, który przeżył pierwszą poprawkę:
+		// KAŻDA edycja z admina jest „wyborem podanym" (asembler zawsze zwraca prawdziwy
+		// NightSelection, gdy schemat ma pole dób), a zgłoszeniu, któremu zniknęła JEDYNA
+		// zapisana doba, wyrenderowany formularz podaje zbiór PUSTY — doby nie ma na liście,
+		// więc nie ma czego zaznaczyć. Pusty zbiór dawał $granted === false, mijał pętlę
+		// budującą wiersze bokiem i kończył na deleteBookingNights: wiersz, miejsce i cena
+		// ginęły, zgłoszone jako „edited". Odmowa musi być osiągalna także wtedy, gdy nic
+		// nie jest przyznawane.
+		$id     = $this->reserve( 'gone@example.com', array( 'n1920' ) );
+		$before = $this->nightsOf( $id );
+		// 100 (typ) + 90 (jedna doba).
+		$this->assertSame( '190.00', $this->repository->findById( $id )['price_total'] );
+		$this->assertSame( 1, $this->occupancy()->seatsFor( 'n1920' ) );
+
+		// Organizator usunął n1920; w konfiguracji zostaje tylko doba, której to zgłoszenie
+		// nigdy nie miało, więc formularz edycji pokazuje ją NIEZAZNACZONĄ i nic więcej.
+		$this->configure(
+			array(
+				array(
+					'key'   => 'n1819',
+					'label' => '18/19 XI',
+					'price' => 80.0,
+					'seats' => 4,
+				),
+			)
+		);
+
+		// Operator poprawia numer telefonu i zapisuje: zero zaznaczeń, wybór PODANY.
+		$request = $this->request( 'gone@example.com', array() );
+		$this->assertNotNull( $request->nights, 'To żądanie MUSI nieść wybór dób.' );
+		$this->assertTrue( $request->nights->isEmpty(), 'Wybór MUSI być pusty.' );
+
+		$result = $this->service->editAnswers( $id, $request );
+
+		$this->assertSame( 'accommodation_gone', $result->code );
+		$this->assertSame( 'n1920', $result->reason, 'Odmowa musi nazwać dobę, która zniknęła.' );
+
+		// Nic się nie ruszyło: ani wiersz, ani miejsce, ani cena.
+		$this->assertSame( $before, $this->nightsOf( $id ) );
+		$this->assertSame( '190.00', $this->repository->findById( $id )['price_total'] );
+		$this->assertSame( 1, $this->occupancy()->seatsFor( 'n1920' ) );
 	}
 
 	public function test_edit_with_an_empty_selection_still_drops_the_accommodation(): void {

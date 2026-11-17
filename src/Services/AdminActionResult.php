@@ -19,9 +19,10 @@ final class AdminActionResult {
 	/**
 	 * Tworzy wynik.
 	 *
-	 * @param string      $code   Kod: confirmed|cancelled|promoted|promoted_no_accommodation|deleted|rejected|invalid_status|not_found|edited|capacity_full|accommodation_full|occupancy_mismatch.
-	 * @param string|null $reason Kod powodu (np. przy rejected) albo klucz blokującej doby
-	 *                           przy accommodation_full w trybie „doby”, jeśli dotyczy.
+	 * @param string      $code   Kod: confirmed|cancelled|promoted|promoted_no_accommodation|deleted|rejected|invalid_status|not_found|edited|capacity_full|accommodation_full|accommodation_gone|occupancy_mismatch.
+	 * @param string|null $reason Kod powodu (np. przy rejected) albo klucz doby w trybie
+	 *                           „doby”: blokującej przy accommodation_full, znikniętej
+	 *                           z konfiguracji przy accommodation_gone. Jeśli dotyczy.
 	 */
 	private function __construct(
 		public readonly string $code,
@@ -106,5 +107,19 @@ final class AdminActionResult {
 	 */
 	public static function accommodationFull( ?string $night = null ): self {
 		return new self( 'accommodation_full', $night );
+	}
+
+	/**
+	 * Edycja odrzucona: doba zapisana przy zgłoszeniu ZNIKŁA z konfiguracji wydarzenia.
+	 *
+	 * Osobny kod od accommodationFull(), bo to inny fakt i inna rada dla operatora.
+	 * „Pełna doba" można odznaczyć; doby znikniętej odznaczyć NIE MOŻNA, bo formularz
+	 * edycji iteruje bieżącą konfigurację i nie renderuje dla niej pola. Wyjście jest
+	 * dwojakie: przywrócić dobę w konfiguracji wydarzenia albo świadomie porzucić nocleg.
+	 *
+	 * @param string $night Klucz znikniętej doby (do zidentyfikowania jej w konfiguracji).
+	 */
+	public static function accommodationGone( string $night ): self {
+		return new self( 'accommodation_gone', $night );
 	}
 }

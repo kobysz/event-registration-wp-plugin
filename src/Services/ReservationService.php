@@ -1068,9 +1068,17 @@ final class ReservationService {
 	 * Edytuje odpowiedzi zgłoszenia w trybie „doby”.
 	 *
 	 * Kolejność jak w editAnswers() i reserveNights(): START → (gdy status zajmuje miejsce)
-	 * lockEvent → odczyt zapisanych dób POD lockiem → limit wydarzenia i typu → bramka dób
-	 * na zajętości dób z wykluczeniem samego zgłoszenia → zapis → COMMIT. BEZ hooków cyklu
-	 * życia, czyli bez maila (jak confirmManually()).
+	 * lockEvent → odczyt zapisanych dób POD lockiem → brama dób znikniętych z konfiguracji →
+	 * limit wydarzenia i typu → bramka dób na zajętości dób z wykluczeniem samego zgłoszenia
+	 * → zapis → COMMIT. BEZ hooków cyklu życia, czyli bez maila (jak confirmManually()).
+	 *
+	 * Doba ZAPISANA przy zgłoszeniu, której konfiguracja wydarzenia już nie zna, odrzuca
+	 * edycję kodem accommodationGone() z jej kluczem — w KAŻDYM wariancie: gdy zniknęła
+	 * część dób i gdy wszystkie, przy wyborze podanym i niepodanym, przy wyborze pustym
+	 * i niepustym. Jedyny wyjątek to edycja nieruszająca ani zbioru dób, ani flagi
+	 * towarzyszącej: ta i tak nie tyka wierszy ani ceny, więc nie ma tam czego chronić.
+	 * Świadoma rezygnacja z noclegu (wybór PODANY i pusty) zostaje dozwolona, bo zostawia
+	 * każdy zapisany klucz rozstrzygalnym — to inny fakt niż zniknięta doba.
 	 *
 	 * Edycja, która nie zmienia ani ZBIORU dób, ani flagi towarzyszącej, nie „się przesuwa”:
 	 * wiersze dób, ich seats i cena dób zostają nietknięte, a bramka dób jest pomijana. Ta
@@ -1160,12 +1168,11 @@ final class ReservationService {
 			// ZAPISANE, bo $selection zbudowaliśmy sami z bieżącej konfiguracji i zniknięta
 			// doba wypadłaby z niego po cichu.
 			//
-			// UWAGA: na ŻADNEJ z dwóch gałęzi ten zbiór nie wystarczy sam jako lista dób do
-			// rozstrzygnięcia wobec konfiguracji. Przy wyborze podanym doba zniknięta
-			// z konfiguracji nie ma w nim jak się znaleźć (formularz jej nie renderuje,
-			// a NightSelection normalizuje ją do niebytu), więc pętla odmowy niżej dokłada
-			// doby zapisane, których konfiguracja już nie zna. Obie gałęzie muszą odmawiać
-			// tej samej sytuacji po nazwie.
+			// UWAGA: ten zbiór NIE JEST zbiorem do rozstrzygnięcia wobec konfiguracji i nie
+			// wolno go w tej roli użyć. Doba zniknięta z konfiguracji nie ma jak się w nim
+			// znaleźć przy wyborze podanym (formularz jej nie renderuje, a NightSelection
+			// normalizuje ją do niebytu), a przy pustym wyborze zbiór nie powie w ogóle nic.
+			// O zniknięte doby pyta się ZAPISANYCH kluczy — robi to brama $vanished niżej.
 			$requested_keys = $supplied ? $selection->keys() : array_values( array_unique( $stored_keys ) );
 
 			$sorted_stored = $stored_keys;
@@ -1181,16 +1188,43 @@ final class ReservationService {
 			$unchanged = (bool) ( $row['companion'] ?? false ) === $request->companion
 				&& ( ! $supplied || $sorted_stored === $sorted_new );
 
+			// JEDYNA brama dla doby, która ZNIKŁA z konfiguracji — stoi tu, przed podziałem
+			// na „przyznane" i „bez noclegu", właśnie dlatego, że harm istnieje po OBU jego
+			// stronach. Wcześniej reguła siedziała w pętli budującej wiersze, a tamta pętla
+			// wymaga $granted, czyli niepustego zbioru żądanego; zgłoszenie, któremu zniknęła
+			// JEDYNA doba, dostaje z wyrenderowanego formularza pusty zbiór, mijało pętlę
+			// bokiem i kończyło na deleteBookingNights — wiersz, miejsce i cena ginęły pod
+			// komunikatem „zaktualizowane".
+			//
+			// Świadoma rezygnacja i zniknięta doba to RÓŻNE FAKTY i tylko pierwszy ma prawo
+			// coś zniszczyć. Rozróżnia je właśnie to, czy zapisane klucze dają się jeszcze
+			// rozstrzygnąć: świadome odznaczenie dób, które nadal istnieją, zostawia każdy
+			// zapisany klucz rozstrzygalnym, więc $vanished jest puste i rezygnacja działa
+			// dokładnie tak, jak ją przypina jej test.
+			//
+			// Warunek `! $unchanged` nie jest ozdobą: edycja, która nie rusza ani zbioru dób,
+			// ani flagi towarzyszącej, NIE DOTYKA wierszy ani ceny (niżej: cena ze snapshotów,
+			// zapis wierszy pominięty), więc zniknięta doba nic tam nie traci i odmowa byłaby
+			// odmową fałszywą — zablokowałaby poprawkę numeru telefonu, nie chroniąc niczego.
+			$vanished = array();
+
+			foreach ( $stored_keys as $stored_key ) {
+				if ( null === $nights_config->night( $stored_key ) && ! in_array( $stored_key, $vanished, true ) ) {
+					$vanished[] = $stored_key;
+				}
+			}
+
+			if ( ! $unchanged && array() !== $vanished ) {
+				$wpdb->query( 'ROLLBACK' );
+				return AdminActionResult::accommodationGone( $vanished[0] );
+			}
+
 			// Zgłoszenie z listy rezerwowej nie zajmuje miejsc, więc nie dostaje wierszy dób.
 			//
-			// Grant liczy się z dób ŻĄDANYCH, nie z tego, co przetrwało odczyt konfiguracji.
-			// Gdyby liczył się z $selection, zniknięcie z konfiguracji WSZYSTKICH dób
-			// zapisanych przy zgłoszeniu dałoby pusty zbiór odbudowany, edycja wpadłaby
-			// w gałąź „bez noclegu", skasowała wiersze i obniżyła cenę — po cichu, przy
-			// zwykłej zmianie flagi towarzyszącej. Pusty jest tylko wybór PODANY i pusty,
-			// czyli świadoma rezygnacja; dla niej $requested_keys też jest pusty, więc
-			// rozróżnienie zostaje. Zniknięta doba jest odmawiana po nazwie w pętli niżej —
-			// zarówno gdy zniknęła część dób, jak i gdy wszystkie.
+			// Grant liczy się z dób ŻĄDANYCH, nie z tego, co przetrwało odczyt konfiguracji:
+			// pusty jest tylko wybór PODANY i pusty, czyli świadoma rezygnacja. Zniknięta
+			// doba nie dochodzi już tutaj w żadnym wariancie — ani częściowym, ani całkowitym
+			// — bo brama wyżej odmówiła edycji po nazwie, zanim ten podział nastąpił.
 			$granted = $occupies && array() !== $requested_keys;
 			$rows    = array();
 
@@ -1221,43 +1255,20 @@ final class ReservationService {
 				}
 
 				if ( ! $unchanged && $granted ) {
-					// Rozstrzygnięcie żądanych dób względem konfiguracji odczytanej TUTAJ,
-					// pod blokadą: wybór powstał z odczytu ekranu edycji, a doba mogła zniknąć
-					// w międzyczasie. Odmawiamy wprost i nazywamy dobę, zamiast cicho pominąć —
-					// także gdy to doba ZAPISANA przy zgłoszeniu zniknęła z konfiguracji, bo
-					// ciche jej pominięcie zabrałoby zgłoszeniu nocleg i obniżyło cenę.
+					// Budowa wierszy ze snapshotem etykiety i ceny, z konfiguracji odczytanej
+					// TUTAJ, pod blokadą.
 					//
-					// Przy wyborze PODANYM żądane klucze NIE WYSTARCZĄ jako zbiór do
-					// rozstrzygnięcia. `renderNights` iteruje bieżącą konfigurację, więc
-					// zniknięta doba nie ma checkboxa i nie może wrócić w POST-cie, a
-					// NightSelection i tak znormalizowałby ją do niebytu — żądane klucze
-					// nigdy o niej nie powiedzą. Dokładamy więc doby ZAPISANE, których
-					// dzisiejsza konfiguracja już nie zna: inaczej poprawka numeru telefonu
-					// skasowałaby wiersz takiej doby, zwolniła jej miejsce i obniżyła cenę
-					// pod komunikatem „zaktualizowane”. Gałąź wyboru NIEPODANEGO odmawia
-					// w tej samej sytuacji po nazwie i te dwie połowy jednej funkcji nie
-					// mogą dawać przeciwnych odpowiedzi na ten sam fakt.
-					//
-					// Doba zapisana, którą konfiguracja ZNA, a której w żądaniu nie ma, to
-					// świadome odznaczenie i tu się nie pojawia — tak samo jak wybór podany
-					// i pusty (świadoma rezygnacja) nie wchodzi w tę gałąź wcale, bo ma
-					// $granted === false.
-					$resolve_keys = $requested_keys;
-
-					if ( $supplied ) {
-						foreach ( $stored_keys as $stored_key ) {
-							if ( null === $nights_config->night( $stored_key ) && ! in_array( $stored_key, $resolve_keys, true ) ) {
-								$resolve_keys[] = $stored_key;
-							}
-						}
-					}
-
-					foreach ( $resolve_keys as $key ) {
+					// Zwrot null jest tu już NIEOSIĄGALNY: przy wyborze podanym klucze
+					// pochodzą ze znormalizowanego NightSelection, a przy niepodanym są to
+					// klucze zapisane, które brama $vanished wyżej właśnie rozstrzygnęła.
+					// Zostaje jako zawężenie typu (night() zwraca ?Night) i ostatni bezpiecznik
+					// — nigdy jako dom reguły, żeby nie było dwóch odpowiedzi na jeden fakt.
+					foreach ( $requested_keys as $key ) {
 						$night = $nights_config->night( $key );
 
 						if ( null === $night ) {
 							$wpdb->query( 'ROLLBACK' );
-							return AdminActionResult::accommodationFull( $key );
+							return AdminActionResult::accommodationGone( $key );
 						}
 
 						$rows[] = array(

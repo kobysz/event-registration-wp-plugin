@@ -543,6 +543,71 @@ final class NightAdminScreensTest extends WP_UnitTestCase {
 		$this->assertMatchesRegularExpression( '/notice-error.*19\/20 XI/s', $html, 'Komunikat musi nazwać dobę etykietą.' );
 	}
 
+	public function test_edit_refusal_for_a_removed_night_tells_the_operator_what_to_do(): void {
+		// Druga przyczyna odmowy, z inną radą. Doba nie jest pełna — jej NIE MA. Rada
+		// „odznacz ją" byłaby ślepym zaułkiem: formularz iteruje bieżącą konfigurację, więc
+		// nie renderuje dla niej pola i nie da się odznaczyć czegoś, czego nie widać.
+		// Etykiety też nie ma (nightLabel degraduje do klucza), więc komunikat podaje klucz
+		// i mówi, co zrobić: przywrócić dobę albo świadomie porzucić nocleg.
+		$id = $this->reserve( 'jan@example.com', array( 'n1920' ) );
+
+		$this->configure(
+			array(
+				array(
+					'key'   => 'n1819',
+					'label' => '18/19 XI',
+					'price' => 80.0,
+					'seats' => 4,
+				),
+			)
+		);
+
+		// Formularz edycji nie renderuje n1920, więc POST niesie zbiór PUSTY.
+		$_POST['registration'] = $id;
+		$_REQUEST['_wpnonce']  = wp_create_nonce( 'evreg_edit_' . $id );
+		$_POST['evreg_field']  = array(
+			'__type' => 'uczestnik',
+			'email'  => 'jan@example.com',
+			'nocleg' => array( 'nights' => array() ),
+		);
+
+		$redirect = $this->catchRedirect( array( RegistrationsScreen::class, 'handle_edit' ) );
+
+		$this->assertNotNull( $redirect );
+		$this->assertStringContainsString( 'evreg_msg=accommodation_gone', $redirect->location );
+		$this->assertStringContainsString( 'evreg_night=n1920', $redirect->location );
+
+		$this->assertSame(
+			array( 'n1920' ),
+			array_column( $this->repository->bookingNightsFor( array( $id ) )[ $id ], 'key' ),
+			'Odmowa nie może ruszyć zapisanych dób.'
+		);
+		$this->assertSame( 190.0, (float) $this->repository->findById( $id )['price_total'], '100 + 90, bez zmian.' );
+
+		$_GET['evreg_msg']   = 'accommodation_gone';
+		$_GET['evreg_night'] = 'n1920';
+
+		$html = $this->renderScreen( 'edit', $id );
+
+		$this->assertStringContainsString( 'notice-error', $html );
+		$this->assertMatchesRegularExpression( '/notice-error.*n1920/s', $html, 'Komunikat musi wskazać dobę kluczem.' );
+		$this->assertMatchesRegularExpression(
+			'/notice-error.*nie ma jej już w konfiguracji wydarzenia/su',
+			$html,
+			'Komunikat musi powiedzieć, CO się stało.'
+		);
+		$this->assertMatchesRegularExpression(
+			'/notice-error.*Przywróć tę dobę/su',
+			$html,
+			'Komunikat musi powiedzieć, co operator ma zrobić.'
+		);
+		$this->assertDoesNotMatchRegularExpression(
+			'/notice-error.*Odznacz ją/su',
+			$html,
+			'Rada z pełnej doby jest tu ślepym zaułkiem — doby nie ma w formularzu.'
+		);
+	}
+
 	public function test_overview_panel_counts_seats_and_pairs_per_night(): void {
 		$this->reserve( 'para@example.com', array( 'n1819' ), true );
 		$this->reserve( 'solo@example.com', array( 'n1819', 'n1920' ) );
