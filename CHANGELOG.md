@@ -11,7 +11,10 @@ so keep entries user-facing and concise.
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-11-17
+
 ### Fixed
+- The nights list in the accommodation settings is laid out like the registration types and the rooms: each night is a card of its own, with space between it and the next one, instead of one unbroken column of fields.
 - A single event with leftover accommodation data can no longer stop the e-mail queue. Building a confirmation for such an event failed, and because the queue is driven by cron the same message was retried every few minutes forever, which held up confirmations for every other event too. The accommodation line now falls back to the names stored with the booking.
 
 ## [0.2.0] - 2026-11-17
@@ -141,7 +144,8 @@ so keep entries user-facing and concise.
 ### Added
 - Initial internal release covering the full roadmap: event configuration (custom post type, REST API, React admin), public registration form with transactional seat reservation and double opt-in, transactional mail queue with templates and an admin queue screen, submissions panel with lifecycle actions, answer editing and CSV export, data-lifecycle/compliance tooling (gated uninstall, WordPress privacy export/erase), and self-hosted auto-update from GitHub Releases.
 
-[Unreleased]: https://github.com/kobysz/event-registration-wp-plugin/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/kobysz/event-registration-wp-plugin/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/kobysz/event-registration-wp-plugin/releases/tag/v0.2.1
 [0.2.0]: https://github.com/kobysz/event-registration-wp-plugin/releases/tag/v0.2.0
 [0.1.17]: https://github.com/kobysz/event-registration-wp-plugin/releases/tag/v0.1.17
 [0.1.16]: https://github.com/kobysz/event-registration-wp-plugin/releases/tag/v0.1.16
