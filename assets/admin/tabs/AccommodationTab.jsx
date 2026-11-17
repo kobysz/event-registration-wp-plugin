@@ -1,5 +1,5 @@
-import { Button, SelectControl, TextControl, ToggleControl } from '@wordpress/components';
-import { __ } from '@wordpress/i18n';
+import { Button, Notice, SelectControl, TextControl, ToggleControl } from '@wordpress/components';
+import { __, sprintf } from '@wordpress/i18n';
 import {
 	emptyAccommodation,
 	addPackage,
@@ -13,16 +13,103 @@ import {
 	setAllowNone,
 	setCompanionEnabled,
 	setCompanionCountsEvent,
+	setMode,
+	addNight,
+	removeNight,
+	setNightField,
+	NIGHT_KEY_MAX,
 } from '../ops/accommodationOps';
 
-export default function AccommodationTab( { config, update } ) {
-	const acc = config.accommodation && config.accommodation.packages
-		? config.accommodation
-		: emptyAccommodation();
+export default function AccommodationTab( { config, update, stats } ) {
+	const acc = { ...emptyAccommodation(), ...( config.accommodation || {} ) };
 	const setAcc = update( 'accommodation' );
+	const nightsMode = 'nights' === acc.mode;
+	const modeLocked = !! ( stats && stats.mode_locked );
+	const nightSeats = ( stats && stats.night_seats ) || {};
 
 	return (
 		<div className="evreg-accommodation-tab">
+			<SelectControl
+				label={ __( 'Tryb noclegów', 'event-registration' ) }
+				value={ nightsMode ? 'nights' : 'classic' }
+				disabled={ modeLocked }
+				options={ [
+					{ value: 'classic', label: __( 'Klasyczny (pakiety i pokoje)', 'event-registration' ) },
+					{ value: 'nights', label: __( 'Doby (pula miejsc na dobę)', 'event-registration' ) },
+				] }
+				onChange={ ( mode ) => setAcc( setMode( acc, mode ) ) }
+			/>
+			{ modeLocked && (
+				<Notice status="warning" isDismissible={ false }>
+					{ __( 'Trybu noclegów nie można zmienić: wydarzenie ma już zgłoszenia z noclegiem. Anuluj te zgłoszenia, aby zmienić tryb.', 'event-registration' ) }
+				</Notice>
+			) }
+
+			{ nightsMode && (
+				<div className="evreg-nights">
+					<h3>{ __( 'Doby', 'event-registration' ) }</h3>
+					{ ( acc.nights || [] ).map( ( night ) => {
+						const reserved = Number( nightSeats[ night.key ] ) || 0;
+						return (
+							<div className="evreg-night-row" key={ night.key }>
+								<TextControl
+									label={ __( 'Klucz', 'event-registration' ) }
+									help={ __( 'Zmiana klucza rozłączy istniejące rezerwacje tej doby. Maksymalnie 64 znaki.', 'event-registration' ) }
+									value={ night.key }
+									maxLength={ NIGHT_KEY_MAX }
+									onChange={ ( v ) => setAcc( setNightField( acc, night.key, 'key', v ) ) }
+								/>
+								<TextControl
+									label={ __( 'Nazwa', 'event-registration' ) }
+									value={ night.label || '' }
+									onChange={ ( v ) => setAcc( setNightField( acc, night.key, 'label', v ) ) }
+								/>
+								<TextControl
+									type="number"
+									min="0"
+									label={ __( 'Cena za miejsce', 'event-registration' ) }
+									value={ night.price ?? '' }
+									onChange={ ( v ) => setAcc( setNightField( acc, night.key, 'price', v ) ) }
+								/>
+								<TextControl
+									type="number"
+									min="0"
+									label={ __( 'Liczba miejsc', 'event-registration' ) }
+									help={ __( '0 = brak miejsc (doba zamknięta).', 'event-registration' ) }
+									value={ night.seats ?? '' }
+									onChange={ ( v ) => setAcc( setNightField( acc, night.key, 'seats', v ) ) }
+								/>
+								<TextControl
+									type="number"
+									min="0"
+									label={ __( 'Limit zgłoszeń z osobą towarzyszącą', 'event-registration' ) }
+									help={ __( 'Puste = bez limitu. 0 = doba dostępna tylko dla pojedynczych zgłoszeń.', 'event-registration' ) }
+									value={ night.companion_cap ?? '' }
+									onChange={ ( v ) => setAcc( setNightField( acc, night.key, 'companion_cap', v ) ) }
+								/>
+								{ reserved > 0 && (
+									<p className="evreg-night-row__warning">
+										{ sprintf(
+											/* translators: %d: number of reserved seats. */
+											__( 'Ta doba ma %d zarezerwowanych miejsc. Usunięcie jej z listy nie zmieni istniejących zgłoszeń, ale doba zniknie z formularza.', 'event-registration' ),
+											reserved
+										) }
+									</p>
+								) }
+								<Button isDestructive onClick={ () => setAcc( removeNight( acc, night.key ) ) }>
+									{ __( 'Usuń', 'event-registration' ) }
+								</Button>
+							</div>
+						);
+					} ) }
+					<Button variant="secondary" onClick={ () => setAcc( addNight( acc ) ) }>
+						{ __( 'Dodaj dobę', 'event-registration' ) }
+					</Button>
+				</div>
+			) }
+
+			{ ! nightsMode && (
+				<div className="evreg-classic">
 			<h3>{ __( 'Pakiety', 'event-registration' ) }</h3>
 			{ ( acc.packages || [] ).map( ( pkg ) => (
 				<div className="evreg-pkg-row" key={ pkg.key }>
@@ -143,6 +230,9 @@ export default function AccommodationTab( { config, update } ) {
 					) ) }
 				</tbody>
 			</table>
+
+				</div>
+			) }
 
 			<ToggleControl
 				label={ __( 'Zezwól na brak noclegu', 'event-registration' ) }

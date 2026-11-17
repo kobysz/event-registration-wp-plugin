@@ -11,6 +11,11 @@ import {
 	setAllowNone,
 	setCompanionEnabled,
 	setCompanionCountsEvent,
+	setMode,
+	addNight,
+	removeNight,
+	setNightField,
+	NIGHT_KEY_MAX,
 } from './accommodationOps';
 
 describe( 'accommodationOps', () => {
@@ -142,5 +147,88 @@ describe( 'accommodationOps', () => {
 		);
 
 		expect( acc.rooms[ 0 ].occupancy ).toBe( 2 );
+	} );
+} );
+
+describe( 'accommodationOps — nights mode', () => {
+	const classic = () => ( {
+		packages: [ { key: 'p1', label: 'P' } ],
+		rooms: [ { key: 'r1', label: 'R' } ],
+		inventory: [ { package: 'p1', room: 'r1', capacity: 3, price: 10 } ],
+		allow_none: true,
+	} );
+
+	it( 'setMode przełącza tryb i NIE kasuje danych klasycznych', () => {
+		const input = classic();
+		const next = setMode( input, 'nights' );
+		expect( next.mode ).toBe( 'nights' );
+		expect( next.nights ).toEqual( [] );
+		expect( next.packages ).toEqual( input.packages );
+		expect( next.inventory ).toEqual( input.inventory );
+		expect( input.mode ).toBeUndefined();
+		expect( setMode( next, 'classic' ).mode ).toBe( 'classic' );
+		expect( setMode( next, 'bogus' ).mode ).toBe( 'classic' );
+	} );
+
+	it( 'addNight dodaje dobę z domyślnymi wartościami i unikalnym kluczem', () => {
+		const a = addNight( setMode( classic(), 'nights' ) );
+		const b = addNight( a );
+		expect( a.nights ).toHaveLength( 1 );
+		expect( a.nights[ 0 ] ).toMatchObject( { label: '', price: 0, seats: 0, companion_cap: '' } );
+		expect( b.nights[ 0 ].key ).not.toBe( b.nights[ 1 ].key );
+		expect( a.nights ).toHaveLength( 1 );
+	} );
+
+	it( 'addNight nie powiela klucza już obecnego w liście', () => {
+		const acc = { mode: 'nights', nights: [ { key: 'night_1', label: '', price: 0, seats: 0, companion_cap: '' } ] };
+		const next = addNight( acc );
+		expect( next.nights ).toHaveLength( 2 );
+		expect( new Set( next.nights.map( ( n ) => n.key ) ).size ).toBe( 2 );
+	} );
+
+	it( 'removeNight kasuje dobę z listy i nie zostawia po niej śladu, nie tykając klasyki', () => {
+		const acc = {
+			...classic(),
+			mode: 'nights',
+			nights: [
+				{ key: 'fri', label: 'Piątek', price: 1, seats: 2, companion_cap: '' },
+				{ key: 'sat', label: 'Sobota', price: 1, seats: 2, companion_cap: 1 },
+			],
+		};
+		const next = removeNight( acc, 'fri' );
+		expect( next.nights.map( ( n ) => n.key ) ).toEqual( [ 'sat' ] );
+		expect( JSON.stringify( next ) ).not.toContain( 'fri' );
+		expect( next.packages ).toEqual( acc.packages );
+		expect( next.inventory ).toEqual( acc.inventory );
+		expect( acc.nights ).toHaveLength( 2 );
+	} );
+
+	it( 'setNightField przycina klucz do limitu kolumny night_key', () => {
+		const acc = { mode: 'nights', nights: [ { key: 'a', label: '', price: 0, seats: 0, companion_cap: '' } ] };
+		expect( NIGHT_KEY_MAX ).toBe( 64 );
+		const next = setNightField( acc, 'a', 'key', 'x'.repeat( 70 ) );
+		expect( next.nights[ 0 ].key ).toBe( 'x'.repeat( 64 ) );
+	} );
+
+	it( 'setNightField: cap złożony z białych znaków zostaje pusty, nigdy zerem', () => {
+		const acc = { mode: 'nights', nights: [ { key: 'a', label: '', price: 0, seats: 0, companion_cap: 3 } ] };
+		expect( setNightField( acc, 'a', 'companion_cap', '   ' ).nights[ 0 ].companion_cap ).toBe( '' );
+		expect( setNightField( acc, 'a', 'companion_cap', '' ).nights[ 0 ].companion_cap ).toBe( '' );
+		expect( setNightField( acc, 'a', 'companion_cap', ' 4 ' ).nights[ 0 ].companion_cap ).toBe( 4 );
+	} );
+
+	it( 'setNightField: cap 0 to realny limit zerowy, a nie brak limitu', () => {
+		const acc = { mode: 'nights', nights: [ { key: 'a', label: '', price: 0, seats: 0, companion_cap: '' } ] };
+		expect( setNightField( acc, 'a', 'companion_cap', '0' ).nights[ 0 ].companion_cap ).toBe( 0 );
+	} );
+
+	it( 'setNightField: miejsca i cena są liczbami nieujemnymi', () => {
+		const acc = { mode: 'nights', nights: [ { key: 'a', label: '', price: 5, seats: 5, companion_cap: '' } ] };
+		expect( setNightField( acc, 'a', 'seats', '' ).nights[ 0 ].seats ).toBe( 0 );
+		expect( setNightField( acc, 'a', 'seats', '-3' ).nights[ 0 ].seats ).toBe( 0 );
+		expect( setNightField( acc, 'a', 'seats', '12' ).nights[ 0 ].seats ).toBe( 12 );
+		expect( setNightField( acc, 'a', 'price', '99.5' ).nights[ 0 ].price ).toBe( 99.5 );
+		expect( setNightField( acc, 'a', 'label', 'Piątek' ).nights[ 0 ].label ).toBe( 'Piątek' );
+		expect( acc.nights[ 0 ].seats ).toBe( 5 );
 	} );
 } );

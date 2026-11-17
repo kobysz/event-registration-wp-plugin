@@ -110,3 +110,79 @@ export function setCompanionCountsEvent( acc, value ) {
 	next.companion_counts_event = !! value;
 	return next;
 }
+
+// ---------------------------------------------------------------------------
+// Nights mode. The classic keys (packages, rooms, inventory) are left alone so
+// switching back is not destructive; these ops only touch `mode` and `nights`.
+// ---------------------------------------------------------------------------
+
+/** `night_key` is varchar(64) in the database; the domain does not bound it, so the editor does. */
+export const NIGHT_KEY_MAX = 64;
+
+function ensureNights( acc ) {
+	const next = ensure( acc );
+	next.nights = next.nights || [];
+	return next;
+}
+
+export function setMode( acc, mode ) {
+	const next = ensureNights( acc );
+	next.mode = 'nights' === mode ? 'nights' : 'classic';
+	return next;
+}
+
+export function addNight( acc ) {
+	const next = ensureNights( acc );
+	const taken = new Set( next.nights.map( ( n ) => n.key ) );
+	let key = nextKey( 'night' );
+	while ( taken.has( key ) ) {
+		key = nextKey( 'night' );
+	}
+	next.nights.push( { key, label: '', price: 0, seats: 0, companion_cap: '' } );
+	return next;
+}
+
+export function removeNight( acc, key ) {
+	const next = ensureNights( acc );
+	next.nights = next.nights.filter( ( n ) => n.key !== key );
+	return next;
+}
+
+function nonNegative( parse, raw ) {
+	const value = parse( String( raw ).trim() );
+	return Number.isFinite( value ) && value > 0 ? value : 0;
+}
+
+/**
+ * Normalises one night field. seats 0 = closed night; companion_cap '' = no
+ * limit while a numeric 0 = no pairs — the two conventions stay distinct, and
+ * a whitespace-only cap must never become 0.
+ */
+function normalizeNightValue( field, value ) {
+	if ( 'key' === field ) {
+		return String( value ).slice( 0, NIGHT_KEY_MAX );
+	}
+	if ( 'seats' === field ) {
+		return nonNegative( ( v ) => parseInt( v, 10 ), value );
+	}
+	if ( 'price' === field ) {
+		return nonNegative( parseFloat, value );
+	}
+	if ( 'companion_cap' === field ) {
+		const trimmed = String( value ).trim();
+		if ( '' === trimmed ) {
+			return '';
+		}
+		const parsed = parseInt( trimmed, 10 );
+		return Number.isFinite( parsed ) ? Math.max( 0, parsed ) : '';
+	}
+	return value;
+}
+
+export function setNightField( acc, key, field, value ) {
+	const next = ensureNights( acc );
+	next.nights = next.nights.map( ( n ) =>
+		n.key === key ? { ...n, [ field ]: normalizeNightValue( field, value ) } : n
+	);
+	return next;
+}

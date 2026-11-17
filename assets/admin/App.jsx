@@ -21,6 +21,9 @@ export default function App( { eventId } ) {
 	const [ saving, setSaving ] = useState( false );
 	const [ error, setError ] = useState( '' );
 	const [ templateDefaults, setTemplateDefaults ] = useState( {} );
+	// Read-only server facts (mode lock, seats per night). Kept out of `config`
+	// so they are never sent back by a save.
+	const [ stats, setStats ] = useState( {} );
 
 	useEffect( () => {
 		if ( ! eventId ) {
@@ -45,6 +48,7 @@ export default function App( { eventId } ) {
 					} )
 				);
 				setValidation( data.validation || null );
+				setStats( data.stats || {} );
 			} )
 			.catch( () => setError( __( 'Nie udało się wczytać konfiguracji.', 'event-registration' ) ) )
 			.finally( () => setLoading( false ) );
@@ -101,6 +105,7 @@ export default function App( { eventId } ) {
 
 				if ( 'fulfilled' === cfg.status ) {
 					setValidation( cfg.value.validation || null );
+					setStats( cfg.value.stats || {} );
 				}
 
 				if ( tpl && 'fulfilled' === tpl.status ) {
@@ -125,7 +130,13 @@ export default function App( { eventId } ) {
 					rejectedLabels.push( __( 'tłumaczenia', 'event-registration' ) );
 				}
 				if ( rejectedLabels.length ) {
-					setError( `${ __( 'Nie zapisano:', 'event-registration' ) } ${ rejectedLabels.join( ', ' ) }.` );
+					// The server states why it refused (e.g. the mode lock); show
+					// that instead of a bare "not saved".
+					const reason =
+						'rejected' === cfg.status && cfg.reason && cfg.reason.message
+							? ` ${ cfg.reason.message }`
+							: '';
+					setError( `${ __( 'Nie zapisano:', 'event-registration' ) } ${ rejectedLabels.join( ', ' ) }.${ reason }` );
 				}
 			} )
 			.finally( () => setSaving( false ) );
@@ -164,6 +175,7 @@ export default function App( { eventId } ) {
 						config={ config }
 						update={ update }
 						templateDefaults={ templateDefaults }
+						stats={ stats }
 					/>
 				) }
 			</TabPanel>
@@ -216,7 +228,7 @@ function ShortcodeBox( { eventId } ) {
 	);
 }
 
-function TabRouter( { name, config, update, templateDefaults } ) {
+function TabRouter( { name, config, update, templateDefaults, stats } ) {
 	if ( 'form' === name ) {
 		return <FormTab config={ config } update={ update } />;
 	}
@@ -224,7 +236,7 @@ function TabRouter( { name, config, update, templateDefaults } ) {
 		return <TypesTab config={ config } update={ update } />;
 	}
 	if ( 'accommodation' === name ) {
-		return <AccommodationTab config={ config } update={ update } />;
+		return <AccommodationTab config={ config } update={ update } stats={ stats } />;
 	}
 	if ( 'settings' === name ) {
 		return <SettingsTab config={ config } update={ update } />;

@@ -36,6 +36,15 @@ final class NightOccupancy {
 	}
 
 	/**
+	 * Zajęte miejsca wszystkich dób, które mają jakąkolwiek zajętość.
+	 *
+	 * @return array<string,int>
+	 */
+	public function seatsByNight(): array {
+		return $this->seats;
+	}
+
+	/**
 	 * Zgłoszenia z osobą towarzyszącą w dobie (0, gdy brak danych).
 	 *
 	 * @param string $night Klucz doby.

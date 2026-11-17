@@ -12,7 +12,9 @@ namespace EvReg\Rest;
 use EvReg\Admin\Capabilities;
 use EvReg\Domain\Schema\SchemaException;
 use EvReg\Domain\Schema\SchemaAssembler;
+use EvReg\Domain\Registration\RegistrationStatus;
 use EvReg\Persistence\EventConfigRepository;
+use EvReg\Persistence\RegistrationRepository;
 use WP_Error;
 use WP_REST_Request;
 use WP_REST_Response;
@@ -124,7 +126,7 @@ final class EventConfigController {
 	 *
 	 * @param WP_REST_Request $request Żądanie REST.
 	 */
-	public function update_config( WP_REST_Request $request ): WP_REST_Response {
+	public function update_config( WP_REST_Request $request ): WP_REST_Response|WP_Error {
 		$event_id = (int) $request['id'];
 
 		$incoming = array();
@@ -137,9 +139,46 @@ final class EventConfigController {
 			}
 		}
 
+		// Serwer jest arbitrem: zmiana trybu noclegów przy istniejących noclegach
+		// zmieniłaby sens zapisanych rezerwacji, więc odmowa idzie PRZED zapisem.
+		if ( isset( $incoming['accommodation'] ) && $this->mode_change_locked( $event_id, $incoming['accommodation'] ) ) {
+			return new WP_Error(
+				'evreg_mode_locked',
+				__( 'Nie można zmienić trybu noclegów: wydarzenie ma już zgłoszenia z noclegiem. Anuluj te zgłoszenia, aby zmienić tryb.', 'event-registration' ),
+				array( 'status' => 409 )
+			);
+		}
+
 		$this->repository->save( $event_id, $incoming );
 
 		return new WP_REST_Response( $this->build_payload( $event_id ), 200 );
+	}
+
+	/**
+	 * Czy zapis zmienia tryb noclegów, a event ma już żywe zgłoszenia z noclegiem.
+	 *
+	 * Brak klucza `mode` znaczy tryb klasyczny — tak samo jak w domenie.
+	 *
+	 * @param int          $event_id ID eventu.
+	 * @param array<mixed> $incoming Przychodzący (już sanityzowany) config noclegów.
+	 */
+	private function mode_change_locked( int $event_id, array $incoming ): bool {
+		$stored = $this->repository->get( $event_id )['accommodation'];
+
+		if ( $this->mode_of( $incoming ) === $this->mode_of( $stored ) ) {
+			return false;
+		}
+
+		return ( new RegistrationRepository() )->eventHasAccommodation( $event_id );
+	}
+
+	/**
+	 * Tryb noclegów z surowego configu: 'nights' albo (domyślnie) 'classic'.
+	 *
+	 * @param array<mixed> $accommodation Config noclegów.
+	 */
+	private function mode_of( array $accommodation ): string {
+		return 'nights' === ( $accommodation['mode'] ?? 'classic' ) ? 'nights' : 'classic';
 	}
 
 	/**
@@ -201,6 +240,23 @@ final class EventConfigController {
 			'accommodation' => $config['accommodation'],
 			'settings'      => $config['settings'],
 			'validation'    => $this->validation_report( $config ),
+			'stats'         => $this->stats( $event_id ),
+		);
+	}
+
+	/**
+	 * Statystyki dla edytora: blokada zmiany trybu i zajęte miejsca per doba.
+	 *
+	 * @param int $event_id ID eventu.
+	 * @return array{mode_locked: bool, night_seats: array<string,int>}
+	 */
+	private function stats( int $event_id ): array {
+		$registrations = new RegistrationRepository();
+		$seats         = $registrations->nightOccupancy( $event_id, RegistrationStatus::occupyingValues() )->seatsByNight();
+
+		return array(
+			'mode_locked' => $registrations->eventHasAccommodation( $event_id ),
+			'night_seats' => $seats,
 		);
 	}
 
