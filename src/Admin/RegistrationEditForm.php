@@ -40,7 +40,7 @@ final class RegistrationEditForm {
 		$nonce  = wp_nonce_field( 'evreg_edit_' . $reg_id, '_wpnonce', true, false );
 
 		// Klasa evreg-form — reuse publicznego assets/public/form.js (evreg-public, wp_enqueue_script
-		// w RegistrationsScreen::render_edit) do przełączania widoczności pola imienia companiona.
+		// w RegistrationView::render_edit) do przełączania widoczności pola imienia companiona.
 		$out  = '<form class="evreg-form" method="post" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '">';
 		$out .= '<input type="hidden" name="action" value="evreg_edit_registration" />';
 		$out .= '<input type="hidden" name="registration" value="' . esc_attr( (string) $reg_id ) . '" />';
