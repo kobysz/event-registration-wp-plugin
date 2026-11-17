@@ -16,6 +16,7 @@ use EvReg\Domain\Mail\Placeholders;
 use EvReg\Domain\Mail\SummaryBuilder;
 use EvReg\Domain\Registration\RegistrationTypeCollection;
 use EvReg\Domain\Schema\FormSchema;
+use EvReg\Domain\Schema\SchemaException;
 use EvReg\Domain\Schema\VisibilityResolver;
 use EvReg\Frontend\EventFormLoader;
 use EvReg\Frontend\NightsResolver;
@@ -114,7 +115,19 @@ final class PlaceholderFactory {
 			return '';
 		}
 
-		$accommodation = AccommodationConfig::fromArray( is_array( $config['accommodation'] ) ? $config['accommodation'] : array() );
+		// Niespójny inwentarz klasyczny NIE MOŻE wywalić budowy maila. Dyspozytor leci
+		// z crona: fatal zostawia wiersz kolejki w `sending`, sweep odzysku podejmuje go po
+		// pięciu minutach i wywala znowu — kolejka staje dla WSZYSTKICH eventów, nie tylko
+		// tego z zepsutą konfiguracją, i nikt tego nie widzi, bo nikt nie patrzy w tabelę
+		// kolejki. Degradujemy do pustej konfiguracji: `accommodationCells` schodzi wtedy na
+		// snapshoty etykiet zapisane na bookingu (0.1.14), a w ostateczności na surowe klucze
+		// — tak samo jak eksport CSV. Mail wychodzi z czytelnym noclegiem zamiast nie wyjść
+		// wcale.
+		try {
+			$accommodation = AccommodationConfig::fromArray( is_array( $config['accommodation'] ) ? $config['accommodation'] : array() );
+		} catch ( SchemaException ) {
+			$accommodation = AccommodationConfig::fromArray( array() );
+		}
 		// Snapshot etykiet z chwili rezerwacji → aktualna konfiguracja → surowy klucz.
 		$cells    = ( new RegistrationExportMapper() )->accommodationCells( $booking, $accommodation );
 		$label    = trim( $cells['package'] . ' / ' . $cells['room'], ' /' );
