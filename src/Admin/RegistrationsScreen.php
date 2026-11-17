@@ -242,20 +242,22 @@ final class RegistrationsScreen {
 		}
 
 		$event_id = (int) $row['event_id'];
-		$schema   = ( new EventFormLoader( new EventConfigRepository() ) )->load( $event_id );
+		$loader   = new EventFormLoader( new EventConfigRepository() );
+		$schema   = $loader->load( $event_id );
 
-		// Tryb „doby” rozstrzygamy RAZ, u wejścia ekranu, i wstrzykujemy niżej. Niepoprawna
-		// konfiguracja degraduje się do komunikatu — detal zgłoszenia musi dać się odczytać
-		// także wtedy, gdy konfiguracja eventu jest zepsuta.
+		// Tryb „doby” rozstrzygamy RAZ, u wejścia ekranu, i wstrzykujemy niżej. Pytamy
+		// o niego KONFIGURACJĘ EVENTU, nie schemat: event dobowy bez pola noclegu
+		// w formularzu (organizator je usunął) nie ma w schemacie śladu trybu, a jego
+		// zgłoszenia dalej trzymają wiersze dób. Niepoprawna konfiguracja degraduje się
+		// do komunikatu — detal zgłoszenia musi dać się odczytać także wtedy, gdy
+		// konfiguracja eventu jest zepsuta (schemat też się wtedy nie składa).
 		$nights       = null;
 		$config_error = null;
 
-		if ( null !== $schema ) {
-			try {
-				$nights = NightsResolver::forSchema( $schema );
-			} catch ( SchemaException $e ) {
-				$config_error = $e->getMessage();
-			}
+		try {
+			$nights = $loader->nights( $event_id );
+		} catch ( SchemaException $e ) {
+			$config_error = $e->getMessage();
 		}
 
 		self::render_notice( $nights );
@@ -331,19 +333,23 @@ final class RegistrationsScreen {
 			return;
 		}
 
-		$schema = ( new EventFormLoader( new EventConfigRepository() ) )->load( (int) $row['event_id'] );
+		$event_id = (int) $row['event_id'];
+		$loader   = new EventFormLoader( new EventConfigRepository() );
+		$schema   = $loader->load( $event_id );
 
 		if ( null === $schema ) {
 			echo '<div class="notice notice-error"><p>' . esc_html__( 'Nie udało się załadować formularza tego wydarzenia.', 'event-registration' ) . '</p></div></div>';
 			return;
 		}
 
-		// Tryb „doby” rozstrzygamy RAZ, u wejścia ekranu, i wstrzykujemy do renderera —
-		// inaczej formularz wyrenderowałby kontrolkę klasyczną dla eventu dobowego, a zapis
-		// skasowałby doby zgłoszenia. Niepoprawna konfiguracja degraduje się do komunikatu:
-		// formularz, który nie umie oddać tego, co pokazuje, lepiej się nie pokazywać wcale.
+		// Tryb „doby” rozstrzygamy RAZ, u wejścia ekranu, z KONFIGURACJI EVENTU (nie ze
+		// schematu — ten nie niesie śladu trybu, gdy organizator usunął pole noclegu),
+		// i wstrzykujemy do renderera: inaczej formularz wyrenderowałby kontrolkę klasyczną
+		// dla eventu dobowego, a zapis skasowałby doby zgłoszenia. Niepoprawna konfiguracja
+		// degraduje się do komunikatu: formularz, który nie umie oddać tego, co pokazuje,
+		// lepiej się nie pokazywać wcale.
 		try {
-			$nights = NightsResolver::forSchema( $schema );
+			$nights = $loader->nights( $event_id );
 		} catch ( SchemaException $e ) {
 			printf(
 				'<div class="notice notice-error"><p>%s</p></div></div>',
@@ -393,6 +399,15 @@ final class RegistrationsScreen {
 			// Podpowiedź renderu (NIE kontrolka): bez wierszy ptaszki są życzeniem, nie
 			// zajętymi miejscami, i formularz ma to powiedzieć — tak jak detal.
 			$answers['evreg_nights_granted'] = array() !== $rows;
+		}
+
+		// Event dobowy, któremu organizator usunął pole noclegu z formularza: kontrolki dób
+		// nie ma czym wyrenderować (schemat ich nie niesie), a zgłoszenie dalej trzyma
+		// wiersze. Pokazujemy je obok formularza — read-only, ze snapshotów, tak jak detal —
+		// żeby operator nie edytował zgłoszenia na ślepo. Tam, gdzie kontrolka jest, tabela
+		// byłaby szumem: ptaszki pokazują to samo i dają się zmienić.
+		if ( null !== $nights && null === $accommodation_key ) {
+			self::render_night_rows( $repository->bookingNightsFor( array( $id ) )[ $id ] ?? array() );
 		}
 
 		echo RegistrationEditForm::render( $schema, $answers, $id, null, null, $nights ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- już escapowane w rendererze.
@@ -812,19 +827,21 @@ final class RegistrationsScreen {
 			return;
 		}
 
-		$schema = ( new EventFormLoader( new EventConfigRepository() ) )->load( (int) $row['event_id'] );
+		$event_id = (int) $row['event_id'];
+		$loader   = new EventFormLoader( new EventConfigRepository() );
+		$schema   = $loader->load( $event_id );
 
 		if ( null === $schema ) {
 			self::redirect( 'not_found' );
 			return;
 		}
 
-		// Tryb „doby” rozstrzygamy RAZ, tu, u wejścia (jak SubmitHandler na ścieżce publicznej):
-		// bez tego asembler wyciągnąłby odpowiedzi w kształcie klasycznym, a walidator — który
-		// tryb czyta sam — zablokowałby zapis na `required`. Niepoprawna konfiguracja nie może
-		// dotrzeć ani do asemblera, ani do walidatora, ani do serwisu.
+		// Tryb „doby” rozstrzygamy RAZ, tu, u wejścia (jak SubmitHandler na ścieżce publicznej),
+		// z KONFIGURACJI EVENTU: bez tego asembler wyciągnąłby odpowiedzi w kształcie klasycznym,
+		// a walidator — który tryb czyta sam — zablokowałby zapis na `required`. Niepoprawna
+		// konfiguracja nie może dotrzeć ani do asemblera, ani do walidatora, ani do serwisu.
 		try {
-			$nights = NightsResolver::forSchema( $schema );
+			$nights = $loader->nights( $event_id );
 		} catch ( SchemaException ) {
 			self::redirect( 'config_error' );
 			return;
@@ -965,12 +982,10 @@ final class RegistrationsScreen {
 	 * (rzuca na niespójnym inwentarzu, a event dobowy może nieść zapomniane dane klasyczne),
 	 * a kolumna „Doby” czyta zapisane wiersze zbiorczo — jedno zapytanie na cały eksport.
 	 *
-	 * Tryb czytamy z SUROWEJ konfiguracji noclegu, tą samą drogą co ReservationService,
-	 * panel obłożenia i kolejka maili. Ze schematu nie da się go odczytać wiarygodnie:
-	 * event dobowy, któremu organizator usunął pole noclegu z formularza, nie ma w schemacie
-	 * śladu trybu, a zgłoszenia dalej trzymają wiersze dób — eksport wpadłby wtedy w gałąź
-	 * klasyczną, zgubił kolumnę „Doby” i (na zapomnianym, niespójnym inwentarzu) wywalił się
-	 * na SchemaException.
+	 * Tryb czytamy z KONFIGURACJI NOCLEGU EVENTU, tą samą drogą co ReservationService,
+	 * panel obłożenia i kolejka maili — i tu wystarcza sam `mode`, bez obiektu konfiguracji
+	 * (eksport nazywa doby ze snapshotów wierszy, nie dzisiejszą konfiguracją), więc odczyt
+	 * nie może paść na błędzie konfiguracji.
 	 *
 	 * @param int                 $event_id ID eventu.
 	 * @param array<string,mixed> $filters  Filtry listy (status, type_key, event_id).
@@ -989,7 +1004,7 @@ final class RegistrationsScreen {
 		$ids        = array_map( 'intval', array_column( $rows, 'id' ) );
 		$exporter   = new RegistrationsExporter();
 
-		if ( NightsResolver::isNightsRaw( $raw ) ) {
+		if ( NightsResolver::isNights( $raw ) ) {
 			return $exporter->buildCsv( $schema, null, $types, $rows, array(), $repository->bookingNightsFor( $ids ) );
 		}
 

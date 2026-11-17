@@ -54,10 +54,10 @@ final class PlaceholderFactory {
 		$config          = $this->config->get( $event_id );
 		$registration_id = (int) ( $registration['id'] ?? 0 );
 		$schema          = $this->loader->load( $event_id );
-		// Tryb z SUROWEJ konfiguracji, nie ze złożonego schematu: schemat, który się nie składa
-		// (np. zduplikowana doba), dałby null i event dobowy udawałby klasyczny — a mail jedzie z crona,
-		// więc fatal w nim zatrzymałby całą kolejkę (odzysk `sending` ponawia ten sam wiersz).
-		$is_nights      = NightsResolver::isNightsRaw( is_array( $config['accommodation'] ) ? $config['accommodation'] : array() );
+		// Tryb z konfiguracji noclegu EVENTU, i tylko sam `mode` — bez obiektu konfiguracji,
+		// bo etykiety dób biorą się ze snapshotów wierszy. Mail jedzie z crona, więc fatal
+		// na niepoprawnej dobie zatrzymałby całą kolejkę (odzysk `sending` ponawia ten sam wiersz).
+		$is_nights      = NightsResolver::isNights( is_array( $config['accommodation'] ) ? $config['accommodation'] : array() );
 		$nights         = $is_nights ? $this->nightsLabel( $registration_id ) : '';
 		$accommodation  = $is_nights ? '' : $this->accommodationLabel( $config, $registration_id );
 		$companion_name = (string) ( $registration['companion_name'] ?? '' );

@@ -5,12 +5,12 @@ declare( strict_types=1 );
 namespace EvReg\Tests\Integration\Frontend;
 
 use EvReg\Domain\Accommodation\NightSelection;
+use EvReg\Domain\Accommodation\NightsConfig;
 use EvReg\Domain\Capacity\NightOccupancy;
 use EvReg\Domain\Registration\RegistrationStatus;
 use EvReg\Domain\Schema\FormSchema;
 use EvReg\Frontend\EventFormLoader;
 use EvReg\Frontend\FormRenderer;
-use EvReg\Frontend\NightsResolver;
 use EvReg\Frontend\Shortcode;
 use EvReg\Frontend\SubmissionAssembler;
 use EvReg\Frontend\SubmitHandler;
@@ -38,6 +38,11 @@ final class NightFormTest extends WP_UnitTestCase {
 
 		$this->event_id = self::factory()->post->create( array( 'post_type' => 'evreg_event' ) );
 		$this->configure();
+	}
+
+	protected function tearDown(): void {
+		remove_all_filters( 'evreg_current_language' );
+		parent::tearDown();
 	}
 
 	/**
@@ -94,7 +99,14 @@ final class NightFormTest extends WP_UnitTestCase {
 	private function render( ?SubmitResult $result = null, ?NightOccupancy $occupancy = null ): string {
 		$schema = $this->schema();
 
-		return ( new FormRenderer( null, $occupancy, NightsResolver::forSchema( $schema ) ) )->render( $schema, $this->event_id, $result );
+		return ( new FormRenderer( null, $occupancy, $this->nights() ) )->render( $schema, $this->event_id, $result );
+	}
+
+	/**
+	 * Konfiguracja trybu „doby” rozstrzygnięta tą samą drogą co u wejść produkcyjnych.
+	 */
+	private function nights(): ?NightsConfig {
+		return ( new EventFormLoader( new EventConfigRepository() ) )->nights( $this->event_id );
 	}
 
 	private function handler(): SubmitHandler {
@@ -181,7 +193,7 @@ final class NightFormTest extends WP_UnitTestCase {
 		$assembled = ( new SubmissionAssembler() )->assemble(
 			$this->schema(),
 			$this->post( 'a@example.com', array( 'n1920', 'n1819', 'n1819' ) ),
-			NightsResolver::forSchema( $this->schema() )
+			$this->nights()
 		);
 
 		$this->assertTrue( $assembled->isValid() );
@@ -199,7 +211,7 @@ final class NightFormTest extends WP_UnitTestCase {
 	}
 
 	public function test_empty_selection_is_still_a_supplied_selection(): void {
-		$assembled = ( new SubmissionAssembler() )->assemble( $this->schema(), $this->post( 'a@example.com', array() ), NightsResolver::forSchema( $this->schema() ) );
+		$assembled = ( new SubmissionAssembler() )->assemble( $this->schema(), $this->post( 'a@example.com', array() ), $this->nights() );
 
 		$this->assertTrue( $assembled->isValid() );
 		$request = $assembled->request();
@@ -365,6 +377,27 @@ final class NightFormTest extends WP_UnitTestCase {
 			array( 'key' => 'n1819', 'label' => 'A', 'price' => 80.0, 'seats' => 2 ),
 			array( 'key' => 'n1819', 'label' => 'B', 'price' => 90.0, 'seats' => 4 ),
 		);
+	}
+
+	/**
+	 * Overlay językowy (B6) tłumaczy ETYKIETY dób, a formularz publiczny jest jego jedynym
+	 * odbiorcą. Tryb rozstrzyga się z konfiguracji noclegu eventu — ale z TEJ, którą loader
+	 * przepuścił przez overlay, nie ze świeżego odczytu surowego meta. Odczyt surowy dałby
+	 * ten sam tryb i te same ceny, więc żaden inny test by nie drgnął, a anglojęzyczny
+	 * odwiedzający zobaczyłby polskie nazwy dób.
+	 */
+	public function test_translated_night_labels_reach_the_public_form(): void {
+		( new EventConfigRepository() )->saveI18n(
+			$this->event_id,
+			array( 'en' => array( 'accommodation' => array( 'nights' => array( 'n1819' => 'Friday night' ) ) ) )
+		);
+		add_filter( 'evreg_current_language', static fn (): string => 'en' );
+
+		$html = Shortcode::renderForm( $this->event_id );
+
+		$this->assertStringContainsString( 'Friday night', $html );
+		$this->assertStringNotContainsString( '18/19 XI', $html, 'Nazwa bazowa nie może przebić tłumaczenia.' );
+		$this->assertStringContainsString( 'value="n1819"', $html, 'Klucz doby jest danymi — tłumaczenie go nie tyka.' );
 	}
 
 	public function test_a_nights_event_with_stale_classic_data_still_renders(): void {

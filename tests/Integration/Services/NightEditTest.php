@@ -14,7 +14,6 @@ use EvReg\Domain\Accommodation\NightsConfig;
 use EvReg\Domain\Capacity\NightOccupancy;
 use EvReg\Domain\Registration\RegistrationStatus;
 use EvReg\Frontend\EventFormLoader;
-use EvReg\Frontend\NightsResolver;
 use EvReg\Frontend\SubmissionAssembler;
 use EvReg\Persistence\EventConfigRepository;
 use EvReg\Persistence\Migrations;
@@ -724,7 +723,7 @@ final class NightEditTest extends WP_UnitTestCase {
 					'nocleg' => array( 'nights' => $nights ),
 				),
 			),
-			NightsResolver::forSchema( $schema )
+			( new EventFormLoader( new EventConfigRepository() ) )->nights( $this->event_id )
 		);
 
 		$this->assertSame( array(), $assembled->errors() );

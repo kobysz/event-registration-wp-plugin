@@ -154,7 +154,7 @@ final class SubmitHandler {
 		// Tryb „doby” rozstrzygamy RAZ, tu, u wejścia: niepoprawna konfiguracja dób
 		// (np. zduplikowany klucz) nie może dotrzeć do asemblera ani walidatora.
 		try {
-			$nights = NightsResolver::forSchema( $schema );
+			$nights = $this->loader->nights( $event_id );
 		} catch ( SchemaException ) {
 			return SubmitResult::configError();
 		}

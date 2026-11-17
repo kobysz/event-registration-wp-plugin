@@ -11,6 +11,7 @@ namespace EvReg\Rest;
 
 use EvReg\Admin\Capabilities;
 use EvReg\Domain\Schema\SchemaException;
+use EvReg\Frontend\NightsResolver;
 use EvReg\Domain\Schema\SchemaAssembler;
 use EvReg\Domain\Registration\RegistrationStatus;
 use EvReg\Persistence\EventConfigRepository;
@@ -203,12 +204,14 @@ final class EventConfigController {
 	}
 
 	/**
-	 * Tryb noclegów z surowego configu: 'nights' albo (domyślnie) 'classic'.
+	 * Tryb noclegów z configu: 'nights' albo (domyślnie) 'classic'. Sąd o trybie siedzi
+	 * w jednym miejscu ({@see NightsResolver::isNights}) — tu tylko nazywamy obie strony
+	 * porównania tym samym słowem.
 	 *
-	 * @param array<mixed> $accommodation Config noclegów.
+	 * @param array<string,mixed> $accommodation Config noclegów.
 	 */
 	private function mode_of( array $accommodation ): string {
-		return 'nights' === ( $accommodation['mode'] ?? 'classic' ) ? 'nights' : 'classic';
+		return NightsResolver::isNights( $accommodation ) ? 'nights' : 'classic';
 	}
 
 	/**

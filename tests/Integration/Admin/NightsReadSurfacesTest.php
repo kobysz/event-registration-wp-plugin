@@ -12,7 +12,6 @@ use EvReg\Domain\Registration\RegistrationTypeCollection;
 use EvReg\Domain\Schema\FormSchema;
 use EvReg\Domain\Schema\SchemaException;
 use EvReg\Frontend\EventFormLoader;
-use EvReg\Frontend\NightsResolver;
 use EvReg\Mail\PlaceholderFactory;
 use EvReg\Persistence\EventConfigRepository;
 use EvReg\Persistence\Migrations;
@@ -243,33 +242,6 @@ final class NightsReadSurfacesTest extends WP_UnitTestCase {
 			array( 'key' => 'n1', 'label' => 'Noc 1 bis', 'price' => 80.0, 'seats' => 4 ),
 		);
 		$repo->save( $this->event_id, $config );
-	}
-
-	public function test_isNightsMode_degrades_to_true_when_the_nights_config_is_malformed(): void {
-		$schema = FormSchema::fromArray(
-			array(
-				'version'  => 1,
-				'sections' => array(
-					array(
-						'key'    => 's',
-						'title'  => 'S',
-						'fields' => array(
-							array(
-								'key'    => 'nocleg',
-								'type'   => 'accommodation',
-								'label'  => 'Nocleg',
-								'config' => array(
-									'mode'   => 'nights',
-									'nights' => array( array( 'key' => 'n1' ), array( 'key' => 'n1' ) ),
-								),
-							),
-						),
-					),
-				),
-			)
-		);
-
-		$this->assertTrue( NightsResolver::isNightsMode( $schema ) );
 	}
 
 	public function test_mail_does_not_fatal_on_malformed_nights_config_with_a_stale_classic_booking(): void {

@@ -895,4 +895,60 @@ final class NightAdminScreensTest extends WP_UnitTestCase {
 
 		$this->assertStringContainsString( '18/19 XI', $html, 'Bez wierszy detal pokazuje życzenie z odpowiedzi.' );
 	}
+
+	/**
+	 * Usuwa pole noclegu ze schematu, zostawiając tryb „doby” w konfiguracji EVENTU.
+	 *
+	 * Organizator ma do tego UI (budowniczy formularza), a zgłoszenia dalej trzymają
+	 * wiersze dób — więc to konfiguracja osiągalna, nie hipotetyczna. Schemat nie niesie
+	 * wtedy ŻADNEGO śladu trybu: ekran, który pytałby o tryb schemat, uznałby event
+	 * za klasyczny i zgubił doby.
+	 */
+	private function dropAccommodationField(): void {
+		$repo   = new EventConfigRepository();
+		$config = $repo->get( $this->event_id );
+
+		$config['schema']['sections'][0]['fields'] = array_values(
+			array_filter(
+				$config['schema']['sections'][0]['fields'],
+				static fn ( array $field ): bool => 'accommodation' !== ( $field['type'] ?? '' )
+			)
+		);
+
+		$repo->save( $this->event_id, $config );
+	}
+
+	public function test_detail_shows_the_rows_when_the_schema_has_no_accommodation_field(): void {
+		$id = $this->reserve( 'jan@example.com', array( 'n1819' ) );
+		$this->dropAccommodationField();
+
+		$html = $this->renderScreen( 'view', $id );
+
+		$this->assertStringContainsString( 'Nocleg (doby)', $html, 'Tryb jest własnością eventu — brak pola nie czyni go klasycznym.' );
+		$this->assertMatchesRegularExpression( '#<td>18/19 XI</td><td>1</td><td>80[.,]00</td>#', $html );
+	}
+
+	public function test_edit_shows_the_rows_when_the_schema_has_no_accommodation_field(): void {
+		$id = $this->reserve( 'jan@example.com', array( 'n1819' ) );
+		$this->dropAccommodationField();
+
+		$html = $this->renderScreen( 'edit', $id );
+
+		$this->assertStringContainsString( 'name="action" value="evreg_edit_registration"', $html, 'Pozostałe odpowiedzi muszą dać się edytować.' );
+		$this->assertStringNotContainsString( 'evreg_field[nocleg]', $html, 'Usuniętego pola nie ma czym renderować.' );
+		$this->assertStringContainsString( 'Nocleg (doby)', $html, 'Doby, których formularz nie umie pokazać, muszą być widoczne obok niego.' );
+		$this->assertMatchesRegularExpression( '#<td>18/19 XI</td><td>1</td><td>80[.,]00</td>#', $html );
+	}
+
+	public function test_edit_does_not_repeat_the_rows_when_the_form_renders_the_nights_itself(): void {
+		$id = $this->reserve( 'jan@example.com', array( 'n1819' ) );
+
+		$html = $this->renderScreen( 'edit', $id );
+
+		$this->assertMatchesRegularExpression(
+			'/name="evreg_field\[nocleg\]\[nights\]\[\]" value="n1819"[^>]*checked/',
+			$html
+		);
+		$this->assertStringNotContainsString( 'Nocleg (doby)', $html, 'Kontrolka już je pokazuje — tabela byłaby szumem.' );
+	}
 }

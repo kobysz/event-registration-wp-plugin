@@ -1,6 +1,6 @@
 <?php
 /**
- * Jednorazowe rozstrzygnięcie trybu „doby” dla schematu formularza.
+ * Jednorazowe rozstrzygnięcie trybu „doby” z konfiguracji noclegu eventu.
  *
  * @package EvReg
  */
@@ -10,71 +10,57 @@ declare( strict_types=1 );
 namespace EvReg\Frontend;
 
 use EvReg\Domain\Accommodation\NightsConfig;
-use EvReg\Domain\Schema\FieldType;
-use EvReg\Domain\Schema\FormSchema;
 use EvReg\Domain\Schema\SchemaException;
 
 defined( 'ABSPATH' ) || exit;
 
 /**
- * Wejścia (Shortcode, SubmitHandler) wołają to RAZ, w try/catch, i wstrzykują wynik niżej.
- * Reszta ścieżki publicznej nigdy sama nie woła NightsConfig::fromArray, więc niepoprawna
- * konfiguracja (zduplikowany klucz doby, ujemna cena) zatrzymuje się u wejścia.
+ * JEDYNY rozstrzygacz trybu noclegu — i jedyna droga do niego: klucz `mode` konfiguracji
+ * noclegu EVENTU. Tryb jest właściwością eventu, a nie schematu: organizator może usunąć
+ * pole noclegu z formularza, podczas gdy zgłoszenia dalej trzymają wiersze dób. Schemat nie
+ * ma wtedy ŻADNEGO śladu trybu, więc pytany o niego odpowiadał „klasyczny” i powierzchnie
+ * czytające zapisane zgłoszenia gubiły doby (to był B19). Dlatego oba wejścia niżej czytają
+ * ten sam klucz tej samej tablicy i NIE MOGĄ się rozejść.
+ *
+ * Konfigurację pod ręką daje {@see EventFormLoader::nights()} (z nałożonym overlayem
+ * językowym) — tamtędy chodzą powierzchnie, którym potrzebny jest obiekt `NightsConfig`.
+ * Wejścia (Shortcode, SubmitHandler, panel zgłoszeń) wołają to RAZ, w try/catch,
+ * i wstrzykują wynik niżej. Reszta ścieżki nigdy sama nie woła NightsConfig::fromArray,
+ * więc niepoprawna konfiguracja (zduplikowany klucz doby, ujemna cena) zatrzymuje się
+ * u wejścia.
  */
 final class NightsResolver {
 
 	/**
-	 * Tryb z surowej konfiguracji noclegu — niezależny od tego, czy schemat się złoży.
-	 * Dla powierzchni bez schematu pod ręką albo takich, którym złożenie może się nie udać (mail z crona).
+	 * Czy event jest w trybie „doby”.
 	 *
-	 * @param array<string,mixed> $accommodation Surowa konfiguracja noclegu eventu.
+	 * Czyta WYŁĄCZNIE `mode`, więc nie rzuca nigdy i nie potrzebuje ani schematu (ten może
+	 * się nie złożyć), ani overlayu (ten tłumaczy tylko etykiety). Dla powierzchni, którym
+	 * wystarczy sam tryb i które nie mogą paść na błędzie konfiguracji: mail z crona,
+	 * eksport CSV, WP Privacy.
+	 *
+	 * @param array<string,mixed> $accommodation Konfiguracja noclegu eventu.
 	 */
-	public static function isNightsRaw( array $accommodation ): bool {
+	public static function isNights( array $accommodation ): bool {
 		return 'nights' === ( $accommodation['mode'] ?? 'classic' );
 	}
 
 	/**
-	 * Czy ZŁOŻONY SCHEMAT niesie pole noclegu w trybie „doby”.
-	 *
-	 * NIE DLA powierzchni odczytujących zapisane zgłoszenia (eksport, mail, Privacy, panel
-	 * obłożenia, ścieżki transakcyjne) — one pytają `isNightsRaw()` o surową konfigurację.
-	 * Tryb jest właściwością EVENTU, a nie schematu: organizator może usunąć pole noclegu
-	 * z formularza, podczas gdy zgłoszenia dalej trzymają wiersze dób. Ten schemat nie ma
-	 * wtedy śladu trybu i ta metoda zwraca false, więc czytana jako „to event klasyczny”
-	 * gubi doby (CSV) albo zaniża eksport prywatności.
-	 *
-	 * Niepoprawna konfiguracja dób oznacza, że tryb JEST „doby” (klasyczny nigdy nie rzuca),
-	 * więc degradujemy do true zamiast wywalać powierzchnię, która nie potrzebuje konfiguracji.
-	 *
-	 * @param FormSchema $schema Złożony schemat formularza.
-	 */
-	public static function isNightsMode( FormSchema $schema ): bool {
-		try {
-			return null !== self::forSchema( $schema );
-		} catch ( SchemaException ) {
-			return true;
-		}
-	}
-
-	/**
-	 * Zwraca konfigurację trybu „doby” albo null dla trybu klasycznego / braku pola noclegu.
+	 * Zwraca konfigurację trybu „doby” albo null dla trybu klasycznego.
 	 * Null NIGDY nie znaczy „niepoprawna” — ta rzuca.
 	 *
-	 * @param FormSchema $schema Złożony schemat formularza.
+	 * Poza trybem „doby” nic nie czyta listy dób (i odwrotnie: w trybie „doby” nic nie
+	 * buduje AccommodationConfig — ta rzuca na zapomnianym inwentarzu klasycznym).
+	 *
+	 * @param array<string,mixed> $accommodation Konfiguracja noclegu eventu.
 	 *
 	 * @throws SchemaException Gdy konfiguracja dób jest niepoprawna.
 	 */
-	public static function forSchema( FormSchema $schema ): ?NightsConfig {
-		foreach ( $schema->allFields() as $field ) {
-			if ( FieldType::Accommodation !== $field->type ) {
-				continue;
-			}
-
-			$config = NightsConfig::fromArray( $field->config );
-
-			return $config->isNights() ? $config : null;
+	public static function forAccommodation( array $accommodation ): ?NightsConfig {
+		if ( ! self::isNights( $accommodation ) ) {
+			return null;
 		}
 
-		return null;
+		return NightsConfig::fromArray( $accommodation );
 	}
 }

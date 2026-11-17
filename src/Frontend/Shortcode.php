@@ -70,7 +70,8 @@ final class Shortcode {
 			return self::successMessage( $success );
 		}
 
-		$schema = ( new EventFormLoader( new EventConfigRepository() ) )->load( $event_id );
+		$loader = new EventFormLoader( new EventConfigRepository() );
+		$schema = $loader->load( $event_id );
 		if ( null === $schema ) {
 			return '<p class="evreg-unavailable">' . esc_html__( 'Rejestracja jest niedostępna.', 'event-registration' ) . '</p>';
 		}
@@ -79,7 +80,7 @@ final class Shortcode {
 		// konfiguracja dób (np. zduplikowany klucz) nie renderuje noclegu — degradujemy do
 		// istniejącego komunikatu niedostępności zamiast wywalać całą stronę.
 		try {
-			$nights = NightsResolver::forSchema( $schema );
+			$nights = $loader->nights( $event_id );
 		} catch ( SchemaException ) {
 			return '<p class="evreg-unavailable">' . esc_html__( 'Rejestracja jest niedostępna.', 'event-registration' ) . '</p>';
 		}

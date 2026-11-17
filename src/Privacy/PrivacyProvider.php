@@ -156,14 +156,12 @@ final class PrivacyProvider {
 				}
 				$raw = is_array( $config['accommodation'] ) ? $config['accommodation'] : array();
 
-				// Tryb czytamy z SUROWEJ konfiguracji noclegu, tą samą drogą co
-				// ReservationService, eksport CSV i kolejka maili. Ze schematu nie da się go
-				// odczytać wiarygodnie: event dobowy, któremu organizator usunął pole noclegu
-				// z formularza, nie ma w schemacie śladu trybu — eksport wpadłby w gałąź
-				// klasyczną i zameldował pusty nocleg dla zgłoszenia, które DEMONSTRACYJNIE ma
-				// wiersze dób. Eksport zaniżający to, co wtyczka o kimś przechowuje, jest
-				// gorszy niż brak eksportu.
-				if ( NightsResolver::isNightsRaw( $raw ) ) {
+				// Tryb czytamy z konfiguracji noclegu EVENTU, tą samą drogą co
+				// ReservationService, eksport CSV i kolejka maili — i tu wystarcza sam `mode`,
+				// bo etykiety dób biorą się ze snapshotów wierszy, a żądanie osoby, której dane
+				// dotyczą, nie może paść na błędzie konfiguracji. Eksport zaniżający to, co
+				// wtyczka o kimś przechowuje, jest gorszy niż brak eksportu.
+				if ( NightsResolver::isNights( $raw ) ) {
 					// Tryb „doby”: etykiety z zapisanych wierszy, bez AccommodationConfig
 					// (rzuca na zapomnianym inwentarzu klasycznym, a żądanie osoby, której dane
 					// dotyczą, nie może paść na błędzie konfiguracji).
