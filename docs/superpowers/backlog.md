@@ -414,7 +414,9 @@ warunkowo nie jest wymagane po stronie serwera), czyli zmiana jest czysto klienc
 
 ---
 
-## B15 — Edycja zgłoszenia w adminie renderuje nocleg jako niezaznaczony
+## B15 — Edycja zgłoszenia w adminie renderuje nocleg jako niezaznaczony — **ZAMKNIĘTE**
+
+**Naprawione** na gałęzi `fix/answers-json-accommodation-shape`: `AccommodationSelection` implementuje `JsonSerializable` (nowe zapisy mają klucze kanoniczne), a `normalizeArray()` czyta oba kształty, więc wiersze zapisane wcześniej też prefillują się poprawnie. Opis błędu zostaje poniżej dla zapisu.
 
 **Priorytet:** średni, ale to **żywy błąd w wydanej wersji**, nie dług projektowy.
 

@@ -10,6 +10,7 @@ declare( strict_types=1 );
 namespace EvReg\Admin;
 
 use EvReg\Domain\Accommodation\AccommodationConfig;
+use EvReg\Domain\Accommodation\AccommodationSelection;
 use EvReg\Domain\Schema\Field;
 use EvReg\Domain\Schema\FieldType;
 use EvReg\Domain\Schema\FormSchema;
@@ -212,7 +213,11 @@ final class RegistrationEditForm {
 			$available[ (string) ( $item['package'] ?? '' ) . '|' . (string) ( $item['room'] ?? '' ) ] = $item;
 		}
 
-		$current = is_array( $value ) ? ( (string) ( $value['package'] ?? '' ) . '|' . (string) ( $value['room'] ?? '' ) ) : '';
+		// Zapisane odpowiedzi bywają w starym kształcie (nazwy właściwości obiektu
+		// selekcji), więc czytamy je przez normalizator — inaczej prefill gubi wybór
+		// noclegu i zapis edycji kasuje rezerwację.
+		$stored  = is_array( $value ) ? AccommodationSelection::normalizeArray( $value ) : array();
+		$current = is_array( $value ) ? ( $stored['package'] . '|' . $stored['room'] ) : '';
 
 		// Namespace pod evreg_field[...] — spójnie z FormRenderer i wspólną ekstrakcją
 		// SubmissionAssembler (klucze pól nie kolidują z query-vars WordPressa).
@@ -252,7 +257,7 @@ final class RegistrationEditForm {
 			$separator   = strpos( $current, '|' );
 			$currentRoom = ( '' !== $current && false !== $separator ) ? substr( $current, $separator + 1 ) : '';
 			$hidden      = isset( $roommateRooms[ $currentRoom ] ) ? '' : ' hidden';
-			$roommateVal = is_array( $value ) ? (string) ( $value['roommate'] ?? '' ) : '';
+			$roommateVal = is_array( $value ) ? $stored['roommate'] : '';
 			$out        .= '<input type="text" data-evreg-roommate-input name="' . $name . '[roommate]" placeholder="' . esc_attr__( 'Współlokator', 'event-registration' ) . '" value="' . esc_attr( $roommateVal ) . '" class="regular-text"' . $hidden . ' />';
 		}
 

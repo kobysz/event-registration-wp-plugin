@@ -11,6 +11,9 @@ so keep entries user-facing and concise.
 
 ## [Unreleased]
 
+### Fixed
+- Editing a submission that has accommodation no longer shows the accommodation as unselected. The stored answers kept the selection under internal names the edit screen did not read, so the form opened with no room chosen and saving could drop the booking and lower the price. Submissions saved before this fix are read correctly too.
+
 ## [0.1.17] - 2026-11-16
 
 ### Changed
