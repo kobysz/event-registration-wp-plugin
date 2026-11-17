@@ -179,8 +179,30 @@ function normalizeNightValue( field, value ) {
 	return value;
 }
 
+/**
+ * Why `candidate` cannot become the key of night `key`: 'empty' (blank after
+ * trimming) or 'duplicate' (another night already has it); null when fine.
+ * A duplicate key makes the public form degrade to "registration unavailable",
+ * so such a key must never reach the saved config.
+ */
+export function nightKeyError( acc, key, candidate ) {
+	const candidateKey = String( candidate ).slice( 0, NIGHT_KEY_MAX );
+	if ( '' === candidateKey.trim() ) {
+		return 'empty';
+	}
+	const nights = ( acc && acc.nights ) || [];
+	if ( nights.some( ( n ) => n.key !== key && n.key === candidateKey ) ) {
+		return 'duplicate';
+	}
+	return null;
+}
+
 export function setNightField( acc, key, field, value ) {
 	const next = ensureNights( acc );
+	if ( 'key' === field && null !== nightKeyError( next, key, value ) ) {
+		// Rejected: the config keeps the last valid key.
+		return next;
+	}
 	next.nights = next.nights.map( ( n ) =>
 		n.key === key ? { ...n, [ field ]: normalizeNightValue( field, value ) } : n
 	);

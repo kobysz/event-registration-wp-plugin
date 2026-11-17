@@ -1,3 +1,4 @@
+import { useState } from '@wordpress/element';
 import { Button, Notice, SelectControl, TextControl, ToggleControl } from '@wordpress/components';
 import { __, sprintf } from '@wordpress/i18n';
 import {
@@ -18,7 +19,41 @@ import {
 	removeNight,
 	setNightField,
 	NIGHT_KEY_MAX,
+	nightKeyError,
 } from '../ops/accommodationOps';
+
+function NightKeyField( { acc, night, onCommit } ) {
+	// The typed text is kept locally and committed only when valid, so an
+	// empty or colliding key never reaches the config (the public form would
+	// go offline on a duplicate).
+	const [ draft, setDraft ] = useState( night.key );
+	const problem = nightKeyError( acc, night.key, draft );
+	let message = '';
+	if ( 'duplicate' === problem ) {
+		message = __( 'Inna doba ma już taki klucz — zmiana nie została zapisana.', 'event-registration' );
+	} else if ( 'empty' === problem ) {
+		message = __( 'Klucz doby nie może być pusty — zmiana nie została zapisana.', 'event-registration' );
+	}
+
+	return (
+		<>
+			<TextControl
+				label={ __( 'Klucz', 'event-registration' ) }
+				help={ __( 'Zmiana klucza rozłączy istniejące rezerwacje tej doby. Maksymalnie 64 znaki.', 'event-registration' ) }
+				value={ draft }
+				maxLength={ NIGHT_KEY_MAX }
+				onBlur={ () => setDraft( night.key ) }
+				onChange={ ( v ) => {
+					setDraft( v );
+					if ( null === nightKeyError( acc, night.key, v ) ) {
+						onCommit( v );
+					}
+				} }
+			/>
+			{ message && <p className="evreg-night-row__warning">{ message }</p> }
+		</>
+	);
+}
 
 export default function AccommodationTab( { config, update, stats } ) {
 	const acc = { ...emptyAccommodation(), ...( config.accommodation || {} ) };
@@ -52,12 +87,10 @@ export default function AccommodationTab( { config, update, stats } ) {
 						const reserved = Number( nightSeats[ night.key ] ) || 0;
 						return (
 							<div className="evreg-night-row" key={ night.key }>
-								<TextControl
-									label={ __( 'Klucz', 'event-registration' ) }
-									help={ __( 'Zmiana klucza rozłączy istniejące rezerwacje tej doby. Maksymalnie 64 znaki.', 'event-registration' ) }
-									value={ night.key }
-									maxLength={ NIGHT_KEY_MAX }
-									onChange={ ( v ) => setAcc( setNightField( acc, night.key, 'key', v ) ) }
+								<NightKeyField
+									acc={ acc }
+									night={ night }
+									onCommit={ ( v ) => setAcc( setNightField( acc, night.key, 'key', v ) ) }
 								/>
 								<TextControl
 									label={ __( 'Nazwa', 'event-registration' ) }

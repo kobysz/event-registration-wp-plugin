@@ -16,6 +16,7 @@ import {
 	removeNight,
 	setNightField,
 	NIGHT_KEY_MAX,
+	nightKeyError,
 } from './accommodationOps';
 
 describe( 'accommodationOps', () => {
@@ -197,7 +198,8 @@ describe( 'accommodationOps — nights mode', () => {
 		};
 		const next = removeNight( acc, 'fri' );
 		expect( next.nights.map( ( n ) => n.key ) ).toEqual( [ 'sat' ] );
-		expect( JSON.stringify( next ) ).not.toContain( 'fri' );
+		expect( next.nights.some( ( n ) => 'fri' === n.key ) ).toBe( false );
+		expect( next.nights ).toEqual( [ acc.nights[ 1 ] ] );
 		expect( next.packages ).toEqual( acc.packages );
 		expect( next.inventory ).toEqual( acc.inventory );
 		expect( acc.nights ).toHaveLength( 2 );
@@ -230,5 +232,39 @@ describe( 'accommodationOps — nights mode', () => {
 		expect( setNightField( acc, 'a', 'price', '99.5' ).nights[ 0 ].price ).toBe( 99.5 );
 		expect( setNightField( acc, 'a', 'label', 'Piątek' ).nights[ 0 ].label ).toBe( 'Piątek' );
 		expect( acc.nights[ 0 ].seats ).toBe( 5 );
+	} );
+
+	describe( 'night key validity', () => {
+		const two = () => ( {
+			mode: 'nights',
+			nights: [
+				{ key: 'fri', label: 'F', price: 1, seats: 1, companion_cap: '' },
+				{ key: 'sat', label: 'S', price: 2, seats: 2, companion_cap: '' },
+			],
+		} );
+
+		it( 'a key colliding with another night is not committed', () => {
+			const acc = two();
+			const next = setNightField( acc, 'sat', 'key', 'fri' );
+			expect( next.nights.map( ( n ) => n.key ) ).toEqual( [ 'fri', 'sat' ] );
+			expect( next.nights ).toEqual( acc.nights );
+			expect( nightKeyError( acc, 'sat', 'fri' ) ).toBe( 'duplicate' );
+		} );
+
+		it( 'an empty or whitespace-only key is not committed', () => {
+			const acc = two();
+			expect( setNightField( acc, 'sat', 'key', '' ).nights ).toEqual( acc.nights );
+			expect( setNightField( acc, 'sat', 'key', '   ' ).nights ).toEqual( acc.nights );
+			expect( nightKeyError( acc, 'sat', ' ' ) ).toBe( 'empty' );
+		} );
+
+		it( 'distinct keys, and re-saving a night own key, are unaffected', () => {
+			const acc = two();
+			const renamed = setNightField( acc, 'sat', 'key', 'sun' );
+			expect( renamed.nights.map( ( n ) => n.key ) ).toEqual( [ 'fri', 'sun' ] );
+			expect( renamed.nights[ 1 ].seats ).toBe( 2 );
+			expect( setNightField( acc, 'sat', 'key', 'sat' ).nights ).toEqual( acc.nights );
+			expect( nightKeyError( acc, 'sat', 'sat' ) ).toBeNull();
+		} );
 	} );
 } );
