@@ -189,7 +189,10 @@ final class SubmitHandler {
 			// nie błąd wyboru uczestnika — logujemy go i pokazujemy ogólny komunikat na poziomie
 			// formularza, nigdy fatala ani „brak miejsc”. Ścieżka klasyczna nie ma takiego rzutu,
 			// więc jej wyjątki nadal lecą dalej.
-			if ( null === $request->nights ) {
+			// O TRYB pytamy rozstrzygnięcie z wejścia, nie żądanie: `request->nights === null`
+			// znaczy „wyboru dób nie podano" (tak składa się submisja z polem noclegu ukrytym
+			// warunkiem, B21), a nie „to event klasyczny".
+			if ( null === $nights ) {
 				throw $e;
 			}
 

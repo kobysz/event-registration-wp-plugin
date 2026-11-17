@@ -925,6 +925,26 @@ final class ReservationService {
 	}
 
 	/**
+	 * Odtwarza wybór zakwaterowania z ZAPISANEGO bookingu (null, gdy zgłoszenie go nie ma).
+	 *
+	 * Odczytany wiersz jest jedynym świadectwem wyboru, którego edycja nie podała — razem
+	 * z preferencją współlokatora, żeby przepisanie wiersza jej nie zgubiło.
+	 *
+	 * @param array<string,mixed>|null $booking Wiersz bookingu albo null.
+	 */
+	private function storedSelection( ?array $booking ): ?AccommodationSelection {
+		if ( null === $booking ) {
+			return null;
+		}
+
+		return new AccommodationSelection(
+			(string) $booking['package_key'],
+			(string) $booking['room_type_key'],
+			(string) ( $booking['roommate_pref'] ?? '' )
+		);
+	}
+
+	/**
 	 * Edytuje odpowiedzi zgłoszenia z re-walidacją pojemności przy zmianie typu/noclegu.
 	 *
 	 * Statusy zajmujące miejsce (pending/confirmed): transakcja lock→occupancyExcluding→decide,
@@ -932,6 +952,10 @@ final class ReservationService {
 	 * Waitlisted przy pełnym typie z włączoną listą rezerwową też blokuje, tak jak Rejected).
 	 * Waitlist: bez bramki, status zostaje waitlist. Nieznany typeKey → invalidStatus() przed
 	 * transakcją. Nie emituje hooków cyklu życia → brak maila. Cancelled nieedytowalne.
+	 *
+	 * Edycja, która odpowiedzi na pole noclegu NIE PODAŁA (`accommodationSupplied === false`,
+	 * czyli pole ukryte warunkiem widoczności), noclegu nie rusza: obowiązuje wybór zapisany,
+	 * więc booking, jego miejsca i cena zostają. Patrz komentarz przy $selection niżej.
 	 *
 	 * @param int                $id      ID zgłoszenia.
 	 * @param ReservationRequest $request Nowe dane zgłoszenia.
@@ -993,9 +1017,21 @@ final class ReservationService {
 			$stored_slot    = null === $stored_booking
 				? ''
 				: (string) $stored_booking['package_key'] . '|' . (string) $stored_booking['room_type_key'];
-			$new_slot       = null === $request->selection ? '' : $request->selection->slotKey();
+
+			// Wybór PODANY tą edycją rozstrzyga. Gdy odpowiedzi na pole noclegu NIE podano
+			// (warunkowa widoczność ukryła pole, więc Validator jego wartości nie zwrócił),
+			// obowiązuje wybór ZAPISANY — inaczej `selection === null` czytałoby się jak
+			// świadoma rezygnacja i niszczyło nocleg pod komunikatem „zapisano” (B21).
+			// To ten sam skrót, który tryb „doby” robi na `nights === null`, i dokładnie tak
+			// samo NIE obejmuje flagi osoby towarzyszącej: ta zmienia zapotrzebowanie na
+			// miejsca, więc nadal musi przejść bramką i przepisać wiersz — tylko już na
+			// zapisanym slocie, a nie w miejsce skasowanego bookingu.
+			$selection      = $request->accommodationSupplied
+				? $request->selection
+				: $this->storedSelection( $stored_booking );
+			$new_slot       = null === $selection ? '' : $selection->slotKey();
 			$unchanged      = $stored_slot === $new_slot && (bool) ( $row['companion'] ?? false ) === $request->companion;
-			$gate_selection = $unchanged ? null : $request->selection;
+			$gate_selection = $unchanged ? null : $selection;
 
 			if ( $occupies ) {
 				$limits = new CapacityLimits(
@@ -1026,7 +1062,7 @@ final class ReservationService {
 			}
 
 			$stored_seats = null === $stored_booking ? 1 : max( 1, (int) $stored_booking['seats'] );
-			$price        = $this->pricing->total( $type, $accommodation, $request->selection, $request->companion, $unchanged ? $stored_seats : null );
+			$price        = $this->pricing->total( $type, $accommodation, $selection, $request->companion, $unchanged ? $stored_seats : null );
 
 			$this->repository->updateRegistration(
 				$id,
@@ -1040,17 +1076,17 @@ final class ReservationService {
 			);
 
 			$this->repository->deleteAccommodationBooking( $id );
-			if ( null !== $request->selection ) {
-				$item      = $accommodation->item( $request->selection->packageKey, $request->selection->roomKey );
-				$seats     = $unchanged ? $stored_seats : $accommodation->seatsFor( $request->selection->roomKey, $request->companion );
+			if ( null !== $selection ) {
+				$item      = $accommodation->item( $selection->packageKey, $selection->roomKey );
+				$seats     = $unchanged ? $stored_seats : $accommodation->seatsFor( $selection->roomKey, $request->companion );
 				$acc_price = ( null === $item ? 0.0 : $item->price ) * $seats;
 				$this->repository->insertAccommodationBooking(
 					$id,
-					$request->selection,
+					$selection,
 					$acc_price,
 					$seats,
-					$accommodation->packageLabel( $request->selection->packageKey ),
-					$accommodation->roomLabel( $request->selection->roomKey )
+					$accommodation->packageLabel( $selection->packageKey ),
+					$accommodation->roomLabel( $selection->roomKey )
 				);
 			}
 

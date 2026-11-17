@@ -13,6 +13,9 @@ use EvReg\Domain\Accommodation\NightSelection;
 use EvReg\Domain\Accommodation\NightsConfig;
 use EvReg\Domain\Capacity\NightOccupancy;
 use EvReg\Domain\Registration\RegistrationStatus;
+use EvReg\Frontend\EventFormLoader;
+use EvReg\Frontend\NightsResolver;
+use EvReg\Frontend\SubmissionAssembler;
 use EvReg\Persistence\EventConfigRepository;
 use EvReg\Persistence\Migrations;
 use EvReg\Persistence\RegistrationRepository;
@@ -66,10 +69,12 @@ final class NightEditTest extends WP_UnitTestCase {
 	 * Schema niesie pole typu `accommodation` o kluczu `nocleg` — awans z listy
 	 * rezerwowej czyta spod niego życzenie zapisane w odpowiedziach.
 	 *
-	 * @param array<int,array<string,mixed>>|null $nights   Doby; null = domyślne dwie.
-	 * @param array<string,mixed>                 $settings Nadpisania ustawień.
+	 * @param array<int,array<string,mixed>>|null $nights    Doby; null = domyślne dwie.
+	 * @param array<string,mixed>                 $settings  Nadpisania ustawień.
+	 * @param array<int,array<string,mixed>>|null $types     Typy zgłoszeń; null = sam `uczestnik`.
+	 * @param array<string,mixed>|null            $condition Warunek widoczności pola noclegu; null = bez warunku.
 	 */
-	private function configure( ?array $nights = null, array $settings = array() ): void {
+	private function configure( ?array $nights = null, array $settings = array(), ?array $types = null, ?array $condition = null ): void {
 		$nights = null === $nights
 			? array(
 				array(
@@ -108,22 +113,31 @@ final class NightEditTest extends WP_UnitTestCase {
 									'label'    => 'E-mail',
 									'required' => true,
 								),
-								array(
-									'key'   => 'nocleg',
-									'type'  => 'accommodation',
-									'label' => 'Nocleg',
-								),
+								null === $condition
+									? array(
+										'key'   => 'nocleg',
+										'type'  => 'accommodation',
+										'label' => 'Nocleg',
+									)
+									: array(
+										'key'       => 'nocleg',
+										'type'      => 'accommodation',
+										'label'     => 'Nocleg',
+										'condition' => $condition,
+									),
 							),
 						),
 					),
 				),
-				'types'         => array(
-					array(
-						'key'   => 'uczestnik',
-						'label' => 'Uczestnik',
-						'price' => 100.0,
-					),
-				),
+				'types'         => null === $types
+					? array(
+						array(
+							'key'   => 'uczestnik',
+							'label' => 'Uczestnik',
+							'price' => 100.0,
+						),
+					)
+					: $types,
 				'accommodation' => array(
 					'mode'                   => 'nights',
 					'nights'                 => $nights,
@@ -651,6 +665,105 @@ final class NightEditTest extends WP_UnitTestCase {
 		$this->assertSame( 1, $this->occupancy()->seatsFor( 'n1819' ) );
 
 		$result = $this->service->editAnswers( $id, $this->request( 'quitter@example.com', array() ) );
+
+		$this->assertSame( 'edited', $result->code );
+		$this->assertSame( array(), $this->repository->bookingNightsFor( array( $id ) ) );
+		$this->assertSame( '100.00', $this->repository->findById( $id )['price_total'] );
+		$this->assertSame( 0, $this->occupancy()->seatsFor( 'n1819' ) );
+		$this->assertSame( 0, $this->occupancy()->seatsFor( 'n1920' ) );
+	}
+
+	/**
+	 * Konfiguracja z DRUGIM typem zgłoszenia i warunkiem widoczności na polu dób:
+	 * `__type = uczestnik`. Edycja na typ `prelegent` chowa pole w trakcie tej właśnie
+	 * edycji, więc Validator nie zwraca jego wartości (B21).
+	 */
+	private function configureConditionalNights(): void {
+		$this->configure(
+			null,
+			array(),
+			array(
+				array(
+					'key'   => 'uczestnik',
+					'label' => 'Uczestnik',
+					'price' => 100.0,
+				),
+				array(
+					'key'   => 'prelegent',
+					'label' => 'Prelegent',
+					'price' => 200.0,
+				),
+			),
+			array(
+				'field'    => '__type',
+				'operator' => 'equals',
+				'value'    => 'uczestnik',
+			)
+		);
+	}
+
+	/**
+	 * Składa żądanie edycji przez SubmissionAssembler, czyli dokładnie tą drogą, którą idzie
+	 * POST z ekranu edycji w adminie (RegistrationsScreen::handle_edit). Checkboxy dób są
+	 * w POŚCIE zawsze — warunkowa widoczność tylko chowa kontrolki, nie wyłącza ich.
+	 *
+	 * @param string        $email    Adres e-mail.
+	 * @param string        $type_key Wybrany typ zgłoszenia.
+	 * @param array<string> $nights   Zaznaczone doby.
+	 */
+	private function assembledRequest( string $email, string $type_key, array $nights ): ReservationRequest {
+		$schema = ( new EventFormLoader( new EventConfigRepository() ) )->load( $this->event_id );
+		$this->assertNotNull( $schema );
+
+		$assembled = ( new SubmissionAssembler() )->assemble(
+			$schema,
+			array(
+				'evreg_field' => array(
+					'__type' => $type_key,
+					'email'  => $email,
+					'nocleg' => array( 'nights' => $nights ),
+				),
+			),
+			NightsResolver::forSchema( $schema )
+		);
+
+		$this->assertSame( array(), $assembled->errors() );
+		$request = $assembled->request();
+		$this->assertNotNull( $request );
+
+		return $request;
+	}
+
+	public function test_edit_hiding_the_night_field_keeps_the_rows_and_the_price(): void {
+		// B21: pole dób z warunkiem przestaje być widoczne w trakcie tej edycji, więc
+		// Validator nie zwraca jego wartości. „Nie podano" nie jest rezygnacją — wiersze
+		// dób, ich miejsca i cena muszą zostać nietknięte.
+		$this->configureConditionalNights();
+		$id     = $this->reserve( 'ukryty@example.com', array( 'n1819' ) );
+		$before = $this->nightsOf( $id );
+		$this->assertSame( '180.00', $this->repository->findById( $id )['price_total'] );
+
+		$result = $this->service->editAnswers( $id, $this->assembledRequest( 'ukryty@example.com', 'prelegent', array( 'n1819' ) ) );
+
+		$this->assertSame( 'edited', $result->code );
+		$this->assertSame( $before, $this->nightsOf( $id ), 'Wiersze dób muszą przeżyć edycję, która dób nie podała.' );
+		$this->assertSame( 1, $this->occupancy()->seatsFor( 'n1819' ) );
+
+		$row = $this->repository->findById( $id );
+		$this->assertSame( 'prelegent', $row['type_key'] );
+		// 200 (nowy typ) + 80 ze snapshotu wiersza doby. Skasowane wiersze dałyby 200.
+		$this->assertSame( '280.00', $row['price_total'] );
+	}
+
+	public function test_edit_with_the_night_field_visible_and_empty_drops_the_accommodation(): void {
+		// Druga strona tej samej monety, tą samą drogą (asembler): warunek dalej pasuje,
+		// więc pole JEST widoczne, a brak zaznaczeń to świadoma rezygnacja. Bez tego testu
+		// poprawka B21 zabiłaby rezygnację po cichu.
+		$this->configureConditionalNights();
+		$id = $this->reserve( 'rezygnacja@example.com', array( 'n1819', 'n1920' ) );
+		$this->assertSame( 1, $this->occupancy()->seatsFor( 'n1819' ) );
+
+		$result = $this->service->editAnswers( $id, $this->assembledRequest( 'rezygnacja@example.com', 'uczestnik', array() ) );
 
 		$this->assertSame( 'edited', $result->code );
 		$this->assertSame( array(), $this->repository->bookingNightsFor( array( $id ) ) );

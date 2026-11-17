@@ -74,9 +74,10 @@ final class SubmissionAssembler {
 			return AssembledSubmission::invalid( $errors, $answers );
 		}
 
-		$values  = $result->values();
-		$email   = $this->extractEmail( $schema, $values );
-		$request = new ReservationRequest(
+		$values   = $result->values();
+		$email    = $this->extractEmail( $schema, $values );
+		$supplied = $this->accommodationSupplied( $schema, $values );
+		$request  = new ReservationRequest(
 			$email,
 			$this->extractName( $schema, $values, $email ),
 			(string) ( $values[ FormSchema::TYPE_FIELD_KEY ] ?? '' ),
@@ -85,7 +86,8 @@ final class SubmissionAssembler {
 			CurrentLanguage::get(),
 			$companion,
 			$companionName,
-			$this->extractNights( $schema, $values, $nights )
+			$this->extractNights( $schema, $values, $nights, $supplied ),
+			$supplied
 		);
 
 		return AssembledSubmission::valid( $values, $request, $answers );
@@ -116,6 +118,37 @@ final class SubmissionAssembler {
 		$companion_name = sanitize_text_field( (string) ( $post['evreg_companion_name'] ?? '' ) );
 
 		return array( $companion, $companion_name );
+	}
+
+	/**
+	 * Czy ta submisja w ogóle PODAŁA odpowiedź na pole noclegu — JEDYNY dom tej reguły.
+	 *
+	 * Validator zwraca wartości wyłącznie pól WIDOCZNYCH (`VisibilityResolver`), a formularze
+	 * (publiczny i ekran edycji w adminie) renderują WSZYSTKIE pola schematu i POSTują je
+	 * nawet schowane. Pole noclegu ukryte warunkiem (B1) wypada więc z wyniku walidacji, choć
+	 * jego kontrolka przyszła w POŚCIE — i to jest inny fakt niż „nic nie wybrano”. Odpowiedź
+	 * udzieloną od nieudzielonej odróżnia OBECNOŚĆ klucza w wartościach: widoczne pole trafia
+	 * tam zawsze, choćby z wartością null (pusty wybór).
+	 *
+	 * Bez tego rozróżnienia edycja zmieniająca odpowiedź, od której zależy warunek pola
+	 * noclegu (typowo typ zgłoszenia), czytała się jak świadoma rezygnacja i niszczyła
+	 * nocleg — booking/wiersze dób, zajęte miejsca i cenę — pod komunikatem „zapisano” (B21).
+	 *
+	 * Schemat bez pola noclegu daje false („nie podano”) — nie ma tam odpowiedzi do udzielenia,
+	 * a zastane zgłoszenia z noclegiem nie mogą tracić wierszy przez samo usunięcie pola
+	 * z formularza.
+	 *
+	 * @param FormSchema          $schema Schemat formularza.
+	 * @param array<string,mixed> $values Znormalizowane wartości z Validatora (tylko widoczne pola).
+	 */
+	private function accommodationSupplied( FormSchema $schema, array $values ): bool {
+		foreach ( $schema->allFields() as $field ) {
+			if ( FieldType::Accommodation === $field->type ) {
+				return array_key_exists( $field->key, $values );
+			}
+		}
+
+		return false;
 	}
 
 	/**
@@ -239,16 +272,19 @@ final class SubmissionAssembler {
 	/**
 	 * Zwraca wybór dób w trybie „doby”; poza tym trybem null.
 	 *
-	 * Gdy pole jest w trybie „doby”, wynik to ZAWSZE prawdziwy NightSelection, także pusty
-	 * i także gdy pole jest ukryte warunkiem: null znaczy dla serwisu „nie podano”, co
-	 * ścieżka edycji czyta jako „nie zmieniaj niczego” — a pusty zbiór to jawna rezygnacja.
+	 * Gdy pole jest w trybie „doby” i odpowiedź na nie PODANO, wynik to prawdziwy
+	 * NightSelection, także pusty — pusty zbiór to jawna rezygnacja z noclegu. Gdy odpowiedzi
+	 * nie podano (pole ukryte warunkiem, więc Validator jego wartości nie zwrócił), wynikiem
+	 * jest null: dla serwisu „nie podano”, co ścieżka edycji czyta jako „nie zmieniaj
+	 * noclegu”, a `reserveNights` jako „bez noclegu” (nowe zgłoszenie nie ma czego stracić).
 	 *
-	 * @param FormSchema          $schema Schemat formularza.
-	 * @param array<string,mixed> $values Znormalizowane wartości z Validatora.
-	 * @param NightsConfig|null   $config Konfiguracja trybu „doby” albo null (klasyczny).
+	 * @param FormSchema          $schema   Schemat formularza.
+	 * @param array<string,mixed> $values   Znormalizowane wartości z Validatora.
+	 * @param NightsConfig|null   $config   Konfiguracja trybu „doby” albo null (klasyczny).
+	 * @param bool                $supplied Czy odpowiedź na pole noclegu w ogóle podano.
 	 */
-	private function extractNights( FormSchema $schema, array $values, ?NightsConfig $config ): ?NightSelection {
-		if ( null === $config ) {
+	private function extractNights( FormSchema $schema, array $values, ?NightsConfig $config, bool $supplied ): ?NightSelection {
+		if ( null === $config || ! $supplied ) {
 			return null;
 		}
 
