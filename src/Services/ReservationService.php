@@ -1124,9 +1124,15 @@ final class ReservationService {
 		// zwolniła miejsca i obniżyła cenę, meldując „zapisano”. Świadoma rezygnacja
 		// przychodzi jako PODANY, pusty NightSelection — te dwa przypadki muszą dać
 		// się rozróżnić, więc zapamiętujemy, czy wybór w ogóle przyszedł.
-		$supplied  = null !== $request->nights;
-		$selection = $request->nights ?? NightSelection::fromKeys( array(), $nights_config );
-		$seats     = $request->companion ? 2 : 1;
+		//
+		// Ten skrót dotyczy WYŁĄCZNIE zbioru dób. Flaga osoby towarzyszącej stoi poza nim
+		// (patrz $unchanged niżej) i nigdy nie przechodzi skrótem: zmienia zapotrzebowanie
+		// na miejsca, więc „nocleg bez zmian” byłoby o niej kłamstwem. Flaga przychodzi
+		// z checkboxa evreg_companion także wtedy, gdy formularz pola dób nie renderuje
+		// (SubmissionAssembler czyta companion_enabled niezależnie od trybu), a para
+		// z wierszami po jednym miejscu to doba sprzedana dwa razy.
+		$supplied = null !== $request->nights;
+		$seats    = $request->companion ? 2 : 1;
 
 		$wpdb->query( 'START TRANSACTION' );
 
@@ -1143,16 +1149,31 @@ final class ReservationService {
 
 			$stored      = $this->repository->bookingNightsFor( array( $id ) )[ $id ] ?? array();
 			$stored_keys = array_map( static fn ( array $night ): string => $night['key'], $stored );
-			$new_keys    = $selection->keys();
-			sort( $stored_keys );
-			sort( $new_keys );
 
-			// Niepodany wybór idzie ścieżką „nic się nie zmieniło”: wiersze, miejsca i cena
-			// zostają, bramka dób jest pomijana. NIE odmawiamy — poprawka niezwiązanego pola
-			// musi się zapisać.
-			$unchanged = ! $supplied
-				|| ( $stored_keys === $new_keys
-					&& (bool) ( $row['companion'] ?? false ) === $request->companion );
+			// Niepodany wybór znaczy „nie dotykamy ZBIORU dób”, więc zbiorem jest to, co
+			// zgłoszenie już trzyma. Tylko tak zmiana flagi towarzyszącej może przeliczyć
+			// miejsca na tych samych dobach, zamiast udawać rezygnację z noclegu.
+			$selection = $request->nights ?? NightSelection::fromKeys( $stored_keys, $nights_config );
+
+			// Klucze, które muszą się rozstrzygnąć wobec konfiguracji. Przy wyborze podanym
+			// bierzemy je z żądania — ten NightSelection powstał z odczytu ekranu edycji
+			// i może nieść dobę, której dzisiejsza konfiguracja już nie ma, a odmowa ma ją
+			// nazwać. Przy niepodanym bierzemy klucze ZAPISANE, bo $selection zbudowaliśmy
+			// sami z bieżącej konfiguracji i zniknięta doba wypadłaby z niego po cichu.
+			$requested_keys = $supplied ? $selection->keys() : array_values( array_unique( $stored_keys ) );
+
+			$sorted_stored = $stored_keys;
+			$sorted_new    = $requested_keys;
+			sort( $sorted_stored );
+			sort( $sorted_new );
+
+			// Skrót „nic się nie zmieniło” wymaga ZGODNEJ flagi towarzyszącej — zawsze,
+			// niezależnie od tego, czy wybór dób przyszedł. Zmiana flagi to zmiana liczby
+			// miejsc, więc musi przejść bramką i przepisać wiersze; w kierunku „dodaj
+			// towarzyszącą” bramka ma prawo odmówić i to jest poprawne zachowanie.
+			// Zbiór porównujemy tylko wtedy, gdy wybór w ogóle podano.
+			$unchanged = (bool) ( $row['companion'] ?? false ) === $request->companion
+				&& ( ! $supplied || $sorted_stored === $sorted_new );
 
 			// Zgłoszenie z listy rezerwowej nie zajmuje miejsc, więc nie dostaje wierszy dób.
 			$granted = $occupies && ! $selection->isEmpty();
@@ -1185,10 +1206,12 @@ final class ReservationService {
 				}
 
 				if ( ! $unchanged && $granted ) {
-					// Rozstrzygnięcie wybranych dób względem konfiguracji odczytanej TUTAJ,
+					// Rozstrzygnięcie żądanych dób względem konfiguracji odczytanej TUTAJ,
 					// pod blokadą: wybór powstał z odczytu ekranu edycji, a doba mogła zniknąć
-					// w międzyczasie. Odmawiamy wprost i nazywamy dobę, zamiast cicho pominąć.
-					foreach ( $selection->keys() as $key ) {
+					// w międzyczasie. Odmawiamy wprost i nazywamy dobę, zamiast cicho pominąć —
+					// także gdy to doba ZAPISANA przy zgłoszeniu zniknęła z konfiguracji, bo
+					// ciche jej pominięcie zabrałoby zgłoszeniu nocleg i obniżyło cenę.
+					foreach ( $requested_keys as $key ) {
 						$night = $nights_config->night( $key );
 
 						if ( null === $night ) {
@@ -1248,10 +1271,12 @@ final class ReservationService {
 			if ( ! $unchanged ) {
 				if ( $granted ) {
 					$written   = $this->repository->replaceBookingNights( $id, $rows );
-					$requested = count( $selection->keys() );
+					$requested = count( $requested_keys );
 
 					// Nieudany INSERT nie rzuca — porównanie liczby wierszy to jedyna obrona
 					// przed cichym zapisem częściowym, czyli przed niedoliczonymi miejscami.
+					// Punktem odniesienia jest liczba dób ŻĄDANYCH: baseline z $rows dałby się
+					// ściszyć pominięciem przy ich budowie.
 					if ( $requested !== $written ) {
 						throw new \RuntimeException(
 							sprintf( 'Zapisano %d z %d dób zgłoszenia %d.', $written, $requested, $id )
@@ -1273,7 +1298,6 @@ final class ReservationService {
 		// Świadomie BEZ do_action — edycja nie wysyła maila (jak ścieżka klasyczna).
 		return AdminActionResult::edited();
 	}
-
 
 	/**
 	 * Trwale usuwa anulowane zgłoszenie wraz z noclegiem i osieroconymi wierszami kolejki.

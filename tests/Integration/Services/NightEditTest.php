@@ -175,9 +175,11 @@ final class NightEditTest extends WP_UnitTestCase {
 	 * Buduje żądanie edycji BEZ wyboru dób (`nights === null`), czyli dokładnie takie,
 	 * jakie składa dziś `SubmissionAssembler` — ósmy argument, bez dziewiątego.
 	 *
-	 * @param string $email Adres e-mail.
+	 * @param string $email     Adres e-mail.
+	 * @param bool   $companion Czy z osobą towarzyszącą (flaga przychodzi z checkboxa,
+	 *                          niezależnie od tego, czy formularz renderuje pole dób).
 	 */
-	private function requestWithoutNights( string $email ): ReservationRequest {
+	private function requestWithoutNights( string $email, bool $companion = false ): ReservationRequest {
 		$request = new ReservationRequest(
 			$email,
 			'Jan',
@@ -185,7 +187,11 @@ final class NightEditTest extends WP_UnitTestCase {
 			array(
 				'__type' => 'uczestnik',
 				'email'  => $email,
-			)
+			),
+			null,
+			'',
+			$companion,
+			$companion ? 'Jan T.' : ''
 		);
 		$this->assertNull( $request->nights, 'To żądanie MUSI nie nieść wyboru dób.' );
 
@@ -359,7 +365,8 @@ final class NightEditTest extends WP_UnitTestCase {
 		// `nights === null` znaczy „wybór dób NIE został podany" (tak składa żądanie każda
 		// dzisiejsza powierzchnia), a nie „zrezygnowano z noclegu". Edycja niezwiązanego
 		// pola nie może skasować wierszy dób, zwolnić miejsc i obniżyć ceny — i nie może
-		// zostać odrzucona, bo zmiana numeru telefonu musi się zapisać.
+		// zostać odrzucona, bo zmiana numeru telefonu musi się zapisać. Flaga towarzyszącej
+		// przychodzi tu BEZ zmiany: tylko wtedy edycja jest naprawdę niezwiązana z noclegiem.
 		$id     = $this->reserve( 'phone@example.com', array( 'n1819', 'n1920' ), true );
 		$before = $this->nightsOf( $id );
 		$this->assertSame( '440.00', $this->repository->findById( $id )['price_total'] );
@@ -382,7 +389,7 @@ final class NightEditTest extends WP_UnitTestCase {
 			)
 		);
 
-		$result = $this->service->editAnswers( $id, $this->requestWithoutNights( 'zmiana@example.com' ) );
+		$result = $this->service->editAnswers( $id, $this->requestWithoutNights( 'zmiana@example.com', true ) );
 
 		$this->assertSame( 'edited', $result->code );
 		$this->assertSame( 'zmiana@example.com', $this->repository->findById( $id )['email'] );
@@ -390,6 +397,99 @@ final class NightEditTest extends WP_UnitTestCase {
 		$this->assertSame( $before, $this->nightsOf( $id ) );
 		$this->assertSame( 2, $this->occupancy()->seatsFor( 'n1819' ) );
 		$this->assertSame( 2, $this->occupancy()->seatsFor( 'n1920' ) );
+	}
+
+	public function test_adding_the_companion_without_a_selection_rewrites_the_seats(): void {
+		// Zmiana flagi towarzyszącej NIE jest edycją niezwiązaną z noclegiem: zmienia
+		// zapotrzebowanie na miejsca. Niepodany wybór dób znaczy „nie dotykamy ZBIORU",
+		// więc zbiorem jest to, co zgłoszenie już trzyma — i na tych samych dobach
+		// przeliczamy miejsca. Gdyby flaga mogła przejść skrótem „nic się nie zmieniło",
+		// zgłoszenie dwóch osób trzymałoby po jednym miejscu na dobę i doba dałaby się
+		// przesprzedać.
+		$id = $this->reserve( 'grows@example.com', array( 'n1819', 'n1920' ) );
+		$this->assertSame( '270.00', $this->repository->findById( $id )['price_total'] );
+		$this->assertSame( 1, $this->occupancy()->seatsFor( 'n1819' ) );
+
+		$result = $this->service->editAnswers( $id, $this->requestWithoutNights( 'grows@example.com', true ) );
+
+		$this->assertSame( 'edited', $result->code );
+
+		$rows = $this->nightsOf( $id );
+		$this->assertCount( 2, $rows );
+		$this->assertSame( array( 'n1819', 'n1920' ), array( $rows[0]['key'], $rows[1]['key'] ) );
+		$this->assertSame( 2, $rows[0]['seats'] );
+		$this->assertSame( 2, $rows[1]['seats'] );
+		$this->assertSame( 160.0, $rows[0]['price'] );
+		$this->assertSame( 180.0, $rows[1]['price'] );
+		// 100 (typ raz) + 2×80 + 2×90.
+		$this->assertSame( '440.00', $this->repository->findById( $id )['price_total'] );
+		$this->assertSame( 2, $this->occupancy()->seatsFor( 'n1819' ) );
+		$this->assertSame( 2, $this->occupancy()->seatsFor( 'n1920' ) );
+		$this->assertSame( 1, $this->occupancy()->pairsFor( 'n1920' ) );
+	}
+
+	public function test_adding_the_companion_without_a_selection_is_refused_when_a_night_is_tight(): void {
+		// Bramka MUSI móc odmówić: dołożenie osoby towarzyszącej do doby z jednym wolnym
+		// miejscem nie może po cichu wziąć miejsca, którego nie ma.
+		$this->configure(
+			array(
+				array(
+					'key'   => 'n1819',
+					'label' => '18/19 XI',
+					'price' => 80.0,
+					'seats' => 4,
+				),
+				array(
+					'key'   => 'n1920',
+					'label' => '19/20 XI',
+					'price' => 90.0,
+					'seats' => 2,
+				),
+			)
+		);
+
+		$this->reserve( 'holder@example.com', array( 'n1920' ) );
+		$id = $this->reserve( 'tight@example.com', array( 'n1819', 'n1920' ) );
+		// n1920: 2 z 2 zajęte, więc para potrzebowałaby 3 miejsc (1 obcego + 2 swoje).
+		$this->assertSame( 2, $this->occupancy()->seatsFor( 'n1920' ) );
+
+		$result = $this->service->editAnswers( $id, $this->requestWithoutNights( 'tight@example.com', true ) );
+
+		$this->assertSame( 'accommodation_full', $result->code );
+		$this->assertSame( 'n1920', $result->reason );
+
+		// Cała edycja wycofana: flaga, wiersze, miejsca i cena jak przed nią.
+		$row = $this->repository->findById( $id );
+		$this->assertSame( '0', (string) $row['companion'] );
+		$this->assertSame( '270.00', $row['price_total'] );
+		$rows = $this->nightsOf( $id );
+		$this->assertCount( 2, $rows );
+		$this->assertSame( 1, $rows[0]['seats'] );
+		$this->assertSame( 1, $rows[1]['seats'] );
+		$this->assertSame( 2, $this->occupancy()->seatsFor( 'n1920' ) );
+	}
+
+	public function test_dropping_the_companion_without_a_selection_rewrites_the_seats(): void {
+		// Kierunek nieszkodliwy dla pojemności (zwalnia miejsce), ale przypięty, żeby nie
+		// zmienił się po cichu: zostawienie wierszy z seats=2 trzymałoby miejsce dla
+		// nikogo i liczyłoby podwójny rachunek.
+		$id = $this->reserve( 'shrinks@example.com', array( 'n1819', 'n1920' ), true );
+		$this->assertSame( '440.00', $this->repository->findById( $id )['price_total'] );
+
+		$result = $this->service->editAnswers( $id, $this->requestWithoutNights( 'shrinks@example.com' ) );
+
+		$this->assertSame( 'edited', $result->code );
+
+		$rows = $this->nightsOf( $id );
+		$this->assertCount( 2, $rows );
+		$this->assertSame( 1, $rows[0]['seats'] );
+		$this->assertSame( 1, $rows[1]['seats'] );
+		$this->assertSame( 80.0, $rows[0]['price'] );
+		$this->assertSame( 90.0, $rows[1]['price'] );
+		$this->assertSame( '270.00', $this->repository->findById( $id )['price_total'] );
+		$this->assertSame( 1, $this->occupancy()->seatsFor( 'n1819' ) );
+		$this->assertSame( 1, $this->occupancy()->seatsFor( 'n1920' ) );
+		$this->assertSame( 0, $this->occupancy()->pairsFor( 'n1819' ) );
 	}
 
 	public function test_edit_with_an_empty_selection_still_drops_the_accommodation(): void {
