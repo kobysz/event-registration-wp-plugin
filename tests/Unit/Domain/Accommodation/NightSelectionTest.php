@@ -52,4 +52,13 @@ final class NightSelectionTest extends TestCase {
 		$this->assertTrue( NightSelection::fromKeys( array(), $this->config( array( 'n1' ) ) )->isEmpty() );
 		$this->assertTrue( NightSelection::fromKeys( array( 'widmo' ), $this->config( array( 'n1' ) ) )->isEmpty() );
 	}
+
+	public function test_json_encodes_as_a_plain_list_of_keys(): void {
+		// Bez JsonSerializable instancja zakodowałaby się jako `{}` (same prywatne
+		// właściwości), czyli po cichu bez danych — dokładnie klasa błędu B15.
+		$selection = NightSelection::fromKeys( array( 'n2', 'n1' ), $this->config( array( 'n1', 'n2' ) ) );
+
+		$this->assertSame( '["n1","n2"]', (string) json_encode( $selection ) );
+		$this->assertSame( '[]', (string) json_encode( NightSelection::fromKeys( array(), $this->config( array( 'n1' ) ) ) ) );
+	}
 }

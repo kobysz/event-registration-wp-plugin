@@ -287,8 +287,32 @@ final class ReservationService {
 
 			$is_waitlist = Outcome::Waitlisted === $decision->outcome;
 			$granted     = ! $is_waitlist && ! $selection->isEmpty();
+			$rows        = array();
 
 			if ( $granted ) {
+				// Rozstrzygnięcie wybranych dób względem konfiguracji odczytanej TUTAJ,
+				// PRZED bramką. $selection powstał z odczytu wywołującego; gdy admin
+				// wyedytuje konfigurację między renderem a submitem, wybrana doba może
+				// w tym odczycie już nie istnieć. Ciche pominięcie dałoby „reserved”
+				// z przyznanym noclegiem, bez wiersza i bez opłaty, choć `data` niesie
+				// życzenie. Ścieżka klasyczna odrzuca nieznany slot wprost — tutaj
+				// odmawiamy tak samo i nazywamy dobę, żeby wybór dał się poprawić.
+				foreach ( $selection->keys() as $key ) {
+					$night = $nights_config->night( $key );
+
+					if ( null === $night ) {
+						$wpdb->query( 'ROLLBACK' );
+						return ReservationResult::accommodationFull( $key );
+					}
+
+					$rows[] = array(
+						'key'   => $night->key,
+						'label' => $night->label,
+						'seats' => $seats,
+						'price' => $night->price * $seats,
+					);
+				}
+
 				// Bramka dób — po blokadzie, na świeżo policzonej zajętości dób.
 				// Odmowa jest całościowa: jedna ciasna doba przepada cały wybór i NIE
 				// zapisujemy ani wiersza dla doby wolnej (żadnego cichego przyjęcia części).
@@ -308,13 +332,17 @@ final class ReservationService {
 			$status     = $is_waitlist ? RegistrationStatus::Waitlist : RegistrationStatus::Pending;
 			$expires_at = $is_waitlist ? null : gmdate( 'Y-m-d H:i:s', strtotime( self::PENDING_TTL, time() ) );
 
-			$type  = $types->get( $request->typeKey );
-			$empty = NightSelection::fromKeys( array(), $nights_config );
+			$type = $types->get( $request->typeKey );
 			// Doby liczą się do ceny tylko wtedy, gdy faktycznie przyznane — zgłoszenie
 			// z listy rezerwowej nie dostaje wierszy dób, więc nie może być nimi obciążone.
 			$price = null === $type
 				? 0.0
-				: $this->pricing->totalForNights( $type, $nights_config, $granted ? $selection : $empty, $seats );
+				: $this->pricing->totalForNights(
+					$type,
+					$nights_config,
+					$granted ? $selection : NightSelection::fromKeys( array(), $nights_config ),
+					$seats
+				);
 			$token = bin2hex( random_bytes( 16 ) );
 
 			$id = $this->repository->insertRegistration(
@@ -335,32 +363,19 @@ final class ReservationService {
 			);
 
 			if ( $granted ) {
-				$rows = array();
-
-				foreach ( $selection->keys() as $key ) {
-					$night = $nights_config->night( $key );
-
-					if ( null === $night ) {
-						continue;
-					}
-
-					$rows[] = array(
-						'key'   => $night->key,
-						'label' => $night->label,
-						'seats' => $seats,
-						'price' => $night->price * $seats,
-					);
-				}
-
-				$written = $this->repository->replaceBookingNights( $id, $rows );
+				// Punktem odniesienia jest liczba dób ŻĄDANYCH, nie liczba zbudowanych
+				// wierszy: po odmowie nieznanej doby wyżej są równe, ale baseline z
+				// $selection nie da się ściszyć pominięciem przy budowie wierszy.
+				$written   = $this->repository->replaceBookingNights( $id, $rows );
+				$requested = count( $selection->keys() );
 
 				// Nieudany INSERT nie rzuca — replaceBookingNights zwraca liczbę zapisanych
 				// wierszy właśnie po to, by cichy zapis częściowy nie przeszedł niezauważony.
 				// Niedoliczona doba to niedoliczone miejsca, czyli dokładnie ta awaria, której
 				// ta funkcja ma nie dopuścić. Rzut trafia do catch → ROLLBACK → nic nie zostaje.
-				if ( count( $rows ) !== $written ) {
+				if ( $requested !== $written ) {
 					throw new \RuntimeException(
-						sprintf( 'Zapisano %d z %d dób zgłoszenia %d.', $written, count( $rows ), $id )
+						sprintf( 'Zapisano %d z %d dób zgłoszenia %d.', $written, $requested, $id )
 					);
 				}
 			}

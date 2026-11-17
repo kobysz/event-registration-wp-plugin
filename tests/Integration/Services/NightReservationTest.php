@@ -357,13 +357,82 @@ final class NightReservationTest extends WP_UnitTestCase {
 
 		$lock   = $this->first_query_index( '/FROM\s+\S*evreg_locks\s+WHERE\s+event_id\s*=\s*\d+\s+FOR UPDATE/i' );
 		$counts = $this->first_query_index( '/SELECT COUNT\(\*\) FROM \S*evreg_registrations/i' );
-		$nights = $this->first_query_index( '/FROM\s+\S*evreg_booking_nights/i' );
+		// Wzorzec celuje w ODCZYT zajętości dób (agregat), nie w DELETE, który
+		// replaceBookingNights wysyła do tej samej tabeli — inaczej usunięcie odczytu
+		// przesunęłoby pierwsze trafienie na zapis i asercja przeszłaby fałszywie.
+		$nights = $this->first_query_index( '/SELECT\s+n\.night_key,\s*SUM\(n\.seats\)/i' );
 
 		$this->assertGreaterThan( -1, $lock, 'reserve() musi wziąć blokadę wiersza eventu.' );
 		$this->assertGreaterThan( -1, $counts, 'reserve() musi policzyć zajętość zgłoszeń.' );
 		$this->assertGreaterThan( -1, $nights, 'reserve() musi policzyć zajętość dób.' );
 		$this->assertLessThan( $counts, $lock, 'lockEvent MUSI poprzedzać pierwszy COUNT zajętości.' );
 		$this->assertLessThan( $nights, $lock, 'lockEvent MUSI poprzedzać odczyt zajętości dób.' );
+	}
+
+	public function test_night_that_vanished_from_the_config_is_refused_by_name(): void {
+		// $selection powstaje z odczytu konfiguracji po stronie wywołującego, a reserveNights
+		// czyta ją ponownie pod blokadą. Gdy admin usunie dobę między renderem a submitem,
+		// cicho pominięta dałaby „reserved” z przyznanym noclegiem, bez wiersza i bez opłaty,
+		// choć `data` niesie życzenie — i porównanie liczby wierszy by tego nie zobaczyło.
+		$this->configure();
+		$stale = $this->request( 'drift@example.com', array( 'n1819', 'n1920' ) );
+		$this->assertSame( array( 'n1819', 'n1920' ), $stale->nights->keys() );
+
+		// Konfiguracja po edycji admina: doba n1920 zniknęła.
+		$this->configure(
+			array(
+				'accommodation' => array(
+					'mode'              => 'nights',
+					'nights'            => array(
+						array(
+							'key'   => 'n1819',
+							'label' => '18/19 XI',
+							'price' => 80.0,
+							'seats' => 4,
+						),
+					),
+					'companion_enabled' => false,
+				),
+			)
+		);
+
+		$result = $this->service->reserve( $this->event_id, $stale );
+
+		$this->assertSame( 'accommodation_full', $result->code );
+		$this->assertSame( 'n1920', $result->blockingNight );
+		$this->assertNull( $result->registrationId );
+		$this->assertSame( array(), $this->repository->findByEmailPaged( 'drift@example.com', 10, 0 ) );
+		// Odmowa jest całościowa — doba, która przetrwała edycję, też nie dostaje wiersza.
+		$this->assertSame( 0, $this->occupancy()->seatsFor( 'n1819' ) );
+	}
+
+	public function test_lifecycle_hooks_fire_after_commit_in_nights_mode(): void {
+		$this->configure( array( 'settings' => array( 'global_cap' => 1, 'waitlist_enabled' => true ) ) );
+
+		$reserved   = did_action( 'evreg_registration_reserved' );
+		$waitlisted = did_action( 'evreg_registration_waitlisted' );
+
+		// Nasłuch odczytuje status wiersza, który dostał w argumencie: Subscriber (4A)
+		// renderuje z niego snapshot maila, więc hook bez czytelnego wiersza jest bezużyteczny.
+		$seen = array();
+		$spy  = static function ( $id ) use ( &$seen ) {
+			global $wpdb;
+			$seen[] = (string) $wpdb->get_var( $wpdb->prepare( 'SELECT status FROM ' . Migrations::table( 'registrations' ) . ' WHERE id = %d', $id ) );
+		};
+		add_action( 'evreg_registration_reserved', $spy );
+
+		$first = $this->service->reserve( $this->event_id, $this->request( 'hook1@example.com', array( 'n1819' ) ) );
+		$this->assertSame( 'reserved', $first->code );
+		$this->assertSame( $reserved + 1, did_action( 'evreg_registration_reserved' ) );
+		$this->assertSame( array( 'pending' ), $seen );
+
+		remove_action( 'evreg_registration_reserved', $spy );
+
+		// Drugie zgłoszenie odbija się od limitu wydarzenia → hook listy rezerwowej.
+		$second = $this->service->reserve( $this->event_id, $this->request( 'hook2@example.com', array( 'n1819' ) ) );
+		$this->assertSame( 'waitlisted', $second->code );
+		$this->assertSame( $waitlisted + 1, did_action( 'evreg_registration_waitlisted' ) );
+		$this->assertSame( $reserved + 1, did_action( 'evreg_registration_reserved' ) );
 	}
 
 	public function test_partial_night_write_rolls_back_the_whole_reservation(): void {

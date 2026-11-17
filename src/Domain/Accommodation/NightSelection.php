@@ -13,7 +13,7 @@ namespace EvReg\Domain\Accommodation;
  * Zbiór wybranych dób: unikalne klucze, w kolejności konfiguracji, bez dób
  * nieznanych konfiguracji.
  */
-final class NightSelection {
+final class NightSelection implements \JsonSerializable {
 
 	/**
 	 * Tworzy zbiór z gotowej listy kluczy.
@@ -56,5 +56,19 @@ final class NightSelection {
 	 */
 	public function isEmpty(): bool {
 		return array() === $this->keys;
+	}
+
+	/**
+	 * Serializuje wybór jako PŁASKĄ LISTĘ kluczy — nigdy jako obiekt.
+	 *
+	 * Kształt jest tu, a nie tylko u wywołującego, żeby nie dało się go pomylić:
+	 * bez tego instancja trafiona przez wp_json_encode zakodowałaby się jako `{}`
+	 * (wszystkie właściwości są prywatne), czyli po cichu bez danych. Repo zapłaciło
+	 * już za dokładnie ten błąd (B15 na ścieżce klasycznej).
+	 *
+	 * @return string[]
+	 */
+	public function jsonSerialize(): array {
+		return $this->keys();
 	}
 }
