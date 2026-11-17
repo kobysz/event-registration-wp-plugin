@@ -251,6 +251,28 @@ final class RegistrationView {
 	}
 
 	/**
+	 * Renderuje ekran edycji od nowa, z błędami i wartościami z odrzuconego POST.
+	 *
+	 * Wołane przez {@see RegistrationsScreen::handle_edit()} INLINE, zamiast PRG: tylko tak
+	 * organizator zachowuje to, co wpisał. Dlatego nie czyta zgłoszenia z bazy — schemat,
+	 * błędy i wartości przychodzą z handlera, który je właśnie zbudował; prefill z bazy
+	 * nadpisałby odrzucone odpowiedzi tymi zapisanymi.
+	 *
+	 * @param FormSchema           $schema    Złożony schemat formularza eventu.
+	 * @param int                  $id        ID zgłoszenia.
+	 * @param array<string,string> $errors    Błędy walidacji: klucz pola → kod błędu.
+	 * @param array<string,mixed>  $submitted Wartości z odrzuconego POST (prefill).
+	 * @param NightsConfig|null    $nights    Konfiguracja trybu „doby” rozstrzygnięta u wejścia
+	 *                                        handlera; null = tryb klasyczny.
+	 */
+	public function render_edit_errors( FormSchema $schema, int $id, array $errors, array $submitted, ?NightsConfig $nights ): void {
+		echo '<div class="wrap">';
+		echo '<h1>' . esc_html__( 'Edytuj zgłoszenie', 'event-registration' ) . '</h1>';
+		echo RegistrationEditForm::render( $schema, array(), $id, $errors, $submitted, $nights ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- już escapowane w rendererze.
+		echo '</div>';
+	}
+
+	/**
 	 * Zwraca etykietę typu z configu eventu, fallback: sam klucz.
 	 *
 	 * @param int    $event_id ID eventu.

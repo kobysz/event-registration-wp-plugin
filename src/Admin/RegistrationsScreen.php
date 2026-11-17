@@ -292,10 +292,7 @@ final class RegistrationsScreen {
 		$assembled = ( new SubmissionAssembler() )->assemble( $schema, is_array( $posted ) ? $posted : array(), $nights );
 
 		if ( ! $assembled->isValid() ) {
-			echo '<div class="wrap">';
-			echo '<h1>' . esc_html__( 'Edytuj zgłoszenie', 'event-registration' ) . '</h1>';
-			echo RegistrationEditForm::render( $schema, array(), $id, $assembled->errors(), $assembled->values(), $nights ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- już escapowane w rendererze.
-			echo '</div>';
+			self::view()->render_edit_errors( $schema, $id, $assembled->errors(), $assembled->values(), $nights );
 			return;
 		}
 
@@ -330,10 +327,7 @@ final class RegistrationsScreen {
 					$key    = $schema->accommodationFieldKey();
 					$errors = null === $key ? array() : array( $key => $mismatch );
 
-					echo '<div class="wrap">';
-					echo '<h1>' . esc_html__( 'Edytuj zgłoszenie', 'event-registration' ) . '</h1>';
-					echo RegistrationEditForm::render( $schema, array(), $id, $errors, $assembled->rawAnswers(), $nights ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- już escapowane w rendererze.
-					echo '</div>';
+					self::view()->render_edit_errors( $schema, $id, $errors, $assembled->rawAnswers(), $nights );
 					return;
 				}
 			}
