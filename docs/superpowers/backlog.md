@@ -492,11 +492,11 @@ odziedziczyć.
 
 **Priorytet:** niski.
 
-**Stan:** panel zajętości odczytuje tryb z surowego meta, a pozostałe powierzchnie przechodzą przez `NightsResolver::forSchema`. Dziś są równoważne.
+**Stan:** powierzchnie czytające zapisane zgłoszenia (panel zajętości, `ReservationService`, mail, eksport CSV, WP Privacy) odczytują tryb z surowego meta przez `NightsResolver::isNightsRaw`; ścieżka publiczna formularza przechodzi przez `NightsResolver::forSchema`, bo potrzebuje nie samego trybu, a obiektu `NightsConfig`. Dziś są równoważne.
 
-**Skutek:** panel nie zobaczy niczego, co przyszły overlay albo filtr nałoży przy składaniu schemy.
+**Skutek:** powierzchnie czytające surowe meta nie zobaczą niczego, co przyszły overlay albo filtr nałoży przy składaniu schemy.
 
-**Szkic:** poprowadzić panel przez `NightsResolver`, żeby tryb miał jedno źródło prawdy.
+**Szkic:** jedno źródło prawdy o trybie, znoszące rozjazd między surowym meta a złożoną schemą — z zachowaniem dzisiejszej reguły, że tryb jest właściwością EVENTU, a nie schematu (patrz docblock `NightsResolver::isNightsMode`: event dobowy bez pola noclegu w formularzu nie ma w schemacie śladu trybu).
 
 ---
 
@@ -509,3 +509,17 @@ odziedziczyć.
 **Szkic:** oczywistym cięciem jest renderowanie detalu i edycji do osobnej klasy prezentacji; handlery admin-post zostają.
 
 **Uwaga:** zdarzenie „ukryte pole `required` blokuje wysyłkę" jest już opisane jako B14 i nie wymaga uzupełnienia.
+
+---
+
+## B21 — Nocleg ukryty warunkową widocznością gubi się przy edycji w adminie
+
+**Priorytet:** średni (cicha utrata danych i pieniędzy, ale wymaga zbiegu okoliczności).
+
+**Stan:** `RegistrationEditForm` renderuje WSZYSTKIE pola schematu (`FormSchema::allFields()`), natomiast `Validator` zwraca wartości tylko pól WIDOCZNYCH (`VisibilityResolver::resolve(...)->visibleFields()`). Gdy pole noclegu ma warunek (B1) i edycja zmienia odpowiedź, od której ten warunek zależy — typowo typ zgłoszenia — pole przestaje być widoczne w trakcie tej właśnie edycji, więc jego wartość wypada z wyniku walidacji. Ekstrakcja widzi wtedy brak wyboru, a nie „nie podano": na ścieżce dobowej powstaje PODANY, pusty `NightSelection`, czyli świadoma rezygnacja.
+
+**Skutek:** zaznaczone doby (klasycznie: wybrany pakiet i pokój) giną razem z wierszami, zajęte miejsca wracają do puli, a cena spada — pod komunikatem „Odpowiedzi zgłoszenia zaktualizowane". Dokładnie ta klasa cichej utraty, którą zamknęły B-slots, B7 i odmowa po nazwie w `editAnswersNights`, tylko wejściem przez warunkową widoczność.
+
+**Dlaczego nie teraz:** zachowanie jest **identyczne na ścieżce klasycznej**, więc problem jest wspólny i zastany, a nie wniesiony przez pule dobowe. Naprawa dotyka `Validator`/`SubmissionAssembler`, czyli kodu wspólnego dla obu trybów i dla formularza publicznego — to osobna gałąź z własną siatką testów, nie fala poprawek po przeglądzie.
+
+**Szkic (propozycja recenzenta):** dla pola noclegu niewidocznego zwracać `null` zamiast pustej selekcji. Jest to bezpieczne na obu ścieżkach i w obu trybach: `reserve` czyta `null` jako „bez noclegu" (nic nie traci, bo nowe zgłoszenie nic nie ma), a `editAnswers` czyta `null` jako „nie dotykaj noclegu" — ta asymetria jest już zbudowana i opisana przy `ReservationRequest::$nights`. Testy: edycja zmieniająca typ tak, że warunek pola noclegu przestaje pasować, osobno dla trybu `nights` i `classic`; w obu wiersze, miejsca i cena muszą zostać nietknięte.
