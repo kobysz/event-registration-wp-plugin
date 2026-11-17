@@ -12,7 +12,7 @@ namespace EvReg\Domain\Accommodation;
 /**
  * Konkretny wybór pakietu i pokoju z odpowiedzi formularza.
  */
-final class AccommodationSelection {
+final class AccommodationSelection implements \JsonSerializable {
 
 	/**
 	 * Tworzy wybór zakwaterowania z kluczy pakietu i pokoju.
@@ -61,6 +61,46 @@ final class AccommodationSelection {
 			'package'  => $this->packageKey,
 			'room'     => $this->roomKey,
 			'roommate' => $this->roommatePref,
+		);
+	}
+
+	/**
+	 * Kształt zapisywany do kolumny `data` zgłoszenia.
+	 *
+	 * Selekcja ląduje w odpowiedziach jako obiekt i jest serializowana przez
+	 * `wp_json_encode`. Bez tej metody zapisywały się nazwy właściwości
+	 * (`packageKey`...), a ekrany admina czytają klucze z {@see self::toArray()} —
+	 * przez co edycja zgłoszenia renderowała nocleg jako niezaznaczony.
+	 *
+	 * @return array<string,string>
+	 */
+	public function jsonSerialize(): array {
+		return $this->toArray();
+	}
+
+	/**
+	 * Sprowadza zapisaną odpowiedź do kluczy kanonicznych.
+	 *
+	 * Wiersze zapisane przed naprawą trzymają w `data` nazwy właściwości obiektu,
+	 * więc czytający muszą rozumieć oba kształty; nowe zapisy używają już tylko
+	 * kluczy kanonicznych. Wartości nieskalarne (uszkodzony wiersz) stają się
+	 * pustym stringiem, zamiast wywoływać konwersję tablicy na string.
+	 *
+	 * @param array<string,mixed> $raw Surowa odpowiedź pola noclegu.
+	 *
+	 * @return array{package:string,room:string,roommate:string}
+	 */
+	public static function normalizeArray( array $raw ): array {
+		$pick = static function ( $canonical, $legacy ) use ( $raw ): string {
+			$value = $raw[ $canonical ] ?? $raw[ $legacy ] ?? '';
+
+			return is_scalar( $value ) ? (string) $value : '';
+		};
+
+		return array(
+			'package'  => $pick( 'package', 'packageKey' ),
+			'room'     => $pick( 'room', 'roomKey' ),
+			'roommate' => $pick( 'roommate', 'roommatePref' ),
 		);
 	}
 }

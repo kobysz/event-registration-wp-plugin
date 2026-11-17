@@ -107,6 +107,41 @@ final class ReserveCompanionTest extends WP_UnitTestCase {
 		);
 	}
 
+	public function test_stored_answers_use_the_canonical_accommodation_keys(): void {
+		// Produkcyjna ścieżka wkłada do `data` OBIEKT selekcji (tak zwraca walidator),
+		// a ekrany admina czytają klucze package/room/roommate. Bez JsonSerializable
+		// zapisywały się nazwy właściwości i edycja gubiła wybrany nocleg (B15).
+		$this->configure();
+		$selection = new AccommodationSelection( 'n12', 'double', 'Ala' );
+
+		$result = $this->service->reserve(
+			$this->event_id,
+			new ReservationRequest(
+				'shape@example.com',
+				'Jan',
+				'uczestnik',
+				array( 'email' => 'shape@example.com', 'nocleg' => $selection ),
+				$selection,
+				'',
+				true,
+				'Jan T.'
+			)
+		);
+
+		$row     = $this->repository->findById( $result->registrationId );
+		$answers = json_decode( (string) $row['data'], true );
+
+		$this->assertIsArray( $answers );
+		$this->assertSame(
+			array(
+				'package'  => 'n12',
+				'room'     => 'double',
+				'roommate' => 'Ala',
+			),
+			$answers['nocleg']
+		);
+	}
+
 	public function test_reserve_with_companion_stores_flag_seats_and_price(): void {
 		$this->configure();
 

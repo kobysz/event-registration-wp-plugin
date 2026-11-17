@@ -166,6 +166,28 @@ final class RegistrationEditFormTest extends WP_UnitTestCase {
 		$this->assertMatchesRegularExpression( '/name="evreg_field\[diety\]\[\]" value="wege"[^>]*checked/', $html );
 	}
 
+	public function test_prefills_accommodation_stored_in_the_legacy_property_name_shape(): void {
+		// Wiersze zapisane przed naprawą B15 trzymają w `data` nazwy właściwości obiektu
+		// selekcji. Prefill MUSI je rozumieć, bo inaczej nocleg renderuje się jako
+		// niezaznaczony i zapis edycji kasuje rezerwację oraz obniża cenę.
+		$answers = array(
+			'nocleg' => array(
+				'packageKey'   => 'n1',
+				'roomKey'      => 'std',
+				'roommatePref' => 'Ala',
+			),
+		);
+
+		$html = RegistrationEditForm::render( $this->schemaWithChoicesAndAccommodation(), $answers, 7 );
+
+		// Admin renderuje nocleg jako <select>, więc wybór widać po selected na opcji.
+		$this->assertMatchesRegularExpression( '/<option value="n1\|std"[^>]*selected/', $html );
+		$this->assertMatchesRegularExpression(
+			'/name="evreg_field\[nocleg\]\[roommate\]"[^>]*value="Ala"/',
+			$html
+		);
+	}
+
 	public function test_renders_accommodation_control_with_selected_slot_and_roommate(): void {
 		$answers = array(
 			'nocleg' => array(

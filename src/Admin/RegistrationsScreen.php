@@ -10,6 +10,7 @@ declare( strict_types=1 );
 namespace EvReg\Admin;
 
 use EvReg\Domain\Accommodation\AccommodationConfig;
+use EvReg\Domain\Accommodation\AccommodationSelection;
 use EvReg\Domain\Export\RegistrationExportMapper;
 use EvReg\Domain\Registration\RegistrationTypeCollection;
 use EvReg\Domain\Schema\FieldType;
@@ -320,12 +321,13 @@ final class RegistrationsScreen {
 			if ( FieldType::Accommodation === $field->type && is_array( $value ) ) {
 				// Surowa odpowiedź to klucze (package/room) — bez etykiet jest nieczytelna.
 				// Rezerwacja niesie snapshot etykiet, więc jest lepszym źródłem niż same klucze.
-				$text = self::accommodation_text(
+				$stored = AccommodationSelection::normalizeArray( $value );
+				$text   = self::accommodation_text(
 					AccommodationConfig::fromArray( $field->config ),
 					$booking ?? array(
-						'package_key'   => (string) ( $value['package'] ?? '' ),
-						'room_type_key' => (string) ( $value['room'] ?? '' ),
-						'roommate_pref' => (string) ( $value['roommate'] ?? '' ),
+						'package_key'   => $stored['package'],
+						'room_type_key' => $stored['room'],
+						'roommate_pref' => $stored['roommate'],
 					)
 				);
 			} else {
