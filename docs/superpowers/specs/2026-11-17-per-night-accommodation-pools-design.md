@@ -1,233 +1,240 @@
 # Pule noclegowe per doba — projekt
 
 **Data:** 2026-11-17
-**Status:** spec do zatwierdzenia (wersja 2 — przebudowana po pytaniu o dwójkę
-sprzedawaną na łóżka; wersja 1 liczyła pulę w pokojach i ten przypadek gubiła)
+**Status:** spec do zatwierdzenia
+
+**Historia wersji** (bo dwie pierwsze były błędne i warto wiedzieć, dlaczego):
+v1 liczyła pulę w pokojach, jedna rezerwacja = jeden pokój — gubiła dwójkę sprzedawaną
+na łóżka. v2 liczyła pulę w łóżkach — gubiła fakt, że para potrzebuje **jednego** pokoju,
+a nie dwóch dowolnych łóżek, i trzymała osobne pule dla każdego wariantu sprzedaży tego
+samego zapasu pokoi. v3 (ta) liczy **pokoje**, ale popyt pakuje: samotne łóżka po dwa
+do pokoju, para zajmuje pokój w całości.
 
 ## Intencja i dlaczego
 
-Dziś limit miejsc noclegowych jest przypisany do **pozycji inwentarza**, czyli pary
-`(pakiet × pokój)`. `Package` nie wie nic o dobach — to tylko klucz i etykieta. Slot to
-literalny string `"pakiet|pokój"`, a zajętość liczy jedno
-`GROUP BY CONCAT(package_key, '|', room_type_key)`.
+Dziś limit noclegów należy do **pozycji inwentarza**, czyli pary `(pakiet × pokój)`.
+`Package` nie wie nic o dobach — to klucz i etykieta. Slot to string `"pakiet|pokój"`,
+a zajętość liczy jedno `GROUP BY CONCAT(package_key, '|', room_type_key)`.
 
 Skutek: każda kombinacja dób ma **rozłączną** pulę. Organizator, który fizycznie ma
 10 jedynek na noc 18/19, musi ten stan ręcznie podzielić między pakiet „tylko 18/19"
-i pakiet „18–20", z góry zgadując proporcje, i sam pilnować, żeby suma się trzymała.
+i pakiet „18–20", zgadując proporcje z góry i sam pilnując, żeby suma się trzymała.
 Pule nie rozmawiają ze sobą, więc **nie da się tego skonfigurować poprawnie** — to brak
 w modelu, nie pomyłka w ustawieniach. Rezerwacja na dwie doby nie zdejmuje nic z puli
 pojedynczej doby, choć fizycznie zajmuje ten pokój w obie noce.
 
-Zmiana: doba staje się pierwszoklasowa. Limit mieszka na parze `(doba × typ pokoju)`,
-pakiet jest zbiorem dób, a rezerwacja zdejmuje swoje łóżka z puli **każdej** doby
-swojego pakietu.
+Zmiana: doba staje się pierwszoklasowa. Limit mieszka na parze `(doba × typ pokoju)`
+i jest wpisywany **w pokojach**, a rezerwacja zajmuje pokoje w każdej dobie swojego
+pakietu.
 
-### Przykład prowadzący (wydarzenie zamawiającego)
+### Przykład prowadzący 1 — dwie doby
 
-Doby: `18/19` i `19/20` grudnia 2026. Limity ustawiane osobno dla każdej doby:
-jedynki i dwójki per doba. Pakiety: `{18/19}`, `{19/20}`, `{18/19, 19/20}` — każdy
-dostępny w wariancie pokoju jedno- i dwuosobowego, i tam (jak dziś) siedzi cena.
+Doby `18/19` i `19/20`. Limity per doba: jedynki 10 i 22, dwójki 31 i 43. Pakiety:
+`{18/19}`, `{19/20}`, `{18/19, 19/20}`. Uczestnik wybiera „dwie doby + pokój
+jednoosobowy" → zdejmuje jeden pokój z puli 18/19 **oraz** jeden z puli 19/20. Pozycja
+jest zamknięta, gdy wyczerpana jest którakolwiek z jej dób.
 
-Uczestnik wybiera „dwie doby + pokój jednoosobowy" → zdejmuje **jedno łóżko z puli
-18/19 oraz jedno z puli 19/20**. Jeśli którakolwiek z tych dwóch pul jest wyczerpana,
-pozycja jest zamknięta.
+### Przykład prowadzący 2 — dwójka na łóżka i dwójka w całości, z jednego zapasu
 
-### Drugi przypadek prowadzący: dwójka sprzedawana na łóżka
+Hotel ma 31 pokoi dwuosobowych na noc 18/19 i nic więcej. Z tego samego zapasu mają
+być sprzedawane **jednocześnie**:
 
-Hotel ma tylko pokoje dwuosobowe. Uczestnik bez osoby towarzyszącej ma móc wziąć
-**jedno łóżko** w takim pokoju, a drugie zostaje do sprzedania komuś innemu.
+- **miejsce w pokoju dwuosobowym** — uczestnik bez towarzyszącej bierze jedno łóżko,
+  drugie zostaje do sprzedania komuś innemu (hotel dokwateruje),
+- **cały pokój dwuosobowy** — uczestnik z osobą towarzyszącą zajmuje oba łóżka.
 
-To działa dziś, ale tylko przez niedopowiedzenie: pokój z nieustawioną „liczbą osób"
-(`occupancy = 0`) zdejmuje jedno miejsce samotnie i dwa z towarzyszącą, a pula jest
-liczona w miejscach, które organizator wpisuje ręcznie. Pokój nie deklaruje, ile ma
-łóżek, więc pojemność nie da się przeliczyć z liczby pokoi. Pokój z `occupancy = 2`
-tego przypadku **nie obsługuje wcale** — `companionMismatch` żąda wtedy towarzyszącej.
-
-Ten projekt robi z tego jawny model (sekcja „Model pokoju").
+Bez dzielenia tych 31 pokoi z góry na dwie grupy. To wymusza dwie rzeczy, których
+nie miały poprzednie wersje: limit należy do **fizycznego zapasu pokoi**, nie do
+wariantu sprzedaży, a popyt musi być liczony w pokojach z pakowaniem samotnych łóżek.
 
 ## Cele
 
-1. Limit noclegów definiowany per `(doba × typ pokoju)`, niezależnie od pakietów,
-   **wpisywany w pokojach**.
-2. Pakiet deklaruje listę dób; rezerwacja zjada swoje łóżka z każdej z nich.
-3. Pokój dwuosobowy daje się sprzedać **albo jako cały pokój** (wymaga towarzyszącej),
-   **albo na łóżka** (samotny uczestnik bierze jedno, drugie zostaje wolne) — jawnie,
-   nie przez brak ustawienia.
-4. Dostępność pozycji `(pakiet × pokój)` = AND po dobach pakietu; „ile zostało" =
-   minimum po dobach.
-5. Wyczerpana doba zamyka pozycję **na każdej powierzchni naraz** — render publiczny,
-   `reserve`, `editAnswers`, `promoteFromWaitlist`, panel obłożenia — bez cichego
-   przyjęcia bez łóżka.
-6. Zero regresji dla eventów skonfigurowanych po staremu.
+1. Limit noclegów per `(doba × typ pokoju)`, niezależny od pakietów, wpisywany
+   **w pokojach**.
+2. Pakiet deklaruje listę dób; rezerwacja zajmuje pokoje w każdej z nich.
+3. Z jednego zapasu pokoi dają się sprzedawać **jednocześnie** całe pokoje i pojedyncze
+   łóżka, bez ręcznego dzielenia zapasu.
+4. Popyt liczony tak, żeby **para zawsze dostała jeden pokój**: samotne łóżka pakowane
+   po `beds` do pokoju, rezerwacja potrzebująca całego pokoju bierze pokój.
+5. Dostępność pozycji = AND po dobach pakietu; „ile zostało" = minimum po dobach.
+6. Wyczerpana doba zamyka pozycję **na każdej powierzchni naraz** — render, `reserve`,
+   `editAnswers`, `promoteFromWaitlist`, panel obłożenia.
+7. Zero regresji dla eventów skonfigurowanych po staremu.
 
 ## Nie-cele
 
-- **Doby na formularzu publicznym** (uczestnik zaznacza doby, pakiet znika z UI). To
-  osobna, większa zmiana (render, submit, `AccommodationSelection`, cena, admin, CSV,
-  mail, e2e). Stoi na pulach dobowych, więc ten projekt jest jej warunkiem wstępnym —
-  ale nie wchodzi tu. Osobna pozycja backlogu.
-- Cena per doba ani rabat za wiele dób. Cena zostaje na pozycji `(pakiet × pokój)`,
-  wpisywana jako pełna cena pakietu **za jedno łóżko** — jak dziś (patrz „Cena").
+- **Doby na formularzu publicznym** (uczestnik zaznacza doby, pakiet znika z UI). Osobna,
+  większa zmiana; stoi na pulach dobowych, więc ten projekt jest jej warunkiem wstępnym.
+  Pozycja backlogu.
+- Cena per doba ani rabat za wiele dób. Cena zostaje na pozycji oferty.
 - **Parowanie współlokatorów.** Wtyczka nie wiąże dwóch zgłoszeń w jeden fizyczny pokój
-  i nie pilnuje, kto z kim leży. `roommate_pref` zostaje tym, czym jest: preferencją
-  zapisaną do ręcznego kwaterowania. Pula wie tylko, ile łóżek jest wziętych.
-- Przydział konkretnych, fizycznych pokoi (numery, lista kwaterunkowa).
-- Doby wspólne między wydarzeniami. Pule są per event, jak cała reszta konfiguracji.
-- Pojęcie „bez limitu". `0` dalej znaczy „brak miejsc", jak teraz.
+  i nie pilnuje, kto z kim leży. `roommate_pref` zostaje preferencją do ręcznego
+  kwaterowania. Pula wie tylko, ile pokoi jest zajętych — przy założeniu, że hotel
+  dokwateruje optymalnie (dwa samotne łóżka trafiają do jednego pokoju). To samo
+  założenie, które organizator i tak realizuje ręcznie.
+- Numery konkretnych pokoi, lista kwaterunkowa z przydziałem.
+- Doby wspólne między wydarzeniami.
+- Pojęcie „bez limitu". `0` dalej znaczy „brak miejsc".
 
-## Anty-cele (to by było porażką, nawet gdyby działało)
+## Anty-cele (porażka, nawet gdyby działało)
 
+- **Ręczne dzielenie zapasu.** Ani między pakietami (dziś), ani między wariantami
+  sprzedaży (błąd v2). Limit jest jeden na `(doba × pokój)`.
 - **Mnożenie przez liczbę łóżek po stronie organizatora.** Limit wpisuje się w pokojach.
-  Gdyby trzeba było wpisać 62 zamiast 31 dwójek, zmiana nie byłaby warta zachodu.
-- **Zgubienie drugiego łóżka w dwójce sprzedawanej na łóżka.** Samotny uczestnik zdejmuje
-  jedno łóżko, nie cały pokój. To był błąd wersji 1 tego speca.
-- **Dwa żywe limity na jedną pulę.** Gdyby dla pakietu z dobami nadal obowiązywał stary
-  limit pozycji `(pakiet × pokój)`, wróciłoby ręczne dzielenie stanu — dokładnie ból,
-  który ta zmiana usuwa.
+- **Zgubienie drugiego łóżka** w dwójce sprzedawanej na łóżka (błąd v1).
+- **Para bez pokoju.** Dwa wolne łóżka w dwóch różnych pokojach nie są miejscem dla pary
+  (błąd v2) — to przesprzedaż widoczna dopiero w hotelu.
+- **Ciche podwojenie limitu** przy degradacji konfiguracji sprzecznej z wyłączoną osobą
+  towarzyszącą.
 - **Doliczanie dób z konfiguracji w momencie liczenia.** Zmiana nazwy albo usunięcie
-  pakietu przeliczyłoby zajętość w tył i odcięło starym zgłoszeniom ich doby. Ta lekcja
-  jest już opłacona w 0.1.14 (snapshot etykiet na bookingu).
-- **Jakikolwiek odczyt zajętości przed `lockEvent()`.** Inwariant 3A obowiązuje bez
-  zmian: lock wiersza `evreg_locks` poprzedza pierwszy COUNT, w każdej ze ścieżek.
-- **Przyjęcie zgłoszenia bez noclegu, o który prosiło, bez powiedzenia tego wprost.**
-  Zachowanie z B-slots zostaje: pełna pula → ROLLBACK i `ReservationResult::accommodationFull()`,
-  a nie cichy zapis bez bookingu.
-- **Druga kopia arytmetyki łóżek.** `RoomOccupancy` zostaje jedynym domem reguły; nowe
-  warianty wchodzą do niej, nie obok niej.
+  pakietu przeliczyłoby zajętość w tył. Lekcja opłacona w 0.1.14.
+- **Jakikolwiek odczyt zajętości przed `lockEvent()`.** Inwariant 3A bez zmian.
+- **Przyjęcie zgłoszenia bez noclegu, o który prosiło, bez powiedzenia tego wprost**
+  (B-slots): pełna pula → ROLLBACK i `accommodationFull`.
+- **Wyjątek z `AccommodationConfig::fromArray` na ścieżce renderu publicznego.** Ta
+  metoda jest wołana z `FormRenderer`, `ReservationService`, panelu, eksportu i
+  eksportera prywatności — rzucenie kładzie **cały formularz** („Rejestracja jest
+  niedostępna"), zamiast zamknąć jeden wiersz. Nowe sprzeczności konfiguracji zamykają
+  wiersz i są widoczne w adminie; wyjątek zostaje tylko dla odniesień do nieistniejących
+  kluczy, których UI nie umie wyprodukować.
+- **Druga kopia arytmetyki.** `RoomOccupancy` zostaje jedynym domem reguły łóżek; nowa
+  arytmetyka pokoi ma jeden dom w czystej domenie i jedno lustro w `form.js`.
 
 ## Ograniczenia
 
-- `src/Domain/**` bez WordPressa i bez `$wpdb` (pilnuje `DomainPurityTest`). Cała
-  arytmetyka pul idzie w czystą domenę.
-- PHPStan poziom 6 bez obniżania, `phpcs` czysto pod `phpcs.xml.dist`.
-- Wszystkie stringi UI przez i18n, text domain `event-registration`.
-- Logika mutacji konfiguracji w adminie w czystych modułach `assets/admin/ops/*`
-  (tu: `accommodationOps.js`) testowanych `jest`. Komponenty cienkie.
-- Migracja bazy przez `dbDelta`, idempotentna, bieżąca `Migrations::DB_VERSION = 6`
-  → nowa wartość `7`.
-- Lustro w `assets/public/form.js` (`seatsFor`) musi dawać ten sam wynik co domena.
+- `src/Domain/**` bez WordPressa i bez `$wpdb` (`DomainPurityTest`).
+- PHPStan 6 bez obniżania, `phpcs` czysto, wszystkie stringi przez i18n.
+- Mutacje konfiguracji w adminie w `assets/admin/ops/accommodationOps.js`, testowane jest.
+- `dbDelta`, idempotentnie; `Migrations::DB_VERSION` 6 → 7.
+- Lustro `form.js` musi dawać ten sam wynik co domena.
 
 ## Podejścia
 
-Rozważone trzy.
+**1. Zostawić jak jest, dzielić stan ręcznie.** Zero kodu, ale model tego nie wyraża:
+rezerwacja dwudobowa nie zdejmuje nic z puli pojedynczej doby. Odrzucone.
 
-**1. Zostawić jak jest, dzielić stan ręcznie w konfiguracji.** Zero kodu. Odrzucone:
-model tego nie wyraża. Niezależnie od wpisanych liczb rezerwacja na dwie doby nie
-zdejmie nic z puli pojedynczej doby, więc albo się przesprzedaje, albo trzyma martwy
-zapas. Zamawiający nazwał ten ból wprost.
+**2. Pule dobowe pod zachowanym wyborem pakietu — WYBRANE.** Uczestnik widzi listę jak
+dziś (pozycja = oferta pakietu), zmienia się to, skąd bierze się sąd o dostępności.
 
-**2. Pule dobowe pod zachowanym wyborem pakietu — WYBRANE.** Doba zyskuje własny byt
-i limit per `(doba × pokój)`; pakiet deklaruje swoje doby; uczestnik widzi na formularzu
-to samo co dziś (pozycja = pakiet × pokój). Rusza konfigurację noclegów, model pokoju,
-liczenie zajętości, dostępność, wiersz bookingu, admina (konfiguracja + panel obłożenia)
-oraz jedną kolumnę eksportu. Formularz i maile — bez zmian w zachowaniu.
+**3. Doby wprost na formularzu** (wybór pokoju + zaznaczenie dób). Koncepcyjnie
+najprostsze dla uczestnika, ale rusza render, submit, `AccommodationSelection`,
+kardynalność bookingu, cenę, admina, CSV, mail i e2e. Odłożone: stoi na podejściu 2.
 
-**3. Doby wprost na formularzu** (wybór typu pokoju + zaznaczenie dób, pakiet znika z UI).
-Koncepcyjnie najprostszy model dla uczestnika i zgodny z pierwotnym opisem wydarzenia,
-ale rusza wszystko: render, submit, `AccommodationSelection`, kardynalność bookingu,
-cenę, admina, edycję, CSV, mail, e2e.
+## Model: zapas, oferta, doba
 
-Zamawiający wybrał **2**. Argument rozstrzygający: podejście 3 i tak stoi na pulach
-dobowych, więc 2 jest jego warunkiem wstępnym — można je zrobić później, nie cofając
-niczego. Koszt 2: pakiet nadal definiuje się na każdą kombinację dób (tu trzy).
+Trzy pojęcia, z czego dwa już istnieją. Rozdzielenie, którego brakowało, przebiega
+między **fizycznym zapasem** a **wariantem sprzedaży**.
 
-## Model pokoju
-
-Dziś pole `occupancy` (0 = nieustawione, 1, 2) skleja dwie różne rzeczy: **ile łóżek ma
-pokój** i **jak się go sprzedaje**. Stąd brak, który ujawnił drugi przypadek prowadzący:
-`occupancy = 2` znaczy jednocześnie „dwa łóżka" i „wymaga towarzyszącej", więc dwójki na
-łóżka nie da się wyrazić inaczej niż przez niewypełnienie pola.
-
-Rozdzielamy to na dwa jawne pola typu pokoju:
+**Typ pokoju = fizyczny zapas.** Niesie tylko fakty o pokoju:
 
 | pole | wartości | znaczenie |
 |---|---|---|
-| `beds` | `0` (nieustawione), `1`, `2` | ile łóżek ma pokój — fakt fizyczny |
-| `sale` | `whole`, `beds` | czy rezerwacja bierze cały pokój, czy jedno łóżko |
+| `key`, `label` | — | jak dziś |
+| `beds` | `0` (nieustawione), `1`, `2` | ile łóżek ma pokój |
+| `roommate_field` | bool | czy pytać o preferencję współlokatora |
 
-Reguły, wszystkie wyprowadzane z tej pary:
+**Pozycja inwentarza = oferta.** Para `(pakiet × pokój)` zyskuje wariant sprzedaży:
 
-- **Ile łóżek zjada rezerwacja** (`RoomOccupancy::seats`, jedyny dom reguły):
-  `sale = whole` i `beds > 0` → `beds`; w każdym innym przypadku →
-  `companion ? 2 : 1`. Ostatni wariant obsługuje zarówno sprzedaż na łóżka, jak i
-  pokój bez ustawionej liczby łóżek (zgodność w tył).
-- **Spójność pary pokój/towarzysząca** (`RoomType::companionMismatch`):
-  `sale = whole` bez towarzyszącej → `companion_required`;
-  `beds = 1` z towarzyszącą → `companion_not_allowed` (dwie osoby nie zmieszczą się
-  w jednym łóżku); `beds = 0` nie protestuje nigdy;
-  **`beds = 2` + `sale = beds` bez towarzyszącej jest poprawne** — to jest przypadek,
-  o który chodzi, i dziś jest odrzucany.
-- **Pole „preferowany współlokator"** (`roommate_field`) zostaje ortogonalne: pyta
-  tylko, z kim ktoś chciałby leżeć, i nie wpływa na arytmetykę. Ma sens przy
-  `sale = beds`; przy `sale = whole` jest bezprzedmiotowe (drugie łóżko bierze
-  towarzysząca) i admin je tam wyłącza, jak dziś wyłącza je dla `occupancy = 2`.
-
-### Zgodność w tył i sprzeczność z towarzyszącą
-
-`RoomType::fromArray` czyta `beds`, a gdy go nie ma — **legacy `occupancy`**, i wyprowadza
-tryb sprzedaży:
-
-| stary config | nowy model | zachowanie |
+| pole | wartości | znaczenie |
 |---|---|---|
-| `occupancy = 2` | `beds = 2`, `sale = whole` | bez zmian: wymaga towarzyszącej, zjada 2 łóżka |
-| `occupancy = 1` | `beds = 1`, `sale = beds` | bez zmian: zabrania towarzyszącej, zjada 1 łóżko |
-| `occupancy = 0` | `beds = 0`, `sale = beds` | bez zmian: nie protestuje, zjada 1 albo 2 łóżka |
+| `package`, `room` | — | jak dziś |
+| `sale` | `bed` (domyślne), `whole` | jedno łóżko czy cały pokój |
+| `price` | — | cena **za łóżko**, jak dziś (patrz „Cena") |
+| `capacity` | — | limit TYLKO w trybie zgodności (patrz „Uśpiona pojemność") |
 
-`toArray` zapisuje już tylko `beds` + `sale`; admin od tej pory pisze nowe klucze.
-Odczyt obu kluczy zostaje na stałe — konfiguracje na istniejących stronach nie wymagają
-migracji ani wejścia do edytora.
+`sale` siedzi na ofercie, nie na pokoju, bo to właśnie tu różnią się dwie rzeczy, które
+muszą współistnieć nad jednym zapasem: wariant sprzedaży i cena. Ten sam pokój
+dwuosobowy może więc w jednym pakiecie wystąpić dwa razy — raz jako „miejsce w pokoju
+2-os." (`sale: bed`), raz jako „pokój 2-os. z osobą towarzyszącą" (`sale: whole`) — i oba
+czerpią z tej samej puli 31 pokoi.
 
-Dzisiejsza reguła z `AccommodationConfig::fromArray` — „przy wyłączonej osobie
-towarzyszącej zeruj `occupancy`" — **zostaje zastąpiona**, nie usunięta. Jej sens był:
-pokój wymagający towarzyszącej jest trwale niewybieralny, gdy event towarzyszących nie
-dopuszcza, więc sprzeczność trzeba rozstrzygnąć w jednym miejscu, żeby pojemność, cena,
-walidacja i render widziały to samo. Nowa postać: przy wyłączonej towarzyszącej pokój
-z `sale = whole` **spada do `sale = beds`, zachowując `beds`**. Kasowanie liczby łóżek
-byłoby teraz szkodliwe — to ona przelicza limit z pokoi na łóżka.
+**Doba** to nowy, trywialny byt: `key` + `label`. Pakiet deklaruje listę dób.
 
-## Jednostka puli: limit w pokojach, pula w łóżkach
+### Ile łóżek zjada rezerwacja
 
-Organizator wpisuje limit dobowy **w pokojach** (31 dwójek na noc 18/19). Pula trzyma go
-wewnętrznie **w łóżkach**: `limit_pokoi × beds`. Rezerwacja zdejmuje `seats` łóżek
-(1 samotnie, 2 z towarzyszącą, `beds` przy całym pokoju) z puli każdej swojej doby.
+`RoomOccupancy::seats( int $beds, string $sale, bool $companion ): int` — **jedyny dom
+reguły**: `sale = whole` i `beds > 0` → `beds`; w każdym innym przypadku →
+`companion ? 2 : 1`. Delegują do niej `RoomType::seats`,
+`AccommodationConfig::seatsFor`, `CapacityLimits::seatsForSlot` i lustro w `form.js`.
 
-Dlatego **każdy pokój biorący udział w puli dobowej musi mieć `beds > 0`** —
-bez liczby łóżek nie ma czym przeliczyć pokoi. `AccommodationConfig::fromArray` rzuca
-`SchemaException`, gdy pozycja inwentarza łączy pakiet z dobami z pokojem o `beds = 0`,
-a admin blokuje to w momencie ustawiania. To jedyny nowy wymóg konfiguracyjny i jest
-jawny: „ile łóżek ma ten pokój" to pytanie, na które i tak trzeba odpowiedzieć, żeby
-sprzedawać łóżka.
+### Spójność pary oferta/towarzysząca
 
-Tryb zgodności (pakiet bez dób) liczy jak dziś: pula slotowa w miejscach, limit z
-`inventory[(pakiet, pokój)].capacity`, bez wymogu `beds`.
+`companionMismatch( RoomType $room, string $sale, bool $companion ): ?string`:
 
-Konsekwencje, których wersja 1 tego speca błędnie się pozbywała:
+- `sale = whole` **i `beds = 2`** bez towarzyszącej → `companion_required`,
+- `beds = 1` z towarzyszącą → `companion_not_allowed`,
+- `beds = 0` → nigdy nie protestuje (zgodność w tył),
+- `beds = 2`, `sale = bed`, bez towarzyszącej → **poprawne**; to przykład prowadzący 2.
 
-- Dopisek **„(za mało miejsc)" zachowuje sens**: towarzysząca potrzebuje 2 łóżek,
-  a w najciaśniejszej dobie zostało 1. `SlotAvailability::isFull( $slot, $seats )`
-  zachowuje swój parametr i swoje znaczenie.
-- **Checkbox towarzyszącej dalej wpływa na dostępność**, więc lustro w `form.js` zostaje
-  potrzebne — i zostaje **nietknięte**: `seatsFor` już tam jest, zmienia się tylko
-  liczba, którą serwer wkłada do `data-evreg-seats-left` (minimum po dobach, w łóżkach).
-  Żadnych map pakiet→doby ani pojemności nie wysyłamy do przeglądarki; `evreg-public`
-  to statyczny skrypt bez `wp_localize_script`, a nie ma czego tam liczyć poza tym, co
-  już liczy.
+`sale` jest bezprzedmiotowe dla `beds = 1` (cały pokój jednoosobowy to to samo co jego
+jedno łóżko) i `fromArray` **normalizuje** je wtedy do `bed`, zamiast rzucać. Bez tej
+normalizacji `beds = 1` + `sale = whole` byłoby pokojem niewybieralnym na żaden stan
+checkboxa: żądałoby towarzyszącej i jednocześnie jej zabraniało.
+
+Pole „preferowany współlokator" ma sens tylko przy `sale = bed` i `beds > 1`; admin
+wyłącza je w pozostałych przypadkach, a renderer go tam nie pokazuje.
+
+## Jednostka puli: limit w pokojach, popyt w pokojach z pakowaniem
+
+Organizator wpisuje limit dobowy **w pokojach**. Popyt liczony jest też w pokojach, ale
+rezerwacje nie są równe:
+
+- rezerwacja potrzebująca **`beds` łóżek** (cały pokój albo łóżko + towarzysząca)
+  zajmuje **jeden pokój na wyłączność**,
+- rezerwacje potrzebujące **mniej** (samotne łóżko) są **pakowane**: `beds` takich
+  rezerwacji dzieli jeden pokój.
+
+Dla pary `(doba, pokój)` zajętość to więc **dwie liczby**, nie jedna:
+
+```
+pokoje_zajęte = pełne + ceil( luźne_łóżka / beds )
+
+  pełne        = liczba rezerwacji z seats >= beds
+  luźne_łóżka  = suma seats rezerwacji z seats < beds
+```
+
+Bramka dla nowej rezerwacji potrzebującej `s` łóżek:
+
+```
+s >= beds :  pełne + 1 + ceil( luźne_łóżka / beds )        <= limit_pokoi
+s <  beds :  pełne     + ceil( (luźne_łóżka + s) / beds )  <= limit_pokoi
+```
+
+Oba warunki są dokładne przy optymalnym dokwaterowaniu, czyli przy tym, co hotel i tak
+robi ręcznie. Konsekwencja, która zamyka błąd v2: para nigdy nie dostanie „dwóch wolnych
+łóżek w dwóch pokojach" — jej wariant zawsze żąda pokoju na wyłączność.
+
+Zwróć uwagę, że wariant sprzedaży **nie jest** potrzebny do liczenia: rozstrzyga
+`seats` względem `beds`. Dlatego wiersz doby nie przechowuje `sale`.
+
+**Każdy pokój biorący udział w puli dobowej musi mieć `beds > 0`** — bez liczby łóżek
+nie ma czym pakować. Oferta łącząca pakiet z dobami z pokojem o `beds = 0` jest
+**zamknięta** (traktowana jak brak pojemności) i zgłaszana w adminie; `fromArray` tu
+nie rzuca (patrz anty-cele).
+
+### Dostępność i komunikaty
+
+`SlotAvailability` dla oferty z dobami liczy po dobach minimum i odpowiada na dwa
+pytania osobno, bo mają różne odpowiedzi:
+
+- czy zmieści się **pokój na wyłączność** (`pełne + 1 + ceil(luźne/beds) <= limit`),
+- ile zostało **łóżek dla samotnych** (`(limit - pełne) * beds - luźne_łóżka`).
+
+Stąd komunikaty: `(brak miejsc)`, gdy nic się nie zmieści, i `(za mało miejsc)`, gdy
+wybrany wariant potrzebuje pokoju, a zostały tylko luźne łóżka. `isFull( $slot, $seats )`
+zachowuje sygnaturę; `$seats` rozstrzyga, które z dwóch pytań zadać.
 
 ## Cena
 
-Bez zmian w mechanice: `PriceCalculator::total` mnoży cenę pozycji `(pakiet × pokój)`
-przez `seats`. Czyli **cena wpisywana w macierzy inwentarza jest ceną za jedno łóżko**:
-samotny uczestnik w dwójce na łóżka płaci ×1, zgłoszenie z towarzyszącą ×2, cały pokój
-×`beds`. Tak działa dziś i tak zostaje — ale warto to w adminie napisać wprost przy
-macierzy cen, bo przy dwójce na łóżka różnica „za pokój czy za osobę" jest kosztowna.
+Bez zmian w mechanice: `PriceCalculator::total` mnoży cenę oferty przez `seats`. Czyli
+**cena to cena za łóżko**: samotne łóżko ×1, towarzysząca ×2, cały pokój ×`beds`. Tak
+jest dziś i tak zostaje — ale admin musi to napisać wprost przy macierzy cen, bo przy
+dwóch wariantach nad jednym zapasem pomyłka „za pokój czy za osobę" jest kosztowna.
 
 Bramkowanie ceny przyznaniem noclegu (B7) i zachowanie zapisanej ceny przy edycji
-niezmieniającej slotu (B-occupancy) zostają bez zmian.
+niezmieniającej slotu (B-occupancy) bez zmian.
 
 ## Model konfiguracji
-
-Meta `_evreg_accommodation` zyskuje dwa klucze na górnym poziomie i dwa na pokoju;
-pozostałe zostają nietknięte.
 
 ```php
 array(
@@ -236,24 +243,24 @@ array(
         array( 'key' => 'n1920', 'label' => '19/20 grudnia' ),
     ),
     'rooms'           => array(
-        // NOWE: beds + sale zastępują occupancy (czytane dalej jako legacy).
-        array( 'key' => 'single', 'label' => 'Pokój 1-osobowy', 'beds' => 1, 'sale' => 'beds' ),
-        array( 'key' => 'double', 'label' => 'Pokój 2-osobowy', 'beds' => 2, 'sale' => 'whole' ),
-        array( 'key' => 'shared', 'label' => 'Miejsce w pokoju 2-osobowym', 'beds' => 2, 'sale' => 'beds', 'roommate_field' => true ),
+        // Już tylko fakty fizyczne. `beds` zastępuje `occupancy` (czytane jako legacy).
+        array( 'key' => 'single', 'label' => 'Pokój 1-osobowy', 'beds' => 1 ),
+        array( 'key' => 'double', 'label' => 'Pokój 2-osobowy', 'beds' => 2, 'roommate_field' => true ),
     ),
     'packages'        => array(
-        // NOWE pole `nights` — lista kluczy dób. Pusta/brak = tryb zgodności.
         array( 'key' => 'p18', 'label' => 'Doba 18/19', 'nights' => array( 'n1819' ) ),
         array( 'key' => 'p19', 'label' => 'Doba 19/20', 'nights' => array( 'n1920' ) ),
         array( 'key' => 'p2',  'label' => 'Dwie doby',  'nights' => array( 'n1819', 'n1920' ) ),
     ),
     'inventory'       => array(
-        // Bez zmian strukturalnie. `capacity` PRZESTAJE być limitem dla pakietu
-        // z dobami — zostaje cena (za łóżko). Liczba jest ZACHOWANA, nie zerowana.
-        array( 'package' => 'p2', 'room' => 'single', 'capacity' => 10, 'price' => 400.0 ),
+        // Ten sam pokój `double` dwa razy w jednym pakiecie: dwa warianty sprzedaży
+        // nad JEDNYM zapasem 31 pokoi. Różnią się `sale` i ceną.
+        array( 'package' => 'p2', 'room' => 'single', 'sale' => 'bed',   'price' => 400.0, 'capacity' => 10 ),
+        array( 'package' => 'p2', 'room' => 'double', 'sale' => 'bed',   'price' => 300.0, 'capacity' => 20 ),
+        array( 'package' => 'p2', 'room' => 'double', 'sale' => 'whole', 'price' => 300.0, 'capacity' => 20 ),
     ),
     'night_inventory' => array(
-        // NOWE: limit POKOI per doba × typ pokoju.
+        // Limit POKOI per doba × typ pokoju. Jeden na zapas, nie na wariant.
         array( 'night' => 'n1819', 'room' => 'single', 'capacity' => 10 ),
         array( 'night' => 'n1819', 'room' => 'double', 'capacity' => 31 ),
         array( 'night' => 'n1920', 'room' => 'single', 'capacity' => 22 ),
@@ -263,84 +270,111 @@ array(
 )
 ```
 
-**Walidacja w `AccommodationConfig::fromArray` (rzuca `SchemaException`, jak dziś):**
-doba wymaga niepustego klucza; zduplikowany klucz doby; `packages[].nights` wskazujące
-na nieznaną dobę; `night_inventory` wskazujące na nieznaną dobę albo nieznany pokój;
-zduplikowana para `(doba, pokój)`; ujemna pojemność; `beds` spoza `0..2`; `sale` poza
-`whole`/`beds`; **pozycja inwentarza łącząca pakiet z dobami z pokojem o `beds = 0`**.
+### Klucz slotu i zgodność w tył
 
-Czego walidacja **nie** odrzuca: niezerowej `capacity` na pozycji pakietu z dobami.
-Ta liczba jest uśpiona, nie błędna — patrz „Uśpiona pojemność pozycji".
+Slot identyfikuje ofertę, a oferty różnią się teraz też wariantem sprzedaży. Dlatego:
+
+- `InventoryItem::slotKey()` zwraca `"pakiet|pokój"` dla `sale = bed` (wartość domyślna)
+  i `"pakiet|pokój|whole"` dla `sale = whole`.
+- Powód jest twardy: zapisane bookingi i dotychczasowe zapytanie
+  `GROUP BY CONCAT(package_key, '|', room_type_key)` **muszą dalej trafiać w ten sam
+  klucz**. Gdyby domyślny slot zmienił kształt, tryb zgodności przestałby widzieć swoje
+  rezerwacje — cicho, bo zapytanie dalej by działało, tylko na pustym zbiorze.
+- Booking dostaje kolumnę `sale`, żeby edycja i panel wiedziały, który wariant został
+  kupiony; stare wiersze czytane są jako `bed`.
+- Zduplikowana oferta to teraz `(pakiet, pokój, sale)`, nie `(pakiet, pokój)`.
+
+`RoomType::fromArray` czyta `beds`, a gdy go nie ma — legacy `occupancy`:
+
+| stary config | nowy model | zachowanie |
+|---|---|---|
+| `occupancy = 2` | `beds = 2`, oferty `sale = whole` | bez zmian: wymaga towarzyszącej, 2 łóżka |
+| `occupancy = 1` | `beds = 1`, oferty `sale = bed` | bez zmian: zabrania towarzyszącej, 1 łóżko |
+| `occupancy = 0` | `beds = 0`, oferty `sale = bed` | bez zmian: nie protestuje, 1 albo 2 łóżka |
+
+`toArray` zapisuje `beds`; odczyt `occupancy` zostaje na stałe, więc konfiguracje na
+istniejących stronach nie wymagają migracji ani wejścia do edytora.
+
+### Sprzeczność z wyłączoną osobą towarzyszącą
+
+Dzisiejsza reguła („przy wyłączonej towarzyszącej zeruj `occupancy`") **zostaje
+zastąpiona**, bo jej dosłowne przeniesienie podwajałoby limit: 31 pokoi × 2 łóżka
+= 62 uczestników tam, gdzie dziś wychodzi 31.
+
+Nowa postać: przy wyłączonej osobie towarzyszącej oferta `sale = whole` jest
+**zamknięta** (niewybieralna, z komunikatem w adminie), a nie zamieniana na sprzedaż
+łóżek. Nikt nie dostaje po cichu dokwaterowania obcych tam, gdzie konfigurował całe
+pokoje. Liczba łóżek pokoju **zostaje** — jest potrzebna do pakowania.
+
+Tryb zgodności (pakiet bez dób, legacy `occupancy = 2`) zachowuje się **dokładnie jak
+dziś**, bit w bit: limit w miejscach, rezerwacja zjada jedno miejsce.
+
+### Walidacja
+
+`AccommodationConfig::fromArray` rzuca `SchemaException` tylko dla odniesień, których UI
+nie umie wyprodukować, jak dziś: nieznany/duplikujący się klucz doby, `packages[].nights`
+wskazujące na nieznaną dobę, `night_inventory` na nieznaną dobę lub pokój, zduplikowana
+para `(doba, pokój)`, zduplikowana oferta `(pakiet, pokój, sale)`, ujemna pojemność lub
+cena, `beds` spoza `0..2`, `sale` poza `bed`/`whole`.
+
+**Nie rzuca** (zamyka wiersz lub normalizuje, i zgłasza w adminie): oferta z dobami nad
+pokojem o `beds = 0`; `sale = whole` przy `beds = 1` (normalizacja do `bed`);
+`sale = whole` przy wyłączonej towarzyszącej; niezerowa uśpiona `capacity`.
 
 ### Tryb zgodności
 
-Pakiet, którego `nights` jest puste albo nieobecne, działa **dokładnie jak dziś**: limit
-z `inventory[(pakiet, pokój)].capacity`, pula liczona w miejscach (`SUM(seats)`).
-Istniejące instalacje nie zauważają zmiany i nie wymagają migracji danych. Jeden event
-może mieszać pakiety z dobami i bez — decyzja jest per pakiet, nigdy globalna.
+Pakiet bez dób działa jak dziś: limit z `inventory[...].capacity`, pula w miejscach
+(`SUM(seats)` po slocie). Jeden event może mieszać pakiety z dobami i bez — decyzja jest
+per pakiet.
 
-To jedyne miejsce, gdzie dwie semantyki pul współistnieją, i jest tak celowo: inaczej
-zmiana wymagałaby przeliczenia stanu na wszystkich stronach, na których wtyczka już stoi.
+**Znana i przyjęta granica:** dwa pakiety nad tym samym pokojem, jeden z dobami i jeden
+bez, sprzedają ten sam fizyczny zapas z dwóch niezależnych pul. Wtyczka tego nie wykryje;
+admin ostrzega, gdy w jednym evencie istnieją oba rodzaje pakietów nad tym samym pokojem.
+Docelowo pakiety bez dób znikają z nowych konfiguracji.
 
-### Uśpiona pojemność pozycji
+### Uśpiona pojemność oferty
 
-Gdy pakiet ma doby, `inventory[(pakiet, pokój)].capacity` **przestaje być limitem, ale
-zostaje zapisana** — admin jej nie zeruje ani nie usuwa przy zapisie. Powód: to liczba,
-którą wpisał organizator, i odebranie jej przy włączeniu dób zniszczyłoby stan, do
-którego może chcieć wrócić.
-
-Stąd dwa wymagania:
-
-- Admin wyszarza komórkę z notką „limit idzie z dób" — wartość jest widoczna, ale
-  wprost oznaczona jako nieobowiązująca. Liczba nie może udawać, że działa.
-- **Zdjęcie dób z pakietu reaktywuje tę liczbę**, więc admin musi w momencie przełączania
-  powiedzieć wprost, jaki limit wróci do gry (łącznie z tym, że `0` znaczy „brak miejsc",
-  czyli zamknięcie pozycji). Przełącznik, który cicho zamyka sprzedaż, byłby pułapką.
+Gdy pakiet ma doby, `capacity` oferty **przestaje być limitem, ale zostaje zapisana** —
+admin jej nie zeruje. Wyszarza komórkę z notką „limit idzie z dób", a przy **zdejmowaniu**
+dób z pakietu mówi wprost, jaki limit wróci do gry (łącznie z tym, że `0` zamyka pozycję).
 
 ### Prawda o podaży i popycie
-
-Nośny inwariant, bo jest warunkiem bramki we wszystkich trzech ścieżkach transakcyjnych:
 
 > **Wiersze dób bookingu są prawdą o popycie. Konfiguracja jest prawdą o podaży i o tym,
 > czym bramkować nowy popyt.**
 
-Czyli: ile dana rezerwacja zjada — mówią jej zapisane wiersze dób wraz z zapisanym
-`seats` (nigdy bieżąca konfiguracja pakietu ani pokoju). Czy nowa rezerwacja albo zmiana
-slotu przechodzi przez pule dobowe czy slotowe — mówi bieżąca konfiguracja pakietu
-(`usesNightPools`).
+Ile rezerwacja zjada — mówią jej zapisane wiersze dób z zapisanym `seats`, nigdy bieżąca
+konfiguracja. Czy nowa rezerwacja idzie przez pule dobowe czy slotowe — mówi bieżąca
+konfiguracja pakietu.
 
-Dwa rozjazdy, które z tego wynikają, i co z nimi:
+Dwa rozjazdy i co z nimi:
 
-- **Rezerwacja bez wierszy dób w pakiecie, który dziś ma doby** — nie zjada nic z pul
-  dobowych. To przesprzedaż i zamyka ją dosypanie dób (niżej), nie zmiana reguły liczenia.
-- **Wiersze dób na pakiecie, któremu doby zdjęto** — dalej zjadają pule dobowe, choć
-  nowe rezerwacje tego pakietu są bramkowane pulą slotową. Wiersze **zostają**: kasowanie
-  historii jest gorsze od rozjazdu, a rozjazd jest widoczny w panelu obłożenia. Admin
-  ostrzega przy zdejmowaniu dób, ile aktywnych rezerwacji nadal będzie liczonych dobowo.
+- **Rezerwacja bez wierszy dób w pakiecie, który ma doby** — nie zjada nic z pul
+  dobowych. Zamyka to dosypanie dób, nie zmiana reguły liczenia.
+- **Wiersze dób na pakiecie, któremu doby zdjęto** — dalej zjadają pule dobowe. Wiersze
+  zostają (kasowanie historii jest gorsze), rozjazd jest widoczny w panelu obłożenia,
+  a admin ostrzega przy zdejmowaniu dób.
 
 ### Dosypanie dób istniejącym rezerwacjom
 
-Włączenie dób na pakiecie, który już ma aktywne rezerwacje, wymaga **jawnej akcji
-w adminie** („przypisz doby istniejącym rezerwacjom"): dla każdej zajmującej miejsce
-rezerwacji tego pakietu, która nie ma jeszcze wierszy dób, zapisuje je według dób
-pakietu wraz ze snapshotem etykiet.
+Włączenie dób na pakiecie z aktywnymi rezerwacjami wymaga **jawnej akcji w adminie**
+(„przypisz doby istniejącym rezerwacjom"): dla każdej zajmującej miejsce rezerwacji tego
+pakietu zapisuje **brakujące** doby — per doba, nie per rezerwacja.
 
-- To **jednorazowa materializacja**, nie liczenie z konfiguracji przy COUNT — anty-cel
-  dotyczy ścieżki liczenia, nie jednorazowego zapisu historii. Po dosypaniu wiersze są
-  zwykłą historią, odporną na dalsze zmiany nazw.
-- Musi być **idempotentna** (`UNIQUE(booking_id, night_key)` + pomijanie rezerwacji,
-  które wiersze już mają) i wykonywana pod lockiem eventu, bo zmienia popyt widziany
-  przez pule.
-- Akcja jest jawna, nie odpalana z zapisu konfiguracji: zapis configu nie może po cichu
-  przepisywać rezerwacji.
-- Dopóki dosypania nie zrobiono, admin **liczy i pokazuje**, ile aktywnych rezerwacji nie
-  jest widzianych przez pule dobowe.
+- Idempotentna na poziomie `(booking, doba)`, nie „pomiń rezerwacje, które mają
+  jakiekolwiek wiersze". Inaczej pakiet, który **dostał drugą dobę** po dosypaniu,
+  zostawiłby stare rezerwacje policzone tylko w pierwszej.
+- Licznik „nie widziane przez pule dobowe" liczy rezerwacje z **niepełnym** pokryciem dób
+  swojego pakietu, nie tylko te z zerowym. Inaczej byłby ślepy na ten sam przypadek.
+- Wykonywana pod lockiem eventu; jawna, nie odpalana z zapisu konfiguracji.
+- `seats` dla dosypywanych wierszy bierze się z zapisanego bookingu, nie przelicza
+  z bieżącej konfiguracji.
 - **Jeśli event nie zdążył zebrać żadnej rezerwacji z noclegiem**, ta część jest martwa
   i może wypaść z zakresu (jeden task mniej) — do potwierdzenia przed planem.
 
 ## Model bazy
 
-Nowa tabela potomna, `Migrations::DB_VERSION` → `7`:
+`Migrations::DB_VERSION` → `7`. Nowa tabela potomna + jedna kolumna na bookingu.
 
 ```sql
 CREATE TABLE {prefix}evreg_booking_nights (
@@ -358,197 +392,175 @@ CREATE TABLE {prefix}evreg_booking_nights (
 ) ENGINE=InnoDB
 ```
 
-- **Dlaczego osobne wiersze, a nie JSON na bookingu:** zajętość musi dać się policzyć
-  jednym `GROUP BY` pod lockiem, tą samą drogą co dziś. JSON wymuszałby wczytanie
-  wszystkich bookingów i liczenie w PHP, czyli wyjście z wzorca „liczymy w SQL pod lockiem".
-- **Dlaczego `seats` jest też tutaj**, choć stoi już na bookingu: pula dobowa liczy
-  `SUM(seats)` po wierszach dób, a wiersz ma być samowystarczalny dla zapytania
-  liczącego — bez JOIN-a do bookingu po liczbę łóżek. Wartość jest zapisywana raz,
-  w tej samej transakcji, i nigdy nie rozjeżdża się z bookingiem (jedna ścieżka zapisu).
-- **Dlaczego `registration_id` jest zdenormalizowany** (booking jest 1:1 ze zgłoszeniem):
-  ścieżka `occupancyExcluding(event, exclude_id)` i twarde kasowanie zgłoszenia filtrują
-  po zgłoszeniu; bez tej kolumny każda z nich dokładałaby drugi JOIN.
-- **`night_label` to snapshot**, dokładnie jak `package_label`/`room_label` od 0.1.14:
-  zmiana nazwy doby w konfiguracji nie może przepisać historii.
-- Eraser prywatności **nie tyka** tych wierszy: nie zawierają danych osobowych, a ich
-  usunięcie rozjechałoby zajętość (ta sama zasada, dla której eraser zostawia status,
-  typ, cenę i daty).
-- `Uninstaller::TABLES` dostaje nową nazwę (dziś cztery tabele, będzie pięć).
-  Bramka `evreg_delete_data_on_uninstall` bez zmian.
+`evreg_accommodation_bookings` dostaje `sale varchar(10) NOT NULL DEFAULT 'bed'`.
+
+- **Osobne wiersze, nie JSON:** zajętość musi dać się policzyć jednym `GROUP BY` pod
+  lockiem, tą samą drogą co dziś.
+- **`seats` jest też tutaj**, choć stoi na bookingu: zapytanie liczące pakuje łóżka
+  i rozdziela rezerwacje pełne od luźnych, więc wiersz musi być samowystarczalny, bez
+  JOIN-a po liczbę łóżek. Zapisywany raz, w tej samej transakcji co booking.
+- **`registration_id` zdenormalizowany** (booking jest 1:1 ze zgłoszeniem), bo
+  `occupancyExcluding` i twarde kasowanie filtrują po zgłoszeniu.
+- **`night_label` to snapshot**, jak `package_label`/`room_label` od 0.1.14.
+- Eraser prywatności **nie tyka** tych wierszy (brak danych osobowych; usunięcie
+  rozjechałoby zajętość) — jak zostawia status, typ, cenę i daty.
+- `Uninstaller::TABLES` dostaje nową nazwę (cztery tabele → pięć).
 
 ## Domena
 
-Nowe i zmienione obiekty w `src/Domain/Accommodation/` oraz `src/Domain/Capacity/`:
-
 - **`Night`** (nowy): `key`, `label`, `fromArray`, `toArray` — bliźniak `Package`.
-- **`Package`**: nowe pole `nights` (`string[]`, domyślnie pusta tablica) +
-  `usesNightPools(): bool`.
-- **`RoomType`**: `occupancy` ustępuje parze `beds` + `sale`; `seats()` i
-  `companionMismatch()` wyprowadzają reguły z tej pary (tabele w „Model pokoju").
-- **`RoomOccupancy::seats( int $beds, string $sale, bool $companion ): int`** — nadal
-  **jedyny dom reguły**. Delegują do niej `RoomType::seats`,
-  `AccommodationConfig::seatsFor`, `CapacityLimits::seatsForSlot` i lustro `seatsFor`
-  w `form.js`.
-- **`AccommodationConfig`**: `nights()`, `nightLabel()` (fallback na surowy klucz, jak
-  `packageLabel`), `nightsForPackage()`, `usesNightPools( string $package_key )`,
-  oraz pojemności dobowe **przeliczone na łóżka** (`limit_pokoi × beds`) jako mapa
-  `"doba|pokój" => łóżka`. Przeliczenie siedzi tu, nie w kalkulatorze — kalkulator
-  porównuje łóżka z łóżkami.
-- **`OccupancySnapshot`**: nowa mapa `perNightRoom` (`"doba|pokój"` → zajęte łóżka)
-  + akcesor. Konstruktor dostaje ją jako kolejny parametr z domyślną pustą tablicą.
-- **`CapacityLimits`**: mapy pojemności dobowych (w łóżkach) i `pakiet → doby`, oba jako
-  parametry z domyślną pustą tablicą (wzorem `perSlotSeats` z B-occupancy).
-- **`CapacityCalculator::decide`**: gdy pakiet selekcji ma doby, bramka noclegowa
-  dla **każdej** doby sprawdza `zajęte_łóżka + seats > pojemność_łóżek`. Brak pojemności
-  dla pary `(doba, pokój)` = brak miejsc (spójnie z dzisiejszym `null === $slot_limit`).
-  Pierwsza wyczerpana doba kończy sprawdzanie i daje `accommodation_full`. Limit globalny
-  i limit typu bez zmian, przed bramką noclegową, jak teraz.
-- **`SlotAvailability`**: `fromSnapshot` czyta też pule dobowe; `left( $slot )` dla
-  pakietu z dobami = minimum `(pojemność - zajęte)` po dobach, w łóżkach;
-  `isFull( $slot, $seats )` zachowuje parametr i znaczenie. Tryb zgodności bez zmian.
-
-Cała ta arytmetyka jest czysta i testowalna bez WordPressa — tam mieszkają testy
-jednostkowe obu przykładów prowadzących.
+- **`Package`**: `nights` (`string[]`, domyślnie pusta) + `usesNightPools()`.
+- **`RoomType`**: `occupancy` → `beds`; `seats( string $sale, bool $companion )`;
+  `companionMismatch( string $sale, bool $companion )`.
+- **`InventoryItem`**: `sale` + `slotKey()` wg reguły wyżej.
+- **`RoomOccupancy::seats( int $beds, string $sale, bool $companion )`** — jedyny dom
+  reguły łóżek.
+- **`NightOccupancy`** (nowy, czysty): jedyny dom arytmetyki pokoi —
+  `roomsUsed( int $full, int $looseSeats, int $beds ): int` oraz
+  `fits( int $full, int $looseSeats, int $beds, int $limit, int $seats ): bool`.
+  Trzymane osobno od `RoomOccupancy`, bo to inna reguła (pakowanie), i obie mają być
+  testowalne wprost.
+- **`OccupancySnapshot`**: mapa `perNightRoom` z **parą** liczb (`full`, `looseSeats`)
+  per `"doba|pokój"` + akcesor. Konstruktor dostaje ją jako kolejny parametr z domyślną
+  pustą tablicą.
+- **`CapacityLimits`**: mapy `nightRoomCapacity` (w pokojach), `packageNights`,
+  `roomBeds` — wszystkie z domyślną pustą tablicą (wzorem `perSlotSeats` z B-occupancy).
+- **`CapacityCalculator::decide`**: gdy pakiet oferty ma doby, dla **każdej** doby woła
+  `NightOccupancy::fits(...)`; pierwsza niepasująca kończy sprawdzanie i daje
+  `accommodation_full`. Limit globalny i limit typu bez zmian, przed bramką noclegową.
+- **`SlotAvailability`**: `fromSnapshot` czyta pule dobowe; `left()` i `isFull()` wg
+  sekcji „Dostępność i komunikaty". Tryb zgodności bez zmian.
 
 ## Ścieżki transakcyjne
 
-Trzy i tylko trzy miejsca liczą i zapisują zajętość, wszystkie w `ReservationService`:
-`reserve`, `editAnswers`, `promoteFromWaitlist`. Każda:
+`reserve`, `editAnswers`, `promoteFromWaitlist` w `ReservationService`. Każda:
 
 1. `lockEvent($event_id)` **przed** pierwszym odczytem zajętości (bez zmian),
-2. buduje `CapacityLimits` z pojemnościami dobowymi i mapą `pakiet → doby`,
-3. `decide(...)` jak dziś, już świadome dób,
-4. przy przyznanym noclegu wstawia booking **oraz** wiersze dób (z `seats`) w tej samej
-   transakcji,
-5. przy pełnej puli: `reserve` robi ROLLBACK i zwraca `accommodationFull`;
-   `editAnswers` odrzuca edycję (`accommodationFull`); `promoteFromWaitlist` awansuje,
-   ale zwraca `promoted_no_accommodation`.
+2. buduje `CapacityLimits` z mapami dobowymi, `packageNights` i `roomBeds`,
+3. `decide(...)`, już świadome dób,
+4. przy przyznanym noclegu wstawia booking (z `sale`) **oraz** wiersze dób (z `seats`)
+   w tej samej transakcji,
+5. przy pełnej puli: `reserve` → ROLLBACK + `accommodationFull`; `editAnswers` →
+   odrzucenie edycji; `promoteFromWaitlist` → awans z `promoted_no_accommodation`.
 
-`editAnswers` ma dodatkową regułę z B-occupancy, która musi objąć doby: edycja **nie
-zmieniająca** ani slotu, ani flagi towarzyszącej zachowuje zapisane miejsca, cenę
-**i zapisane wiersze dób** — nie przelicza ich i nie przechodzi bramki slotowej. Bez
-tego niezwiązana edycja starego zgłoszenia przepisywałaby mu doby według bieżącej
-konfiguracji pakietu, czyli dokładnie to, czego zakazuje anty-cel.
+`editAnswers`: edycja **nie zmieniająca** ani slotu, ani flagi towarzyszącej zachowuje
+zapisane miejsca, cenę **i wiersze dób** — nie przelicza ich i pomija bramkę slotową.
 
-Zapisany booking jest czytany **pod lockiem** (`lockEvent` → `findAccommodationBooking`
-→ `occupancy*`), bez zmian wobec dzisiejszego stanu.
+Booking czytany **pod lockiem** (`lockEvent` → `findAccommodationBooking` → `occupancy*`).
 
 ## Repozytorium (jedyne SQL)
 
-`RegistrationRepository`:
-
-- `occupancy(event, statuses)` i `occupancyExcluding(event, statuses, exclude_id)`
-  dostają dodatkowe zapytanie o pule dobowe:
-  `SELECT CONCAT(n.night_key,'|',n.room_type_key) AS slot, SUM(n.seats) AS c
-   FROM {booking_nights} n INNER JOIN {registrations} r ON n.registration_id = r.id
-   WHERE r.event_id = %d AND r.status IN (...) GROUP BY slot`
-  (wariant `Excluding` dokłada `AND r.id != %d`). Dotychczasowe zapytanie o pule
-  slotowe **zostaje** — tryb zgodności z niego żyje.
-- `insertAccommodationBooking` wstawia też wiersze dób; potrzebuje `insert_id` bookingu.
-- **Wiersze dób giną razem z bookingiem na KAŻDEJ ścieżce**, która dziś kasuje booking,
-  nie tylko przy twardym usunięciu zgłoszenia: `cancel`, `editAnswers` (zmiana slotu),
-  `promoteFromWaitlist` i `deleteRegistration`. Pominięcie choćby jednej zostawia popyt
-  na pulach dobowych po rezerwacji, która już ich nie zajmuje — czyli trwale zaniżoną
-  dostępność. Najprościej: kasowanie dób siedzi w tej samej metodzie repozytorium, co
-  kasowanie bookingu, żeby nie dało się wywołać jednego bez drugiego.
-- Metoda odczytu dób zapisanej rezerwacji (do detalu zgłoszenia i eksportu).
-- Zapytanie dla dosypania dób: aktywne rezerwacje danego pakietu bez wierszy dób.
+- `occupancy` / `occupancyExcluding` dostają zapytanie o pule dobowe, rozdzielające
+  rezerwacje pełne od luźnych; `beds` do porównania przychodzi z konfiguracji, więc
+  zapytanie zwraca `GROUP BY night_key, room_type_key, seats`, a agregacja w parę
+  (`full`, `looseSeats`) odbywa się nad kilkunastowierszowym wynikiem. Dotychczasowe
+  zapytanie slotowe **zostaje** — tryb zgodności z niego żyje.
+- `insertAccommodationBooking` wstawia też wiersze dób; potrzebuje `insert_id`.
+- **Wiersze dób giną razem z bookingiem na KAŻDEJ ścieżce**, która go kasuje: `cancel`,
+  `editAnswers` (zmiana slotu), `promoteFromWaitlist`, `deleteRegistration`. Kasowanie
+  dób siedzi w tej samej metodzie repozytorium co kasowanie bookingu, żeby nie dało się
+  wywołać jednego bez drugiego.
+- Bulk odczyt dób dla wielu rezerwacji (wzorem `accommodationBookingsFor`), żeby eksport
+  nie robił N+1.
+- Zapytanie dla dosypania dób: aktywne rezerwacje pakietu z brakującymi dobami.
 
 ## Admin (React)
 
-Zakładka „Noclegi" (`AccommodationTab.jsx`), logika w `accommodationOps.js`:
-
-- **Pokój** dostaje dwa pola zamiast dzisiejszej „Liczby osób": **„Łóżka"** (1 / 2 /
-  nieustawione) i **„Sprzedaż"** (cały pokój / na łóżka). „Cały pokój" jest wyłączone,
-  gdy event nie dopuszcza osoby towarzyszącej (sprzeczność z „Zgodność w tył");
-  „preferowany współlokator" wyłączone przy „cały pokój".
+- **Pokój**: „Łóżka" (1 / 2 / nieustawione) zamiast „Liczby osób"; „preferowany
+  współlokator" aktywne tylko gdy pokój jest w jakiejkolwiek ofercie `sale = bed`
+  i `beds > 1`.
+- **Oferta**: macierz `pakiet × pokój` zyskuje wariant sprzedaży — ten sam pokój może
+  wystąpić dwa razy z różną ceną. Przy cenie napisane wprost, że jest **za łóżko**.
+  Komórka pojemności wyszarzona z notką, gdy pakiet ma doby.
 - **Lista dób** (dodaj / usuń / klucz / etykieta) — bliźniak listy pakietów.
-- **Pakiet dostaje wybór dób** (wielokrotny). Pakiet bez wybranych dób zostaje w trybie
-  zgodności i musi to komunikować wprost, nie milczeniem.
-- **Nowa macierz `doba × pokój`** z limitem **w pokojach**, z widoczną informacją, ile to
-  łóżek (`limit × beds`) — inaczej jednostka będzie zgadywana.
-- **Blokada: pakiet z dobami × pokój bez ustawionych łóżek** w momencie ustawiania, nie
-  dopiero przy zapisie.
-- **Istniejąca macierz `pakiet × pokój`** zostaje przy cenie (za łóżko — napisać wprost);
-  komórka pojemności wyszarzona z notką, gdy pakiet ma doby.
-- **Akcja „przypisz doby istniejącym rezerwacjom"** z liczbą rezerwacji, których dotyczy,
-  i jawnym potwierdzeniem.
-- Ostrzeżenia o rozjeździe (jak dzisiejsze o zmianie klucza pakietu): usunięcie doby, do
-  której odwołują się pakiety albo bookingi; zdjęcie dób z pakietu (z limitem, który
-  wraca do gry, i liczbą rezerwacji dalej liczonych dobowo).
+- **Pakiet**: wybór dób (wielokrotny). Pakiet bez dób komunikuje tryb zgodności wprost.
+- **Macierz `doba × pokój`**: limit w pokojach, obok informacja, ile to łóżek
+  (`limit × beds`). Macierz pokrywa wszystkie pokoje × doby; **dodanie doby zamyka
+  każdy pokój, dopóki jej wiersz nie jest wypełniony** i musi to powiedzieć tak samo
+  głośno, jak ostrzeżenie przy usuwaniu doby.
+- **Akcja „przypisz doby istniejącym rezerwacjom"** z liczbą rezerwacji i jawnym
+  potwierdzeniem.
+- **Ostrzeżenia**: oferta z dobami nad pokojem bez łóżek; `sale = whole` przy wyłączonej
+  towarzyszącej; usunięcie doby, do której odwołują się pakiety albo bookingi; zdjęcie
+  dób z pakietu; współistnienie pakietów z dobami i bez nad tym samym pokojem.
 
 `EventConfigController::sanitize` jest generyczny i rekurencyjny, więc nowe klucze
-przechodzą bez zmian — do potwierdzenia testem, nie założeniem.
+przechodzą bez zmian — do potwierdzenia testem.
 
 ### Panel obłożenia
 
-`RegistrationsOverview::render_slots()` pokazuje dziś „Noclegi (miejsca)" z
-`OccupancyReport::slots()`, które bierze `taken/capacity/free` wprost z
-`InventoryItem::capacity`. Dla pakietu z dobami ta liczba jest uśpiona, więc panel
-pokazywałby „wolne 0", podczas gdy formularz te pokoje sprzedaje. To jest **ta
-powierzchnia, na którą patrzy organizator**, więc cel 5 obejmuje ją wprost:
+`RegistrationsOverview::render_slots()` bierze dziś `taken/capacity/free` wprost
+z `InventoryItem::capacity`, która dla pakietu z dobami jest uśpiona — panel pokazywałby
+„wolne 0", gdy formularz te pokoje sprzedaje. To powierzchnia, na którą patrzy
+organizator, więc cel 6 obejmuje ją wprost:
 
-- `OccupancyReport` dostaje czystą metodę zwracającą obłożenie per `(doba × pokój)`:
-  limit w pokojach, pojemność i zajętość w łóżkach, wolne łóżka. `report()` buduje dziś
-  `CapacityLimits` bez map dobowych — musi je dostać.
-- Admin renderuje nową tabelę „Noclegi per doba".
-- Wiersze slotowe pakietów z dobami są oznaczone jako nieobowiązujące, zamiast pokazywać
-  mylące zero.
-- Liczba aktywnych rezerwacji niewidzianych przez pule dobowe jest pokazana tutaj, nie
-  tylko w zakładce konfiguracji.
+- `OccupancyReport` dostaje czystą metodę per `(doba × pokój)`: limit w pokojach, pokoje
+  zajęte (pełne + spakowane luźne), wolne pokoje i wolne luźne łóżka.
+- Admin renderuje tabelę „Noclegi per doba".
+- Wiersze slotowe pakietów z dobami oznaczone jako nieobowiązujące, zamiast mylącego zera.
+- Liczba rezerwacji z niepełnym pokryciem dób **wstrzykiwana** do raportu (nie odpytywana
+  z czystej domeny) i pokazana tutaj.
 
 ## Wielojęzyczność
 
-Etykiety dób są tłumaczalne per język jak pakiety i pokoje (B6): overlay
+Etykiety dób tłumaczalne per język jak pakiety i pokoje (B6): overlay
 `_evreg_i18n[lang].accommodation` zyskuje bucket `nights: { key: label }`,
-`ContentTranslator::translateAccommodation` nakłada go przed `SchemaAssembler`,
-a nowy bucket musi wejść do `translatableItems` i do whitelisty `langBucket`
-(`accommodation` już jest). Tłumaczone są **tylko etykiety** — klucze, pojemności, liczby
-łóżek i ceny nietknięte.
+`ContentTranslator::translateAccommodation` nakłada go przed `SchemaAssembler`, a bucket
+wchodzi do `translatableItems`. Tylko etykiety — klucze, pojemności, łóżka i ceny
+nietknięte.
 
-## Render publiczny
+## Render publiczny i lustro
 
-Lista pozycji `(pakiet × pokój)` wygląda jak dziś. Zmienia się tylko źródło sądu
-„zamknięte":
+Lista ofert wygląda jak dziś. Zmienia się źródło sądu „zamknięte" oraz **kontrakt DOM**,
+bo dzisiejsze jedno `data-evreg-occupancy` nie wyraża nowych reguł:
+`beds = 2, sale = bed` bez towarzyszącej musi być poprawne, a dziś `occupancy = 2` znaczy
+niespójność.
 
-- wyczerpana pozycja dostaje `disabled` + dopisek `(brak miejsc)` / `(za mało miejsc)`
-  i **nigdy nie renderuje się jako `checked`** (inwariant B-slots: `disabled` nie wysyła
-  wartości, więc zaznaczony-i-wyłączony radio dałby po submicie pusty `[slot]`, czyli
-  ciche „Bez noclegu"),
-- `data-evreg-seats-left` niesie minimum po dobach, w łóżkach,
-- `form.js` zostaje bez zmian: `seatsFor` liczy potrzebne łóżka z `beds`/`sale` i flagi
-  towarzyszącej, dokładnie jak dziś z `occupancy`.
+- Wiersz oferty emituje `data-evreg-beds` **i** `data-evreg-sale` (zamiast
+  `data-evreg-occupancy`), plus `data-evreg-seats-left` z minimum po dobach.
+- `form.js` dostaje przepisane **dwie** reguły: lustro `seats` (`RoomOccupancy`) i lustro
+  niespójności (`companionMismatch`). To **zmiana w `form.js`**, nie „bez zmian" —
+  wcześniejsza wersja tego speca twierdziła inaczej i była w tym miejscu zwyczajnie zła.
+- Wyczerpana oferta dostaje `disabled` + dopisek i **nigdy nie renderuje się jako
+  `checked`** (inwariant B-slots: `disabled` nie wysyła wartości, więc zaznaczony-
+  i-wyłączony radio dałby po submicie pusty `[slot]`, czyli ciche „Bez noclegu").
+- Inwariant lustra w `CLAUDE.md` przeredagowany na parę `beds`/`sale`.
 
-Nazwanie blokującej doby w komunikacie („brak miejsc w nocy 19/20") byłoby miłe, ale
-to osobna decyzja produktowa — nie wchodzi w ten projekt.
+Nazwanie blokującej doby w komunikacie („brak miejsc w nocy 19/20") — osobna decyzja
+produktowa, poza zakresem.
 
 ## Eksport i detal zgłoszenia
 
-Doby zapisane na rezerwacji są pokazywane organizatorowi w dwóch miejscach:
+- **Detal zgłoszenia**: doby obok pakietu i pokoju, z etykiet zapisanych na wierszach;
+  wariant sprzedaży widoczny.
+- **Eksport CSV**: nowa kolumna „Doby" w `RegistrationExportMapper::accommodationCells`
+  (czysta domena, własne testy), zasilana bulk odczytem. Lista kwaterunkowa dla hotelu
+  powstaje z eksportu, nie z klikania po detalach.
 
-- **detal zgłoszenia** — obok pakietu i pokoju, z etykiet zapisanych na wierszach,
-- **eksport CSV** — nowa kolumna „Doby" w `RegistrationExportMapper::accommodationCells`
-  (czysta domena, więc i własne testy). To praktyczny artefakt tej potrzeby: lista
-  kwaterunkowa dla hotelu powstaje z eksportu, nie z klikania po detalach.
-
-Mail i szablony bez zmian — nie dochodzi żaden placeholder.
+Mail i szablony bez zmian — żaden placeholder nie dochodzi.
 
 ## Co zostaje builderowi
 
-- Nazwy metod i klas trzymają konwencję repo (camelCase na obiektach wartości).
-  `sale` jako string vs enum — decyzja buildera, ale wartości walidowane w jednym miejscu.
-- Kolejność tasków i granice commitów.
-- Czy mapa `pakiet → doby` w `CapacityLimits` to osobny obiekt wartości, czy tablica.
-- Kształt testów, pod warunkiem że pokrywają: oba przykłady prowadzące (w szczególności
-  **samotny uczestnik w dwójce na łóżka zdejmujący jedno łóżko, z drugim dalej
-  sprzedawalnym**); pakiet dwudobowy blokowany przez **drugą** dobę (nie pierwszą);
-  towarzyszącą odbijaną przez dobę z jednym wolnym łóżkiem; mapowanie legacy `occupancy`
-  → `beds`/`sale` dla wszystkich trzech wartości; sprzeczność „cały pokój" przy
-  wyłączonej towarzyszącej; odmowę „pakiet z dobami × pokój bez łóżek"; tryb zgodności
-  bez regresji; edycję niezmieniającą slotu; awans z waitlisty przy wyczerpanej dobie;
-  dosypanie dób uruchomione dwa razy pod rząd (idempotencja); kasowanie wierszy dób na
-  każdej ścieżce kasującej booking; panel obłożenia dla pakietu z dobami; oraz to, że
-  `lockEvent` poprzedza każdy odczyt zajętości.
-- Dopisek do `CLAUDE.md`: pule dobowe, para `beds`/`sale` zastępująca `occupancy`
-  (wraz z **przeredagowaniem akapitu B-occupancy**, który opisuje dzisiejsze zerowanie),
-  inwariant podaży/popytu. Wpis do `CHANGELOG.md` w `## [Unreleased]`.
+- Nazwy metod i klas wg konwencji repo; `sale` jako string czy enum (walidowane w jednym
+  miejscu).
+- Kolejność tasków i granice commitów; kształt map w `CapacityLimits`.
+- Kształt testów, pod warunkiem że pokrywają:
+  - oba przykłady prowadzące, w szczególności **31 dwójek sprzedawanych jednocześnie na
+    całe pokoje i na łóżka z jednej puli**;
+  - **para nie dostaje dwóch luźnych łóżek z dwóch pokojów** (błąd v2);
+  - **samotny w dwójce zdejmuje jedno łóżko, drugie dalej sprzedawalne** (błąd v1);
+  - pakowanie: trzy samotne łóżka w dwójkach = dwa pokoje zajęte;
+  - pakiet dwudobowy blokowany przez **drugą** dobę, nie pierwszą;
+  - mapowanie legacy `occupancy` → `beds` dla wszystkich trzech wartości, z zachowaniem
+    dzisiejszej arytmetyki w trybie zgodności;
+  - `sale = whole` przy wyłączonej towarzyszącej (zamknięte, nie podwojone);
+  - normalizację `sale = whole` przy `beds = 1`;
+  - ofertę z dobami nad pokojem bez łóżek (zamknięta, **bez** wyjątku z `fromArray`);
+  - slot `pakiet|pokój` dla `sale = bed` trafiający w zapisane bookingi trybu zgodności;
+  - dosypanie dób: dwa razy pod rząd oraz pakiet, który dostał drugą dobę po dosypaniu;
+  - kasowanie wierszy dób na każdej ścieżce kasującej booking;
+  - panel obłożenia dla pakietu z dobami;
+  - `lockEvent` poprzedzający każdy odczyt zajętości.
+- Dopisek do `CLAUDE.md`: pule dobowe, `beds` + `sale` zamiast `occupancy` (z
+  **przeredagowaniem akapitu B-occupancy**), arytmetyka pakowania, inwariant
+  podaży/popytu, nowy kontrakt DOM lustra. Wpis do `CHANGELOG.md` w `## [Unreleased]`.
