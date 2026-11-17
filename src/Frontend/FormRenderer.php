@@ -33,10 +33,14 @@ final class FormRenderer {
 	 *
 	 * @param SlotAvailability|null $availability   Dostępność miejsc w slotach albo null.
 	 * @param NightOccupancy|null   $nightOccupancy Zajętość dób (tryb „doby”); null = wszystkie doby wolne.
+	 * @param NightsConfig|null     $nights         Konfiguracja trybu „doby” rozstrzygnięta u wejścia
+	 *                                              (NightsResolver); null = tryb klasyczny. Nigdy „niepoprawna” —
+	 *                                              ta zatrzymuje się u wejścia, renderer sam fromArray nie woła.
 	 */
 	public function __construct(
 		private readonly ?SlotAvailability $availability = null,
-		private readonly ?NightOccupancy $nightOccupancy = null
+		private readonly ?NightOccupancy $nightOccupancy = null,
+		private readonly ?NightsConfig $nights = null
 	) {
 	}
 
@@ -201,9 +205,8 @@ final class FormRenderer {
 	 */
 	private function renderCompanion( Field $field, ?SubmitResult $result ): string {
 		// Jedno rozgałęzienie po trybie: „doby” czyta flagę z NightsConfig, bez AccommodationConfig.
-		$nights  = NightsConfig::fromArray( $field->config );
-		$enabled = $nights->isNights()
-			? $nights->companionEnabled()
+		$enabled = null !== $this->nights
+			? $this->nights->companionEnabled()
 			: AccommodationConfig::fromArray( $field->config )->companionEnabled();
 		if ( ! $enabled ) {
 			return '';
@@ -385,9 +388,8 @@ final class FormRenderer {
 	 * @param bool  $companion Czy odtwarzana submisja ma osobę towarzyszącą.
 	 */
 	private function renderAccommodation( Field $field, mixed $value, bool $companion = false ): string {
-		$nights = NightsConfig::fromArray( $field->config );
-		if ( $nights->isNights() ) {
-			return $this->renderNights( $field, $nights, $value, $companion );
+		if ( null !== $this->nights ) {
+			return $this->renderNights( $field, $this->nights, $value, $companion );
 		}
 
 		$config = $field->config;
@@ -649,8 +651,8 @@ final class FormRenderer {
 	 * @param string $code  Kod błędu.
 	 */
 	private function fieldErrorMessage( Field $field, string $code ): string {
-		if ( str_starts_with( $code, 'night_full:' ) && FieldType::Accommodation === $field->type ) {
-			$label = NightsConfig::fromArray( $field->config )->nightLabel( substr( $code, strlen( 'night_full:' ) ) );
+		if ( null !== $this->nights && str_starts_with( $code, 'night_full:' ) && FieldType::Accommodation === $field->type ) {
+			$label = $this->nights->nightLabel( substr( $code, strlen( 'night_full:' ) ) );
 
 			/* translators: %s: etykieta doby noclegowej. */
 			return sprintf( __( 'Doba „%s” nie ma już wolnych miejsc dla Twojego zgłoszenia. Odznacz ją albo wybierz inne doby.', 'event-registration' ), $label );

@@ -11,6 +11,7 @@ namespace EvReg\Frontend;
 
 use EvReg\Domain\Accommodation\AccommodationConfig;
 use EvReg\Domain\Schema\FormSchema;
+use EvReg\Domain\Schema\SchemaException;
 use EvReg\Services\ReservationRequest;
 use EvReg\Services\ReservationService;
 
@@ -150,7 +151,15 @@ final class SubmitHandler {
 			return SubmitResult::configError();
 		}
 
-		$assembled = ( new SubmissionAssembler() )->assemble( $schema, $post );
+		// Tryb „doby” rozstrzygamy RAZ, tu, u wejścia: niepoprawna konfiguracja dób
+		// (np. zduplikowany klucz) nie może dotrzeć do asemblera ani walidatora.
+		try {
+			$nights = NightsResolver::forSchema( $schema );
+		} catch ( SchemaException ) {
+			return SubmitResult::configError();
+		}
+
+		$assembled = ( new SubmissionAssembler() )->assemble( $schema, $post, $nights );
 		if ( ! $assembled->isValid() ) {
 			return SubmitResult::invalid( $assembled->errors(), $assembled->values() );
 		}
@@ -187,7 +196,7 @@ final class SubmitHandler {
 			// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
 			error_log( 'evreg reservation failed: ' . $e->getMessage() );
 
-			return SubmitResult::failure();
+			return SubmitResult::failure( $assembled->rawAnswers() );
 		}
 
 		// Wybrany nocleg zajęty w wyścigu: zgłoszenie nie zostało zapisane, więc wracamy

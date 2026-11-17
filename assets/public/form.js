@@ -151,7 +151,7 @@
 	// brakuje miejsc dla potrzebnej liczby osób albo gdy para nie mieści się w limicie par.
 	// Dotyczy WYŁĄCZNIE checkboxów z data-evreg-night-seats-left; lustro trybu klasycznego
 	// (seatsFor, applySlotState) nie dotyka tych elementów i odwrotnie.
-	function applyNightState( form ) {
+	function applyNightState( form, event ) {
 		var checkbox = form.querySelector( 'input[name="evreg_companion"]' );
 		var companion = !! ( checkbox && checkbox.checked );
 		var needed = companion ? 2 : 1;
@@ -184,8 +184,15 @@
 		} );
 
 		var droppedNote = form.querySelector( '.evreg-nights-dropped' );
-		// Przy starcie nie chowamy komunikatu wyrenderowanego przez serwer po błędzie POST.
-		if ( droppedNote && dropped ) { droppedNote.hidden = false; }
+		if ( ! droppedNote ) { return; }
+		if ( dropped ) {
+			droppedNote.hidden = false;
+		} else if ( event && event.target && event.target.matches
+			&& event.target.matches( 'input[data-evreg-night-seats-left]' ) && event.target.checked ) {
+			// Użytkownik świadomie zaznaczył dostępną dobę — stara notka przestaje być prawdą.
+			// Przy starcie (bez zdarzenia) nie chowamy notki wyrenderowanej przez serwer po błędzie POST.
+			droppedNote.hidden = true;
+		}
 	}
 
 	// Programowe el.checked = false w applySlotState NIE emituje zdarzenia `change`,
@@ -202,11 +209,11 @@
 		applySlotState( form, false );
 		applyNightState( form );
 		refreshAccommodation( form );
-		form.addEventListener( 'change', function () {
+		form.addEventListener( 'change', function ( e ) {
 			apply( form );
 			applyCompanion( form );
 			applySlotState( form, true );
-			applyNightState( form );
+			applyNightState( form, e );
 			refreshAccommodation( form );
 		} );
 		form.addEventListener( 'input', function () { apply( form ); } );

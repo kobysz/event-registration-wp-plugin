@@ -10,6 +10,7 @@ use EvReg\Domain\Registration\RegistrationStatus;
 use EvReg\Domain\Schema\FormSchema;
 use EvReg\Frontend\EventFormLoader;
 use EvReg\Frontend\FormRenderer;
+use EvReg\Frontend\NightsResolver;
 use EvReg\Frontend\Shortcode;
 use EvReg\Frontend\SubmissionAssembler;
 use EvReg\Frontend\SubmitHandler;
@@ -91,7 +92,9 @@ final class NightFormTest extends WP_UnitTestCase {
 	}
 
 	private function render( ?SubmitResult $result = null, ?NightOccupancy $occupancy = null ): string {
-		return ( new FormRenderer( null, $occupancy ) )->render( $this->schema(), $this->event_id, $result );
+		$schema = $this->schema();
+
+		return ( new FormRenderer( null, $occupancy, NightsResolver::forSchema( $schema ) ) )->render( $schema, $this->event_id, $result );
 	}
 
 	private function handler(): SubmitHandler {
@@ -173,7 +176,8 @@ final class NightFormTest extends WP_UnitTestCase {
 	public function test_submit_extracts_the_selected_night_keys(): void {
 		$assembled = ( new SubmissionAssembler() )->assemble(
 			$this->schema(),
-			$this->post( 'a@example.com', array( 'n1920', 'n1819', 'n1819', 'bogus' ) )
+			$this->post( 'a@example.com', array( 'n1920', 'n1819', 'n1819', 'bogus' ) ),
+			NightsResolver::forSchema( $this->schema() )
 		);
 
 		$this->assertTrue( $assembled->isValid() );
@@ -191,7 +195,7 @@ final class NightFormTest extends WP_UnitTestCase {
 	}
 
 	public function test_empty_selection_is_still_a_supplied_selection(): void {
-		$assembled = ( new SubmissionAssembler() )->assemble( $this->schema(), $this->post( 'a@example.com', array() ) );
+		$assembled = ( new SubmissionAssembler() )->assemble( $this->schema(), $this->post( 'a@example.com', array() ), NightsResolver::forSchema( $this->schema() ) );
 
 		$this->assertTrue( $assembled->isValid() );
 		$request = $assembled->request();
@@ -265,6 +269,10 @@ final class NightFormTest extends WP_UnitTestCase {
 		$result = $this->handler()->process( $this->event_id, $this->post( 'a@example.com', array( 'n1819', $long ) ) );
 		$wpdb->suppress_errors( false );
 
+		// Odpowiedzi przeżywają awarię: uczestnik nie wpisuje wszystkiego od nowa.
+		$this->assertSame( 'a@example.com', $result->submittedValue( 'email' ) );
+		$this->assertSame( array( 'nights' => array( 'n1819', $long ) ), $result->submittedValue( 'nocleg' ) );
+
 		ini_set( 'error_log', false === $prev ? '' : $prev ); // phpcs:ignore WordPress.PHP.IniSet.Risky
 		$log = (string) file_get_contents( $file );
 		unlink( $file );
@@ -279,6 +287,70 @@ final class NightFormTest extends WP_UnitTestCase {
 		$notice = (string) $method->invoke( null, $result );
 		$this->assertStringContainsString( 'evreg-notice', $notice );
 		$this->assertStringNotContainsString( 'Brak wolnych miejsc', $notice );
+	}
+
+	public function test_duplicate_night_key_degrades_to_unavailable_on_render_instead_of_fataling(): void {
+		$this->configure( array( 'nights' => $this->duplicateNights() ) );
+
+		$fatal = null;
+		$html  = '';
+		try {
+			$html = Shortcode::renderForm( $this->event_id );
+		} catch ( \Throwable $e ) {
+			$fatal = $e::class . ': ' . $e->getMessage();
+		}
+
+		$this->assertNull( $fatal, (string) $fatal );
+		$this->assertStringContainsString( '<p class="evreg-unavailable">Rejestracja jest niedostępna.</p>', $html );
+		$this->assertStringNotContainsString( '<form', $html );
+		$this->assertStringNotContainsString( 'nights', $html );
+	}
+
+	public function test_duplicate_night_key_makes_a_submit_return_config_error(): void {
+		$this->configure( array( 'nights' => $this->duplicateNights() ) );
+
+		$fatal  = null;
+		$result = null;
+		try {
+			$result = $this->handler()->process( $this->event_id, $this->post( 'a@example.com', array( 'n1819' ) ) );
+		} catch ( \Throwable $e ) {
+			$fatal = $e::class . ': ' . $e->getMessage();
+		}
+
+		$this->assertNull( $fatal, (string) $fatal );
+		$this->assertNotNull( $result );
+		$this->assertSame( 'config_error', $result->code() );
+		$this->assertFalse( $result->isSuccess() );
+
+		global $wpdb;
+		$this->assertSame( 0, (int) $wpdb->get_var( 'SELECT COUNT(*) FROM ' . Migrations::table( 'registrations' ) ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared
+	}
+
+	public function test_hostile_night_label_and_key_are_escaped_in_the_row_and_in_the_error_sentence(): void {
+		$label = '<script>alert("x")</script>';
+		$key   = 'k"><img src=x onerror=alert(1)>';
+		$this->configure( array( 'nights' => array( array( 'key' => $key, 'label' => $label, 'price' => 10.0, 'seats' => 3 ) ) ) );
+
+		$row = $this->render();
+		$this->assertStringNotContainsString( '<script>alert', $row );
+		$this->assertStringNotContainsString( '<img src=x', $row );
+		$this->assertStringContainsString( '&lt;script&gt;alert(', $row );
+		$this->assertStringContainsString( 'value="' . esc_attr( $key ) . '"', $row );
+
+		$error = $this->render( SubmitResult::invalid( array( 'nocleg' => 'night_full:' . $key ), array() ) );
+		$this->assertStringNotContainsString( '<script>alert', $error );
+		$this->assertStringNotContainsString( '<img src=x', $error );
+		$this->assertMatchesRegularExpression( '/evreg-error-msg[^>]*>[^<]*&lt;script&gt;alert\(/', $error );
+	}
+
+	/**
+	 * @return array<int,array<string,mixed>>
+	 */
+	private function duplicateNights(): array {
+		return array(
+			array( 'key' => 'n1819', 'label' => 'A', 'price' => 80.0, 'seats' => 2 ),
+			array( 'key' => 'n1819', 'label' => 'B', 'price' => 90.0, 'seats' => 4 ),
+		);
 	}
 
 	public function test_a_nights_event_with_stale_classic_data_still_renders(): void {
