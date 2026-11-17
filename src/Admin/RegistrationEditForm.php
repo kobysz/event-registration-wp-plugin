@@ -54,6 +54,7 @@ final class RegistrationEditForm {
 			}
 			$out .= self::renderRow( $field, $source[ $field->key ] ?? '', $nights );
 			if ( FieldType::Accommodation === $field->type ) {
+				$out .= self::renderNightsWishRow( $source, $nights );
 				$out .= self::renderCompanionRow( $field, $source, $errors, $nights );
 			}
 		}
@@ -300,13 +301,17 @@ final class RegistrationEditForm {
 
 		$out = '<div class="evreg-accommodation evreg-nights">';
 
+		// Wiersz to <div class="evreg-choice evreg-night"> z inputem i <label for> w środku —
+		// ten sam kształt co w formularzu publicznym. Div jest blokowy sam z siebie, więc
+		// układ nie wisi ani na stylu inline, ani na publicznym arkuszu (ekran edycji
+		// wciąga tylko skrypt evreg-public, nie styl): renderer emituje wyłącznie klasy-haki.
 		foreach ( $config->nights() as $index => $night ) {
 			$id = $base . $index;
 
-			$out .= '<label class="evreg-choice evreg-night" style="display:block;">'
+			$out .= '<div class="evreg-choice evreg-night">'
 				. '<input type="checkbox" id="' . esc_attr( $id ) . '" name="' . $name . '" value="' . esc_attr( $night->key ) . '"'
 				. checked( in_array( $night->key, $selected, true ), true, false ) . ' /> '
-				. esc_html( $night->label )
+				. '<label for="' . esc_attr( $id ) . '">' . esc_html( $night->label )
 				. ' <span class="description">'
 				. esc_html(
 					sprintf(
@@ -315,7 +320,7 @@ final class RegistrationEditForm {
 						number_format_i18n( $night->price, 2 )
 					)
 				)
-				. '</span></label>';
+				. '</span></label></div>';
 		}
 
 		if ( array() === $config->nights() ) {
@@ -323,6 +328,33 @@ final class RegistrationEditForm {
 		}
 
 		return $out . '</div>';
+	}
+
+	/**
+	 * Renderuje zastrzeżenie pod kontrolką dób, gdy zaznaczenie jest ŻYCZENIEM, a nie
+	 * przyznanym noclegiem (zgłoszenie bez zapisanych wierszy dób: lista rezerwowa,
+	 * awans bez przyznania, odmowa przy rezerwacji).
+	 *
+	 * Lustro zastrzeżenia „(nocleg nieprzyznany)" z detalu zgłoszenia — bez niego operator
+	 * widziałby ptaszki identyczne jak przy przyznanym noclegu i czytał je jako zajęte miejsca.
+	 *
+	 * Fakt podróżuje w `$source` pod zarezerwowanym kluczem `evreg_nights_granted` — tym samym
+	 * wzorem co `evreg_companion` (klucz spoza schematu dokładany przez `RegistrationsScreen`).
+	 * To WYŁĄCZNIE podpowiedź renderu, nie kontrolka: na ścieżce re-renderu błędu prefill
+	 * pochodzi z `values()`/`rawAnswers()`, gdzie tego klucza nie ma, więc zastrzeżenie
+	 * nie wychodzi — i słusznie, bo ptaszki są wtedy tym, co operator właśnie zaznaczył.
+	 *
+	 * @param array<string,mixed> $source Źródło prefill (submitted, w innym wypadku answers).
+	 * @param NightsConfig|null   $nights Konfiguracja trybu „doby” albo null (klasyczny).
+	 */
+	private static function renderNightsWishRow( array $source, ?NightsConfig $nights ): string {
+		if ( null === $nights || ! array_key_exists( 'evreg_nights_granted', $source ) || ! empty( $source['evreg_nights_granted'] ) ) {
+			return '';
+		}
+
+		return '<tr><td colspan="2"><p class="description evreg-nights-wish">'
+			. esc_html__( 'Nocleg nie jest przyznany — zaznaczone doby to życzenie zapisane w zgłoszeniu, nie zajęte miejsca.', 'event-registration' )
+			. '</p></td></tr>';
 	}
 
 	/**

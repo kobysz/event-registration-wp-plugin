@@ -95,8 +95,9 @@ final class NightAdminScreensTest extends WP_UnitTestCase {
 	 *
 	 * @param array<int,array<string,mixed>>|null $nights        Doby; null = domyślne dwie.
 	 * @param array<string,mixed>                 $accommodation Nadpisania bloku noclegu.
+	 * @param array<string,mixed>                 $settings      Nadpisania ustawień eventu.
 	 */
-	private function configure( ?array $nights = null, array $accommodation = array() ): void {
+	private function configure( ?array $nights = null, array $accommodation = array(), array $settings = array() ): void {
 		$nights = null === $nights
 			? array(
 				array(
@@ -160,7 +161,7 @@ final class NightAdminScreensTest extends WP_UnitTestCase {
 					),
 					$accommodation
 				),
-				'settings'      => array( 'waitlist_enabled' => false ),
+				'settings'      => array_merge( array( 'waitlist_enabled' => false ), $settings ),
 			)
 		);
 	}
@@ -180,8 +181,9 @@ final class NightAdminScreensTest extends WP_UnitTestCase {
 	 * @param string        $email     Adres e-mail.
 	 * @param array<string> $nights    Klucze wybranych dób.
 	 * @param bool          $companion Czy z osobą towarzyszącą.
+	 * @param string        $expected  Oczekiwany kod wyniku (`reserved` albo `waitlisted`).
 	 */
-	private function reserve( string $email, array $nights, bool $companion = false ): int {
+	private function reserve( string $email, array $nights, bool $companion = false, string $expected = 'reserved' ): int {
 		$selection = NightSelection::fromKeys( $nights, $this->nightsConfig() );
 
 		$result = $this->service->reserve(
@@ -203,7 +205,7 @@ final class NightAdminScreensTest extends WP_UnitTestCase {
 			)
 		);
 
-		$this->assertSame( 'reserved', $result->code, 'Rezerwacja na potrzeby testu musi się udać.' );
+		$this->assertSame( $expected, $result->code, 'Rezerwacja na potrzeby testu musi dać oczekiwany wynik.' );
 
 		return (int) $result->registrationId;
 	}
@@ -351,6 +353,109 @@ final class NightAdminScreensTest extends WP_UnitTestCase {
 		$this->assertSame( $price_before, (float) $this->repository->findById( $id )['price_total'] );
 	}
 
+	/**
+	 * Zgłoszenie z listy rezerwowej NIE MA wierszy dób (nie zajmuje miejsc), a jego wybór
+	 * żyje wyłącznie w JSON-ie odpowiedzi. Prefill musi go pokazać, a zapis bez zmian
+	 * zachować: bezwarunkowe nadpisanie prefilla wierszami odznaczyłoby wszystko i zapis
+	 * skasowałby życzenie po cichu, meldując „zapisano" (ta sama asymetria co B15).
+	 */
+	public function test_edit_screen_ticks_the_wish_of_a_rowless_waitlisted_registration_and_the_save_keeps_it(): void {
+		$this->configure(
+			null,
+			array(),
+			array(
+				'waitlist_enabled' => true,
+				'global_cap'       => 1,
+			)
+		);
+
+		$this->reserve( 'pierwszy@example.com', array( 'n1819' ) );
+		$id = $this->reserve( 'jan@example.com', array( 'n1819', 'n1920' ), false, 'waitlisted' );
+
+		$this->assertSame( array(), $this->repository->bookingNightsFor( array( $id ) ), 'Lista rezerwowa nie ma wierszy dób.' );
+
+		$before = json_decode( (string) $this->repository->findById( $id )['data'], true );
+		$this->assertSame( array( 'n1819', 'n1920' ), $before['nocleg'], 'Życzenie siedzi w JSON-ie odpowiedzi.' );
+
+		$html = $this->renderScreen( 'edit', $id );
+
+		foreach ( array( 'n1819', 'n1920' ) as $key ) {
+			$this->assertMatchesRegularExpression(
+				'/name="evreg_field\[nocleg\]\[nights\]\[\]" value="' . $key . '"[^>]*checked/',
+				$html,
+				'Doba z życzenia ' . $key . ' musi być zaznaczona, choć nie ma wiersza.'
+			);
+		}
+
+		$this->assertStringContainsString(
+			'Nocleg nie jest przyznany',
+			$html,
+			'Operator musi widzieć, że ptaszki są życzeniem, nie zajętymi miejscami.'
+		);
+
+		$post = $this->postFromForm( $html );
+		$this->assertSame( array( 'n1819', 'n1920' ), $post['nocleg']['nights'] );
+
+		$_POST['registration'] = $id;
+		$_REQUEST['_wpnonce']  = wp_create_nonce( 'evreg_edit_' . $id );
+		$_POST['evreg_field']  = $post;
+
+		$redirect = $this->catchRedirect( array( RegistrationsScreen::class, 'handle_edit' ) );
+
+		$this->assertNotNull( $redirect );
+		$this->assertStringContainsString( 'evreg_msg=edited', $redirect->location );
+
+		$row   = $this->repository->findById( $id );
+		$after = json_decode( (string) $row['data'], true );
+
+		$this->assertSame( array( 'n1819', 'n1920' ), $after['nocleg'], 'Zapis bez zmian nie może skasować życzenia.' );
+		$this->assertSame( 'waitlist', (string) $row['status'] );
+		$this->assertSame( array(), $this->repository->bookingNightsFor( array( $id ) ), 'Edycja nie przyznaje noclegu listy rezerwowej.' );
+	}
+
+	/**
+	 * Prefill bierze się z WIERSZY, nie z JSON-a — gdy się rozchodzą, wygrywają wiersze.
+	 * Bez tego testu usunięcie całego bloku prefilla (upadek do JSON-a) przechodziłoby
+	 * niezauważone, bo w pozostałych fixture'ach oba źródła są identyczne.
+	 */
+	public function test_edit_screen_ticks_only_the_night_the_rows_hold_when_they_diverge_from_the_json(): void {
+		$id = $this->reserve( 'jan@example.com', array( 'n1819', 'n1920' ) );
+
+		// Wiersze stają się WŁAŚCIWYM podzbiorem życzenia z JSON-a (jak po odmowie jednej doby).
+		$this->repository->replaceBookingNights(
+			$id,
+			array(
+				array(
+					'key'   => 'n1819',
+					'label' => '18/19 XI',
+					'seats' => 1,
+					'price' => 80.0,
+				),
+			)
+		);
+
+		$json = json_decode( (string) $this->repository->findById( $id )['data'], true );
+		$this->assertSame( array( 'n1819', 'n1920' ), $json['nocleg'], 'JSON nadal niesie oba życzenia.' );
+
+		$html = $this->renderScreen( 'edit', $id );
+
+		$this->assertMatchesRegularExpression(
+			'/name="evreg_field\[nocleg\]\[nights\]\[\]" value="n1819"[^>]*checked/',
+			$html,
+			'Doba trzymana przez zgłoszenie musi być zaznaczona.'
+		);
+		$this->assertDoesNotMatchRegularExpression(
+			'/name="evreg_field\[nocleg\]\[nights\]\[\]" value="n1920"[^>]*checked/',
+			$html,
+			'Doba, której wiersze już nie trzymają, NIE może być zaznaczona — prefill czyta stan, nie życzenie.'
+		);
+		$this->assertStringNotContainsString(
+			'Nocleg nie jest przyznany',
+			$html,
+			'Zgłoszenie z wierszami ma przyznany nocleg — bez zastrzeżenia.'
+		);
+	}
+
 	public function test_edit_can_drop_a_single_night(): void {
 		$id = $this->reserve( 'jan@example.com', array( 'n1819', 'n1920' ) );
 
@@ -390,10 +495,15 @@ final class NightAdminScreensTest extends WP_UnitTestCase {
 
 		$html = $this->renderScreen( 'view', $id );
 
-		$this->assertStringContainsString( '18/19 XI', $html, 'Detal musi pokazać etykietę ze snapshotu wiersza.' );
+		// Asercja na KOMÓRKACH wiersza tabeli dób, nie na całym dokumencie: „80" samo
+		// w sobie trafiałoby też w „180.00" (kwota zgłoszenia) gdzie indziej na stronie.
+		$this->assertMatchesRegularExpression(
+			'#<td>18/19 XI</td><td>1</td><td>80[.,]00</td>#',
+			$html,
+			'Wiersz tabeli dób musi nieść etykietę, miejsca i cenę ze snapshotu.'
+		);
 		$this->assertStringNotContainsString( 'Noc przemianowana', $html, 'Detal nie może czytać dzisiejszej konfiguracji.' );
-		$this->assertMatchesRegularExpression( '#18/19 XI.*?80#s', $html, 'Detal musi pokazać cenę ze snapshotu wiersza.' );
-		$this->assertStringNotContainsString( '500', $html, 'Detal nie może pokazać dzisiejszej ceny doby.' );
+		$this->assertDoesNotMatchRegularExpression( '#<td>500[.,]00</td>#', $html, 'Detal nie może pokazać dzisiejszej ceny doby.' );
 	}
 
 	public function test_edit_refusal_notice_names_the_blocking_night_not_its_key(): void {
@@ -443,9 +553,97 @@ final class NightAdminScreensTest extends WP_UnitTestCase {
 
 		$this->assertStringContainsString( '18/19 XI', $html );
 		$this->assertStringContainsString( '19/20 XI', $html );
-		// n1819: 2 (para) + 1 (solo) z 4, wolne 1; n1920: 1 z 4, wolne 3.
-		$this->assertMatchesRegularExpression( '#18/19 XI.*?3 z 4 \(wolne: 1\)#s', $html );
-		$this->assertMatchesRegularExpression( '#19/20 XI.*?1 z 4 \(wolne: 3\)#s', $html );
+		// n1819: 2 (para) + 1 (solo) z 4, wolne 1, jedna para; n1920: 1 z 4, wolne 3, zero par.
+		$this->assertMatchesRegularExpression( '#18/19 XI.*?3 z 4 \(wolne: 1\).*?pary: 1 \(bez limitu\)#s', $html );
+		$this->assertMatchesRegularExpression( '#19/20 XI.*?1 z 4 \(wolne: 3\).*?pary: 0 \(bez limitu\)#s', $html );
+	}
+
+	public function test_overview_panel_shows_the_pair_cap_when_a_night_has_one(): void {
+		$this->configure(
+			array(
+				array(
+					'key'           => 'n1819',
+					'label'         => '18/19 XI',
+					'price'         => 80.0,
+					'seats'         => 6,
+					'companion_cap' => 2,
+				),
+			)
+		);
+
+		$this->reserve( 'para@example.com', array( 'n1819' ), true );
+
+		ob_start();
+		RegistrationsOverview::render( $this->event_id );
+		$html = (string) ob_get_clean();
+
+		$this->assertMatchesRegularExpression( '#18/19 XI.*?2 z 6 \(wolne: 4\).*?pary: 1 z 2#s', $html );
+	}
+
+	/**
+	 * Niepoprawna konfiguracja dób nie może zabić CAŁEGO ekranu listy zgłoszeń — panel
+	 * degraduje się do komunikatu. Fixture z duplikatem klucza, nie z niespójnym
+	 * inwentarzem klasycznym: ten drugi NightsConfig::fromArray przechodzi bez błędu.
+	 */
+	public function test_overview_panel_degrades_with_a_notice_on_a_broken_nights_config(): void {
+		$this->reserve( 'jan@example.com', array( 'n1819' ) );
+
+		$this->configure(
+			array(
+				array(
+					'key'   => 'n1819',
+					'label' => '18/19 XI',
+					'price' => 80.0,
+					'seats' => 4,
+				),
+				array(
+					'key'   => 'n1819',
+					'label' => 'Duplikat',
+					'price' => 80.0,
+					'seats' => 4,
+				),
+			)
+		);
+
+		ob_start();
+		RegistrationsOverview::render( $this->event_id );
+		$html = (string) ob_get_clean();
+
+		$this->assertStringContainsString( 'notice-error', $html );
+		$this->assertStringContainsString( 'Zduplikowana doba', $html, 'Komunikat ma powiedzieć, co poprawić.' );
+		$this->assertStringNotContainsString( 'Doby (miejsca)', $html, 'Bez konfiguracji nie ma czego tabelaryzować.' );
+	}
+
+	/**
+	 * Etykieta doby to tekst od operatora — każda z trzech powierzchni musi ją escapować.
+	 * Jeden fixture pina wszystkie trzy `esc_html()` naraz.
+	 */
+	public function test_a_night_label_is_escaped_on_the_edit_detail_and_panel_screens(): void {
+		$this->configure(
+			array(
+				array(
+					'key'   => 'n1819',
+					'label' => '18/19 <b>XI</b>',
+					'price' => 80.0,
+					'seats' => 4,
+				),
+			)
+		);
+
+		$id = $this->reserve( 'jan@example.com', array( 'n1819' ) );
+
+		ob_start();
+		RegistrationsOverview::render( $this->event_id );
+		$panel = (string) ob_get_clean();
+
+		foreach ( array(
+			'panel'  => $panel,
+			'edycja' => $this->renderScreen( 'edit', $id ),
+			'detal'  => $this->renderScreen( 'view', $id ),
+		) as $surface => $html ) {
+			$this->assertStringNotContainsString( '<b>XI</b>', $html, 'Ekran „' . $surface . '" nie może wypuścić surowego HTML-a z etykiety.' );
+			$this->assertStringContainsString( '18/19 &lt;b&gt;XI&lt;/b&gt;', $html, 'Ekran „' . $surface . '" musi pokazać etykietę escapowaną.' );
+		}
 	}
 
 	public function test_overview_panel_survives_leftover_classic_inventory(): void {
@@ -610,7 +808,18 @@ final class NightAdminScreensTest extends WP_UnitTestCase {
 		$this->assertStringContainsString( 'notice-error', $html );
 		$this->assertStringContainsString( 'Szczegóły zgłoszenia', $html );
 		$this->assertStringContainsString( 'jan@example.com', $html, 'Detal musi dać się odczytać mimo zepsutej konfiguracji.' );
-		$this->assertStringContainsString( 'n1819', $html, 'Bez etykiet zostają surowe klucze — nie pustka.' );
+
+		// Wiersze dób niosą WŁASNE snapshoty etykiety i ceny, więc nie potrzebują
+		// konfiguracji — tabela ma wyjść poprawnie także nad zepsutym configiem.
+		$this->assertStringContainsString( 'Nocleg (doby)', $html );
+		$this->assertMatchesRegularExpression( '#<td>18/19 XI</td><td>1</td><td>80[.,]00</td>#', $html );
+
+		// Bez wierszy nie ma skąd wziąć etykiet — zostają surowe klucze życzenia, nie pustka.
+		$this->repository->deleteBookingNights( $id );
+		$rowless = $this->renderScreen( 'view', $id );
+
+		$this->assertStringNotContainsString( 'Nocleg (doby)', $rowless );
+		$this->assertStringContainsString( 'n1819', $rowless );
 	}
 
 	public function test_detail_shows_the_wish_of_a_waitlisted_registration_without_rows(): void {

@@ -272,13 +272,20 @@ final class RegistrationsScreen {
 		}
 		echo '</tbody></table>';
 
-		$booking = null === $nights ? $repository->findAccommodationBooking( $id ) : null;
-		// Wiersze dób to PRAWDA o tym, co zgłoszenie trzyma, i niosą snapshot etykiety
-		// i ceny — detal czyta je, nie dzisiejszą konfigurację (przemianowana albo
-		// przeceniona doba nie przepisuje historii). Jeden odczyt bulk, nie N+1.
-		$night_rows = null === $nights ? array() : ( $repository->bookingNightsFor( array( $id ) )[ $id ] ?? array() );
+		// Czy event jest w trybie „doby”, rozstrzyga się NIEZALEŻNIE od tego, czy konfiguracja
+		// dała się odczytać: NightsConfig::fromArray rzuca wyłącznie dla mode === 'nights'
+		// (poza tym trybem listy dób nie czyta wcale), więc nieudany odczyt też znaczy „doby”.
+		$is_nights = null !== $nights || null !== $config_error;
 
-		self::render_answers( $schema, (string) $row['data'], $booking, $nights, $night_rows, null !== $config_error );
+		$booking = $is_nights ? null : $repository->findAccommodationBooking( $id );
+		// Wiersze dób to PRAWDA o tym, co zgłoszenie trzyma, i niosą WŁASNE snapshoty
+		// etykiety i ceny — detal czyta je, nie dzisiejszą konfigurację (przemianowana albo
+		// przeceniona doba nie przepisuje historii). Dlatego nie potrzebują konfiguracji
+		// WCALE i renderują się także wtedy, gdy jest zepsuta: zepsuty config to żaden powód,
+		// by schować tabelę, która i tak wyszłaby poprawnie. Jeden odczyt bulk, nie N+1.
+		$night_rows = $is_nights ? ( $repository->bookingNightsFor( array( $id ) )[ $id ] ?? array() ) : array();
+
+		self::render_answers( $schema, (string) $row['data'], $booking, $nights, $night_rows, $is_nights );
 		self::render_booking( $booking, $event_id );
 		self::render_night_rows( $night_rows );
 		self::render_note_form( $id, (string) ( $row['note'] ?? '' ) );
@@ -348,16 +355,29 @@ final class RegistrationsScreen {
 		$answers['evreg_companion']      = (bool) ( $row['companion'] ?? false );
 		$answers['evreg_companion_name'] = (string) ( $row['companion_name'] ?? '' );
 
-		// Tryb „doby”: prefill z ZAPISANYCH WIERSZY, nie z JSON-a odpowiedzi. Wiersze są
-		// prawdą o tym, co zgłoszenie trzyma — JSON niesie życzenie i może się z nimi
-		// rozejść (awans bez przyznanego noclegu, odmowa pojedynczej doby). Rozjazd między
-		// zapisem i odczytem prefilla kosztował już ten projekt skasowaną rezerwację
-		// (B15 na ścieżce klasycznej), więc tu czytamy stan, nie życzenie.
+		// Tryb „doby”: prefill z ZAPISANYCH WIERSZY, a gdy ich nie ma — z JSON-a odpowiedzi.
+		// Wiersze są prawdą o tym, co zgłoszenie TRZYMA, i tam, gdzie są, biją JSON (ten
+		// niesie życzenie i może się z nimi rozejść: awans bez przyznanego noclegu, odmowa
+		// pojedynczej doby). Ale NIGDY nie nadpisujemy nimi życzenia na puste: zgłoszenie
+		// z listy rezerwowej nie ma wierszy NIGDY (nie zajmuje miejsc), a jego wybór żyje
+		// wyłącznie w JSON-ie. Bezwarunkowe nadpisanie odznaczyłoby wszystko, a zapis — bo
+		// kontrolka domyka się w obie strony — skasowałby życzenie po cichu, meldując
+		// „zapisano”, i późniejsza „Promuj” nie miałaby już czego przyznać. To ta sama
+		// asymetria zapisu i odczytu co B15, o jeden ekran dalej: detal POKAZUJE życzenie
+		// (patrz night_text()), więc edycja nie może go kasować. Rows first, JSON fallback,
+		// nigdy clobber. Oba kształty czyta RegistrationEditForm::nightKeys().
 		$accommodation_key = $schema->accommodationFieldKey();
 
 		if ( null !== $nights && null !== $accommodation_key ) {
-			$rows                          = $repository->bookingNightsFor( array( $id ) )[ $id ] ?? array();
-			$answers[ $accommodation_key ] = array_column( $rows, 'key' );
+			$rows = $repository->bookingNightsFor( array( $id ) )[ $id ] ?? array();
+
+			if ( array() !== $rows ) {
+				$answers[ $accommodation_key ] = array_column( $rows, 'key' );
+			}
+
+			// Podpowiedź renderu (NIE kontrolka): bez wierszy ptaszki są życzeniem, nie
+			// zajętymi miejscami, i formularz ma to powiedzieć — tak jak detal.
+			$answers['evreg_nights_granted'] = array() !== $rows;
 		}
 
 		echo RegistrationEditForm::render( $schema, $answers, $id, null, null, $nights ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- już escapowane w rendererze.
@@ -388,14 +408,17 @@ final class RegistrationsScreen {
 	 * @param FormSchema|null                                                 $schema     Złożony schemat formularza albo null.
 	 * @param string                                                          $data       JSON odpowiedzi.
 	 * @param array<string,mixed>|null                                        $booking    Rezerwacja noclegu (nośnik snapshotu etykiet) albo null.
-	 * @param NightsConfig|null                                               $nights     Konfiguracja trybu „doby” albo null (klasyczny).
+	 * @param NightsConfig|null                                               $nights     Konfiguracja trybu „doby” albo null (klasyczna
+	 *                                                                                    ALBO dobowa, której nie dało się odczytać).
 	 * @param array<int,array{key:string,label:string,seats:int,price:float}> $night_rows Zapisane doby zgłoszenia.
-	 * @param bool                                                            $broken     Czy konfiguracja noclegów nie dała się odczytać
-	 *                                                                                    (notice stoi wyżej) — wtedy pole noclegu pokazuje
-	 *                                                                                    surowe klucze, zamiast budować AccommodationConfig,
-	 *                                                                                    która na niespójnym inwentarzu rzuca.
+	 * @param bool                                                            $is_nights  Czy event jest w trybie „doby” — także wtedy, gdy
+	 *                                                                                    konfiguracja nie dała się odczytać ($nights === null,
+	 *                                                                                    notice stoi wyżej). Rozstrzyga o gałęzi pola noclegu,
+	 *                                                                                    więc gałąź klasyczna (jedyna, która buduje
+	 *                                                                                    AccommodationConfig — ta rzuca na niespójnym
+	 *                                                                                    inwentarzu) nie jest osiągalna dla eventu dobowego.
 	 */
-	private static function render_answers( ?FormSchema $schema, string $data, ?array $booking = null, ?NightsConfig $nights = null, array $night_rows = array(), bool $broken = false ): void {
+	private static function render_answers( ?FormSchema $schema, string $data, ?array $booking = null, ?NightsConfig $nights = null, array $night_rows = array(), bool $is_nights = false ): void {
 		if ( null === $schema ) {
 			return;
 		}
@@ -413,14 +436,12 @@ final class RegistrationsScreen {
 
 			$value = $answers[ $field->key ] ?? '';
 
-			if ( FieldType::Accommodation === $field->type && null !== $nights ) {
+			if ( FieldType::Accommodation === $field->type && $is_nights ) {
 				// Tryb „doby”: etykiety ze SNAPSHOTU wierszy. Bez wierszy (zgłoszenie
 				// z listy rezerwowej albo bez przyznanego noclegu) zostaje życzenie
-				// z odpowiedzi — nazwane dzisiejszą konfiguracją, bo innego źródła nie ma.
+				// z odpowiedzi — nazwane dzisiejszą konfiguracją, a gdy ta się nie
+				// odczytała, surowymi kluczami. Bez fatala i bez pustki.
 				$text = self::night_text( $nights, $value, $night_rows );
-			} elseif ( FieldType::Accommodation === $field->type && $broken ) {
-				// Tryb nierozstrzygnięty: bez etykiet, ale bez fatala i bez pustki.
-				$text = is_array( $value ) ? implode( ', ', array_map( 'strval', array_filter( $value, 'is_scalar' ) ) ) : (string) $value;
 			} elseif ( FieldType::Accommodation === $field->type && is_array( $value ) ) {
 				// Surowa odpowiedź to klucze (package/room) — bez etykiet jest nieczytelna.
 				// Rezerwacja niesie snapshot etykiet, więc jest lepszym źródłem niż same klucze.
@@ -476,11 +497,13 @@ final class RegistrationsScreen {
 	 * przyznany" (lista rezerwowa, odmowa przy awansie): wtedy pokazujemy życzenie
 	 * z odpowiedzi, nazwane dzisiejszą konfiguracją, bo innego źródła etykiet nie ma.
 	 *
-	 * @param NightsConfig                                                    $config Konfiguracja trybu „doby”.
+	 * @param NightsConfig|null                                               $config Konfiguracja trybu „doby” albo null, gdy się nie
+	 *                                                                                odczytała (wtedy życzenie idzie surowymi kluczami —
+	 *                                                                                wiersze i tak niosą własne etykiety).
 	 * @param mixed                                                           $value  Odpowiedź pola (płaska lista kluczy dób).
 	 * @param array<int,array{key:string,label:string,seats:int,price:float}> $rows   Zapisane doby zgłoszenia.
 	 */
-	private static function night_text( NightsConfig $config, $value, array $rows ): string {
+	private static function night_text( ?NightsConfig $config, $value, array $rows ): string {
 		if ( array() !== $rows ) {
 			return implode( ', ', array_column( $rows, 'label' ) );
 		}
@@ -493,7 +516,7 @@ final class RegistrationsScreen {
 
 		$labels = array();
 		foreach ( $keys as $key ) {
-			$labels[] = $config->nightLabel( (string) $key );
+			$labels[] = null === $config ? (string) $key : $config->nightLabel( (string) $key );
 		}
 
 		/* translators: %s: lista etykiet dób. */
