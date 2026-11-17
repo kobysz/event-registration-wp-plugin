@@ -11,6 +11,7 @@ namespace EvReg\Admin;
 
 use EvReg\Domain\Accommodation\AccommodationConfig;
 use EvReg\Domain\Accommodation\AccommodationSelection;
+use EvReg\Domain\Accommodation\NightsConfig;
 use EvReg\Domain\Schema\Field;
 use EvReg\Domain\Schema\FieldType;
 use EvReg\Domain\Schema\FormSchema;
@@ -30,8 +31,11 @@ final class RegistrationEditForm {
 	 * @param int                       $reg_id    ID zgłoszenia.
 	 * @param array<string,string>|null $errors    Błędy walidacji: klucz pola → kod błędu (kształt {@see \EvReg\Domain\Validation\ValidationResult::errors()}).
 	 * @param array<string,mixed>|null  $submitted Wartości z odrzuconego POST (prefill przy błędzie).
+	 * @param NightsConfig|null         $nights    Konfiguracja trybu „doby” rozstrzygnięta u wejścia
+	 *                                             ({@see \EvReg\Frontend\NightsResolver}); null = tryb
+	 *                                             klasyczny. Renderer sam NightsConfig::fromArray nie woła.
 	 */
-	public static function render( FormSchema $schema, array $answers, int $reg_id, ?array $errors = null, ?array $submitted = null ): string {
+	public static function render( FormSchema $schema, array $answers, int $reg_id, ?array $errors = null, ?array $submitted = null, ?NightsConfig $nights = null ): string {
 		$source = null !== $submitted ? $submitted : $answers;
 		$nonce  = wp_nonce_field( 'evreg_edit_' . $reg_id, '_wpnonce', true, false );
 
@@ -48,9 +52,9 @@ final class RegistrationEditForm {
 			if ( ! $field->type->isInput() ) {
 				continue;
 			}
-			$out .= self::renderRow( $field, $source[ $field->key ] ?? '' );
+			$out .= self::renderRow( $field, $source[ $field->key ] ?? '', $nights );
 			if ( FieldType::Accommodation === $field->type ) {
-				$out .= self::renderCompanionRow( $field, $source, $errors );
+				$out .= self::renderCompanionRow( $field, $source, $errors, $nights );
 			}
 		}
 		$out .= '</tbody></table>';
@@ -119,23 +123,25 @@ final class RegistrationEditForm {
 	/**
 	 * Renderuje jeden wiersz tabeli formularza (etykieta + kontrolka).
 	 *
-	 * @param Field $field Pole formularza.
-	 * @param mixed $value Wartość do odtworzenia w kontrolce.
+	 * @param Field             $field  Pole formularza.
+	 * @param mixed             $value  Wartość do odtworzenia w kontrolce.
+	 * @param NightsConfig|null $nights Konfiguracja trybu „doby” albo null (klasyczny).
 	 */
-	private static function renderRow( Field $field, $value ): string {
+	private static function renderRow( Field $field, $value, ?NightsConfig $nights = null ): string {
 		$label   = '<th scope="row"><label>' . esc_html( $field->label ) . '</label></th>';
 		$desc    = '' !== $field->description ? '<p class="description">' . wp_kses_post( $field->description ) . '</p>' : '';
-		$control = '<td>' . self::renderControl( $field, $value ) . $desc . '</td>';
+		$control = '<td>' . self::renderControl( $field, $value, $nights ) . $desc . '</td>';
 		return '<tr>' . $label . $control . '</tr>';
 	}
 
 	/**
 	 * Renderuje kontrolkę wejściową pola odpowiednią do jego typu.
 	 *
-	 * @param Field $field Pole formularza.
-	 * @param mixed $value Wartość do odtworzenia w kontrolce.
+	 * @param Field             $field  Pole formularza.
+	 * @param mixed             $value  Wartość do odtworzenia w kontrolce.
+	 * @param NightsConfig|null $nights Konfiguracja trybu „doby” albo null (klasyczny).
 	 */
-	private static function renderControl( Field $field, $value ): string {
+	private static function renderControl( Field $field, $value, ?NightsConfig $nights = null ): string {
 		// Namespace pod evreg_field[...] — spójnie z FormRenderer i wspólną ekstrakcją
 		// SubmissionAssembler (klucze pól nie kolidują z query-vars WordPressa).
 		$name = 'evreg_field[' . esc_attr( $field->key ) . ']';
@@ -148,7 +154,12 @@ final class RegistrationEditForm {
 			case FieldType::CheckboxGroup:
 				return self::renderChoices( $field, $value );
 			case FieldType::Accommodation:
-				return self::renderAccommodation( $field, $value );
+				// Jedno rozgałęzienie po trybie, na kontrolce: gałąź dobowa NIE buduje
+				// AccommodationConfig (rzuca na niespójnym inwentarzu, a event w trybie
+				// „doby” może nieść zapomniane dane klasyczne).
+				return null !== $nights
+					? self::renderNights( $field, $nights, $value )
+					: self::renderAccommodation( $field, $value );
 			case FieldType::Hidden:
 				return '<input type="hidden" name="' . $name . '" value="' . esc_attr( self::scalar( $value ) ) . '" />';
 			default: // Text, Email, Tel, Number, Date.
@@ -267,6 +278,77 @@ final class RegistrationEditForm {
 	}
 
 	/**
+	 * Renderuje wybór dób jako checkboxy (tryb „doby”).
+	 *
+	 * Nazwy siedzą pod `evreg_field[<klucz>][nights][]` — dokładnie tam, gdzie czyta je
+	 * `SubmissionAssembler::extractAnswers()`, i tak samo jak w formularzu publicznym.
+	 * Kontrolka MUSI się domykać w obie strony: co wyrenderowane, to wraca. Dlatego —
+	 * inaczej niż publicznie — żadna doba nie jest tu `disabled`: miejsca zajęte przez
+	 * TO zgłoszenie wliczają się do zajętości, więc doba, którą ono trzyma, wyglądałaby
+	 * na pełną, a wyłączony checkbox nie wysyła wartości. Zapis bez zmian skasowałby
+	 * wtedy nocleg po cichu. Bramka i tak rozstrzyga pod blokadą w `editAnswers()`
+	 * (z wykluczeniem tego zgłoszenia) i odmawia po nazwie doby.
+	 *
+	 * @param Field        $field  Pole typu accommodation.
+	 * @param NightsConfig $config Konfiguracja trybu „doby”.
+	 * @param mixed        $value  Wartość do odtworzenia (lista kluczy albo `['nights' => [...]]`).
+	 */
+	private static function renderNights( Field $field, NightsConfig $config, $value ): string {
+		$selected = self::nightKeys( $value );
+		$name     = 'evreg_field[' . esc_attr( $field->key ) . '][nights][]';
+		$base     = 'evreg-admin-' . esc_attr( $field->key ) . '-night-';
+
+		$out = '<div class="evreg-accommodation evreg-nights">';
+
+		foreach ( $config->nights() as $index => $night ) {
+			$id = $base . $index;
+
+			$out .= '<label class="evreg-choice evreg-night" style="display:block;">'
+				. '<input type="checkbox" id="' . esc_attr( $id ) . '" name="' . $name . '" value="' . esc_attr( $night->key ) . '"'
+				. checked( in_array( $night->key, $selected, true ), true, false ) . ' /> '
+				. esc_html( $night->label )
+				. ' <span class="description">'
+				. esc_html(
+					sprintf(
+						/* translators: %s: cena doby za jedno miejsce. */
+						__( '(%s za miejsce)', 'event-registration' ),
+						number_format_i18n( $night->price, 2 )
+					)
+				)
+				. '</span></label>';
+		}
+
+		if ( array() === $config->nights() ) {
+			$out .= '<p class="description">' . esc_html__( 'To wydarzenie nie ma skonfigurowanych dób.', 'event-registration' ) . '</p>';
+		}
+
+		return $out . '</div>';
+	}
+
+	/**
+	 * Normalizuje zapisany wybór dób do listy kluczy.
+	 *
+	 * Przyjmuje OBA kształty, w jakich wybór dociera do renderera: płaską listę kluczy
+	 * (tak `ReservationService::nightAnswers()` zapisuje go w JSON-ie odpowiedzi i tak
+	 * zwraca go walidator w `values()`) oraz `['nights' => [...]]` (surowe odpowiedzi
+	 * z odrzuconego POST-a). Rozjazd między kształtem zapisu i odczytu kosztował już
+	 * ten projekt skasowaną rezerwację (B15 na ścieżce klasycznej) — tutaj oba czyta
+	 * jedna funkcja.
+	 *
+	 * @param mixed $value Zapisany albo przesłany wybór dób.
+	 * @return array<int,string>
+	 */
+	private static function nightKeys( $value ): array {
+		if ( ! is_array( $value ) ) {
+			return array();
+		}
+
+		$raw = is_array( $value['nights'] ?? null ) ? $value['nights'] : $value;
+
+		return array_values( array_map( 'strval', array_filter( $raw, 'is_scalar' ) ) );
+	}
+
+	/**
 	 * Renderuje wiersz checkbox + pole imienia „Osoba towarzysząca", gdy event ma włączoną
 	 * tę opcję w konfiguracji noclegów (mirror {@see \EvReg\Frontend\FormRenderer::renderCompanion()}).
 	 * Kontrolki evreg_companion/evreg_companion_name NIE są polami schematu — bez namespace
@@ -277,10 +359,17 @@ final class RegistrationEditForm {
 	 * @param Field                     $field  Pole typu accommodation (niesie config noclegów).
 	 * @param array<string,mixed>       $source Źródło prefill (submitted, w innym wypadku answers).
 	 * @param array<string,string>|null $errors Błędy walidacji: klucz pola => kod błędu.
+	 * @param NightsConfig|null         $nights Konfiguracja trybu „doby” albo null (klasyczny).
 	 */
-	private static function renderCompanionRow( Field $field, array $source, ?array $errors ): string {
-		$config = AccommodationConfig::fromArray( $field->config );
-		if ( ! $config->companionEnabled() ) {
+	private static function renderCompanionRow( Field $field, array $source, ?array $errors, ?NightsConfig $nights = null ): string {
+		// Jedno rozgałęzienie po trybie: „doby” czyta flagę z NightsConfig i NIE buduje
+		// AccommodationConfig (ta rzuca na niespójnym inwentarzu) — ten sam wzór co
+		// w SubmissionAssembler::extractCompanion() i FormRenderer.
+		$enabled = null !== $nights
+			? $nights->companionEnabled()
+			: AccommodationConfig::fromArray( $field->config )->companionEnabled();
+
+		if ( ! $enabled ) {
 			return '';
 		}
 
