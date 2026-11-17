@@ -34,8 +34,14 @@ final class NightsResolver {
 	}
 
 	/**
-	 * Czy event działa w trybie „doby” — dla powierzchni, którym wystarcza sam tryb (eksport,
-	 * mail, Privacy), bo etykiety dób biorą z zapisanych wierszy, nie z konfiguracji.
+	 * Czy ZŁOŻONY SCHEMAT niesie pole noclegu w trybie „doby”.
+	 *
+	 * NIE DLA powierzchni odczytujących zapisane zgłoszenia (eksport, mail, Privacy, panel
+	 * obłożenia, ścieżki transakcyjne) — one pytają `isNightsRaw()` o surową konfigurację.
+	 * Tryb jest właściwością EVENTU, a nie schematu: organizator może usunąć pole noclegu
+	 * z formularza, podczas gdy zgłoszenia dalej trzymają wiersze dób. Ten schemat nie ma
+	 * wtedy śladu trybu i ta metoda zwraca false, więc czytana jako „to event klasyczny”
+	 * gubi doby (CSV) albo zaniża eksport prywatności.
 	 *
 	 * Niepoprawna konfiguracja dób oznacza, że tryb JEST „doby” (klasyczny nigdy nie rzuca),
 	 * więc degradujemy do true zamiast wywalać powierzchnię, która nie potrzebuje konfiguracji.

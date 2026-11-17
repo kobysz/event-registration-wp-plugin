@@ -948,6 +948,13 @@ final class RegistrationsScreen {
 	 * (rzuca na niespójnym inwentarzu, a event dobowy może nieść zapomniane dane klasyczne),
 	 * a kolumna „Doby” czyta zapisane wiersze zbiorczo — jedno zapytanie na cały eksport.
 	 *
+	 * Tryb czytamy z SUROWEJ konfiguracji noclegu, tą samą drogą co ReservationService,
+	 * panel obłożenia i kolejka maili. Ze schematu nie da się go odczytać wiarygodnie:
+	 * event dobowy, któremu organizator usunął pole noclegu z formularza, nie ma w schemacie
+	 * śladu trybu, a zgłoszenia dalej trzymają wiersze dób — eksport wpadłby wtedy w gałąź
+	 * klasyczną, zgubił kolumnę „Doby” i (na zapomnianym, niespójnym inwentarzu) wywalił się
+	 * na SchemaException.
+	 *
 	 * @param int                 $event_id ID eventu.
 	 * @param array<string,mixed> $filters  Filtry listy (status, type_key, event_id).
 	 */
@@ -958,17 +965,18 @@ final class RegistrationsScreen {
 		}
 		$config = ( new EventConfigRepository() )->get( $event_id );
 		$types  = RegistrationTypeCollection::fromArray( is_array( $config['types'] ) ? $config['types'] : array() );
+		$raw    = is_array( $config['accommodation'] ) ? $config['accommodation'] : array();
 
 		$repository = new RegistrationRepository();
 		$rows       = $repository->exportRegistrations( $filters );
 		$ids        = array_map( 'intval', array_column( $rows, 'id' ) );
 		$exporter   = new RegistrationsExporter();
 
-		if ( NightsResolver::isNightsMode( $schema ) ) {
+		if ( NightsResolver::isNightsRaw( $raw ) ) {
 			return $exporter->buildCsv( $schema, null, $types, $rows, array(), $repository->bookingNightsFor( $ids ) );
 		}
 
-		$accommodation = AccommodationConfig::fromArray( is_array( $config['accommodation'] ) ? $config['accommodation'] : array() );
+		$accommodation = AccommodationConfig::fromArray( $raw );
 
 		return $exporter->buildCsv( $schema, $accommodation, $types, $rows, $repository->accommodationBookingsFor( $ids ) );
 	}

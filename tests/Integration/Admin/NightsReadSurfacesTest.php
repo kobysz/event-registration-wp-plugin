@@ -187,6 +187,50 @@ final class NightsReadSurfacesTest extends WP_UnitTestCase {
 	}
 
 	/**
+	 * Usuwa pole noclegu ze schematu, zostawiając tryb „doby” w konfiguracji noclegu.
+	 *
+	 * Organizator ma do tego UI (budowniczy formularza), a zgłoszenia dalej trzymają
+	 * wiersze dób — więc to konfiguracja osiągalna, nie hipotetyczna.
+	 */
+	private function dropAccommodationField(): void {
+		$repo   = new EventConfigRepository();
+		$config = $repo->get( $this->event_id );
+
+		$config['schema']['sections'][0]['fields'] = array_values(
+			array_filter(
+				$config['schema']['sections'][0]['fields'],
+				static fn ( array $field ): bool => 'accommodation' !== ( $field['type'] ?? '' )
+			)
+		);
+
+		$repo->save( $this->event_id, $config );
+	}
+
+	public function test_read_surfaces_keep_the_nights_when_the_schema_has_no_accommodation_field(): void {
+		// Tryb odczytany ze SCHEMATU jest tu niewidoczny (pola noclegu nie ma), więc obie
+		// powierzchnie wpadałyby w gałąź klasyczną: CSV gubiłby całą kolumnę „Doby”,
+		// a eksport prywatności meldowałby pusty nocleg zgłoszeniu, które demonstracyjnie
+		// ma wiersze dób. Tryb bierzemy więc z SUROWEJ konfiguracji — tak jak mail
+		// i ReservationService. (Na tym evencie inwentarz klasyczny jest dodatkowo
+		// niespójny, więc gałąź klasyczna rzuciłaby też SchemaException.)
+		$this->registration( $this->twoNights() );
+		$this->dropAccommodationField();
+
+		$csv = RegistrationsScreen::build_export_csv( $this->event_id, array( 'event_id' => $this->event_id ) );
+
+		$this->assertNotNull( $csv );
+		$lines = explode( "\n", trim( substr( (string) $csv, 3 ) ) );
+		$this->assertStringEndsWith( ',Doby', $lines[0] );
+		$this->assertStringEndsWith( ',"Noc 1, Noc 2"', $lines[1] );
+
+		$export = ( new PrivacyProvider() )->export( 'a@b.pl', 1 );
+		$values = wp_list_pluck( $export['data'][0]['data'], 'value', 'name' );
+
+		$this->assertSame( 'Noc 1, Noc 2', $values['Doby'] );
+		$this->assertArrayNotHasKey( 'Nocleg', $values );
+	}
+
+	/**
 	 * Zapisuje event z niepoprawną konfiguracją dób (zduplikowany klucz) i zapomnianym inwentarzem.
 	 */
 	private function breakNightsConfig(): void {
