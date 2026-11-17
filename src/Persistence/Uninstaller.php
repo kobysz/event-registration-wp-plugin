@@ -27,7 +27,7 @@ final class Uninstaller {
 	private const META_KEYS = array( '_evreg_schema', '_evreg_types', '_evreg_accommodation', '_evreg_settings', '_evreg_mail_templates' );
 
 	/** Tabele wtyczki (bez prefiksu). */
-	private const TABLES = array( 'registrations', 'accommodation_bookings', 'mail_queue', 'locks' );
+	private const TABLES = array( 'registrations', 'accommodation_bookings', 'mail_queue', 'locks', 'booking_nights' );
 
 	/** Opcja-bramka. */
 	public const DELETE_OPTION = 'evreg_delete_data_on_uninstall';
