@@ -941,6 +941,38 @@ final class RegistrationsScreen {
 		return null === $room ? null : $room->companionMismatch( $request->companion );
 	}
 
+	/**
+	 * Składa tekst CSV eksportu eventu albo null, gdy event nie ma schematu.
+	 *
+	 * Tryb rozstrzygany RAZ, u wejścia: w trybie „doby” nie powstaje AccommodationConfig
+	 * (rzuca na niespójnym inwentarzu, a event dobowy może nieść zapomniane dane klasyczne),
+	 * a kolumna „Doby” czyta zapisane wiersze zbiorczo — jedno zapytanie na cały eksport.
+	 *
+	 * @param int                 $event_id ID eventu.
+	 * @param array<string,mixed> $filters  Filtry listy (status, type_key, event_id).
+	 */
+	public static function build_export_csv( int $event_id, array $filters ): ?string {
+		$schema = ( new EventFormLoader( new EventConfigRepository() ) )->load( $event_id );
+		if ( null === $schema ) {
+			return null;
+		}
+		$config = ( new EventConfigRepository() )->get( $event_id );
+		$types  = RegistrationTypeCollection::fromArray( is_array( $config['types'] ) ? $config['types'] : array() );
+
+		$repository = new RegistrationRepository();
+		$rows       = $repository->exportRegistrations( $filters );
+		$ids        = array_map( 'intval', array_column( $rows, 'id' ) );
+		$exporter   = new RegistrationsExporter();
+
+		if ( NightsResolver::isNightsMode( $schema ) ) {
+			return $exporter->buildCsv( $schema, null, $types, $rows, array(), $repository->bookingNightsFor( $ids ) );
+		}
+
+		$accommodation = AccommodationConfig::fromArray( is_array( $config['accommodation'] ) ? $config['accommodation'] : array() );
+
+		return $exporter->buildCsv( $schema, $accommodation, $types, $rows, $repository->accommodationBookingsFor( $ids ) );
+	}
+
 	/** Handler eksportu CSV zgłoszeń (streaming, bez PRG na sukcesie). */
 	public static function handle_export(): void {
 		check_admin_referer( self::ACTION_EXPORT );
@@ -965,21 +997,12 @@ final class RegistrationsScreen {
 		}
 		$filters['event_id'] = $event_id;
 
-		$schema = ( new EventFormLoader( new EventConfigRepository() ) )->load( $event_id );
-		if ( null === $schema ) {
+		$csv = self::build_export_csv( $event_id, $filters );
+		if ( null === $csv ) {
 			self::redirect( 'export_no_event' );
 			return;
 		}
-		$config        = ( new EventConfigRepository() )->get( $event_id );
-		$types         = RegistrationTypeCollection::fromArray( is_array( $config['types'] ) ? $config['types'] : array() );
-		$accommodation = AccommodationConfig::fromArray( is_array( $config['accommodation'] ) ? $config['accommodation'] : array() );
 
-		$repository = new RegistrationRepository();
-		$rows       = $repository->exportRegistrations( $filters );
-		$ids        = array_map( 'intval', array_column( $rows, 'id' ) );
-		$bookings   = $repository->accommodationBookingsFor( $ids );
-
-		$csv      = ( new RegistrationsExporter() )->buildCsv( $schema, $accommodation, $types, $rows, $bookings );
 		$filename = sanitize_file_name( 'zgloszenia-event-' . $event_id . '-' . current_time( 'Y-m-d' ) . '.csv' );
 
 		header( 'Content-Type: text/csv; charset=utf-8' );

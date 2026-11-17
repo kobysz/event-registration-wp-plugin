@@ -14,6 +14,7 @@ const PARTICIPANT_PLACEHOLDERS = [
 	'{event}',
 	'{typ}',
 	'{nocleg}',
+	'{noclegi}',
 	'{link_potwierdzenia}',
 	'{podsumowanie}',
 ];

@@ -52,6 +52,9 @@ export function translatableItems( schema, types, accommodation ) {
 	( acc.rooms || [] ).forEach( ( room ) => {
 		items.push( { kind: 'accommodation', accKind: 'rooms', key: room.key, base: room.label || room.key } );
 	} );
+	( acc.nights || [] ).forEach( ( night ) => {
+		items.push( { kind: 'accommodation', accKind: 'nights', key: night.key, base: night.label || night.key } );
+	} );
 	return items;
 }
 

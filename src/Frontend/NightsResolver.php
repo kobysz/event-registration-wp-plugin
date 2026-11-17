@@ -24,6 +24,23 @@ defined( 'ABSPATH' ) || exit;
 final class NightsResolver {
 
 	/**
+	 * Czy event działa w trybie „doby” — dla powierzchni, którym wystarcza sam tryb (eksport,
+	 * mail, Privacy), bo etykiety dób biorą z zapisanych wierszy, nie z konfiguracji.
+	 *
+	 * Niepoprawna konfiguracja dób oznacza, że tryb JEST „doby” (klasyczny nigdy nie rzuca),
+	 * więc degradujemy do true zamiast wywalać powierzchnię, która nie potrzebuje konfiguracji.
+	 *
+	 * @param FormSchema $schema Złożony schemat formularza.
+	 */
+	public static function isNightsMode( FormSchema $schema ): bool {
+		try {
+			return null !== self::forSchema( $schema );
+		} catch ( SchemaException ) {
+			return true;
+		}
+	}
+
+	/**
 	 * Zwraca konfigurację trybu „doby” albo null dla trybu klasycznego / braku pola noclegu.
 	 * Null NIGDY nie znaczy „niepoprawna” — ta rzuca.
 	 *

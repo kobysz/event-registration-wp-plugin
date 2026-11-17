@@ -24,18 +24,21 @@ final class RegistrationsExporter {
 	/**
 	 * Buduje pełny tekst CSV (BOM + nagłówek + wiersze) dla eksportu zgłoszeń jednego eventu.
 	 *
-	 * @param FormSchema                     $schema        Schemat formularza (odpowiedzi).
-	 * @param AccommodationConfig            $accommodation Konfiguracja noclegu (etykiety pakietów/pokoi).
-	 * @param RegistrationTypeCollection     $types         Typy zgłoszeń eventu (etykiety).
-	 * @param array<int,array<string,mixed>> $rows          Wiersze evreg_registrations (ARRAY_A).
-	 * @param array<int,array<string,mixed>> $bookingsById  Mapa registration_id => wiersz bookingu.
+	 * @param FormSchema                                     $schema        Schemat formularza (odpowiedzi).
+	 * @param AccommodationConfig|null                       $accommodation Konfiguracja noclegu (etykiety pakietów/pokoi); null w trybie „doby”.
+	 * @param RegistrationTypeCollection                     $types         Typy zgłoszeń eventu (etykiety).
+	 * @param array<int,array<string,mixed>>                 $rows          Wiersze evreg_registrations (ARRAY_A).
+	 * @param array<int,array<string,mixed>>                 $bookingsById  Mapa registration_id => wiersz bookingu.
+	 * @param array<int,array<int,array<string,mixed>>>|null $nightsById Mapa registration_id => wiersze dób; null = tryb klasyczny,
+	 *                                                       tablica (także pusta) = tryb „doby” (jedna kolumna „Doby” zamiast trzech klasycznych).
 	 */
 	public function buildCsv(
 		FormSchema $schema,
-		AccommodationConfig $accommodation,
+		?AccommodationConfig $accommodation,
 		RegistrationTypeCollection $types,
 		array $rows,
-		array $bookingsById
+		array $bookingsById,
+		?array $nightsById = null
 	): string {
 		$mapper = new RegistrationExportMapper();
 
@@ -57,11 +60,15 @@ final class RegistrationsExporter {
 			$answer_headers[] = $col['label'];
 		}
 
-		$accommodation_headers = array(
-			__( 'Nocleg – pakiet', 'event-registration' ),
-			__( 'Nocleg – pokój', 'event-registration' ),
-			__( 'Nocleg – współlokator', 'event-registration' ),
-		);
+		$nights_mode = null !== $nightsById || null === $accommodation;
+
+		$accommodation_headers = $nights_mode
+			? array( __( 'Doby', 'event-registration' ) )
+			: array(
+				__( 'Nocleg – pakiet', 'event-registration' ),
+				__( 'Nocleg – pokój', 'event-registration' ),
+				__( 'Nocleg – współlokator', 'event-registration' ),
+			);
 
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen -- bufor w pamięci (php://temp), nie operacja na systemie plików.
 		$handle = fopen( 'php://temp', 'r+' );
@@ -75,7 +82,13 @@ final class RegistrationsExporter {
 			$data    = json_decode( (string) $row['data'], true );
 			$data    = is_array( $data ) ? $data : array();
 			$booking = $bookingsById[ $id ] ?? null;
-			$acc     = $mapper->accommodationCells( $booking, $accommodation );
+
+			if ( $nights_mode ) {
+				$accommodation_cells = array( $mapper->nightsCell( $nightsById[ $id ] ?? array() ) );
+			} else {
+				$acc                 = $mapper->accommodationCells( $booking, $accommodation );
+				$accommodation_cells = array( $acc['package'], $acc['room'], $acc['roommate'] );
+			}
 
 			$identity = array(
 				(string) $row['id'],
@@ -93,7 +106,7 @@ final class RegistrationsExporter {
 			$cells = array_merge(
 				$identity,
 				$mapper->answerCells( $data, $schema ),
-				array( $acc['package'], $acc['room'], $acc['roommate'] )
+				$accommodation_cells
 			);
 
 			fputcsv( $handle, array_map( array( $this, 'neutralize' ), $cells ) );

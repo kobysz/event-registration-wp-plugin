@@ -16,7 +16,9 @@ use EvReg\Domain\Mail\Placeholders;
 use EvReg\Domain\Mail\SummaryBuilder;
 use EvReg\Domain\Registration\RegistrationTypeCollection;
 use EvReg\Domain\Schema\VisibilityResolver;
+use EvReg\Domain\Schema\FormSchema;
 use EvReg\Frontend\EventFormLoader;
+use EvReg\Frontend\NightsResolver;
 use EvReg\Persistence\EventConfigRepository;
 use EvReg\Persistence\RegistrationRepository;
 
@@ -47,9 +49,14 @@ final class PlaceholderFactory {
 	 * @param array<string,mixed> $registration Wiersz tabeli zgłoszeń.
 	 */
 	public function build( array $registration ): Placeholders {
-		$event_id       = (int) ( $registration['event_id'] ?? 0 );
-		$config         = $this->config->get( $event_id );
-		$accommodation  = $this->accommodationLabel( $config, (int) ( $registration['id'] ?? 0 ) );
+		$event_id        = (int) ( $registration['event_id'] ?? 0 );
+		$config          = $this->config->get( $event_id );
+		$registration_id = (int) ( $registration['id'] ?? 0 );
+		$schema          = $this->loader->load( $event_id );
+		$is_nights       = null !== $schema && NightsResolver::isNightsMode( $schema );
+		// Tryb rozstrzygany raz, tu: doby czytają zapisane wiersze, klasyk — booking i konfigurację.
+		$nights         = $is_nights ? $this->nightsLabel( $registration_id ) : '';
+		$accommodation  = $is_nights ? '' : $this->accommodationLabel( $config, $registration_id );
 		$companion_name = (string) ( $registration['companion_name'] ?? '' );
 
 		return new Placeholders(
@@ -59,9 +66,10 @@ final class PlaceholderFactory {
 				'event'              => (string) get_the_title( $event_id ),
 				'typ'                => $this->typeLabel( $config, (string) ( $registration['type_key'] ?? '' ) ),
 				'nocleg'             => $accommodation,
+				'noclegi'            => $nights,
 				'osoba_towarzyszaca' => $companion_name,
 				'link_potwierdzenia' => $this->confirmationUrl( $config, $event_id, (string) ( $registration['token'] ?? '' ), (string) ( $registration['lang'] ?? '' ) ),
-				'podsumowanie'       => $this->summary( $event_id, $registration, $accommodation, $companion_name ),
+				'podsumowanie'       => $this->summary( $schema, $registration, '' !== $nights ? $nights : $accommodation, $companion_name ),
 			)
 		);
 	}
@@ -77,6 +85,18 @@ final class PlaceholderFactory {
 		$type  = $types->get( $type_key );
 
 		return null === $type ? $type_key : $type->label;
+	}
+
+	/**
+	 * Zwraca etykiety dób zgłoszenia po przecinku albo pusty łańcuch.
+	 * Czyta zapisane wiersze, nie żywą konfigurację — kolejka renderuje snapshot przy zapisie.
+	 *
+	 * @param int $registration_id ID zgłoszenia.
+	 */
+	private function nightsLabel( int $registration_id ): string {
+		$rows = $this->registrations->bookingNightsFor( array( $registration_id ) );
+
+		return ( new RegistrationExportMapper() )->nightsCell( $rows[ $registration_id ] ?? array() );
 	}
 
 	/**
@@ -156,14 +176,12 @@ final class PlaceholderFactory {
 	/**
 	 * Buduje podsumowanie odpowiedzi, dopisując linie noclegu i osoby towarzyszącej.
 	 *
-	 * @param int                 $event_id       ID eventu.
+	 * @param FormSchema|null     $schema         Złożony schemat eventu (null = brak).
 	 * @param array<string,mixed> $registration   Wiersz zgłoszenia.
 	 * @param string              $accommodation  Opis noclegu albo pusty łańcuch.
 	 * @param string              $companion_name Imię i nazwisko osoby towarzyszącej albo pusty łańcuch.
 	 */
-	private function summary( int $event_id, array $registration, string $accommodation, string $companion_name ): string {
-		$schema = $this->loader->load( $event_id );
-
+	private function summary( ?FormSchema $schema, array $registration, string $accommodation, string $companion_name ): string {
 		if ( null === $schema ) {
 			return '';
 		}

@@ -91,6 +91,7 @@ final class ContentTranslator {
 		$over     = $overlay[ $lang ]['accommodation'];
 		$packages = isset( $over['packages'] ) && is_array( $over['packages'] ) ? $over['packages'] : array();
 		$rooms    = isset( $over['rooms'] ) && is_array( $over['rooms'] ) ? $over['rooms'] : array();
+		$nights   = isset( $over['nights'] ) && is_array( $over['nights'] ) ? $over['nights'] : array();
 
 		foreach ( $accommodation['packages'] ?? array() as $pi => $package ) {
 			$key                                       = (string) ( $package['key'] ?? '' );
@@ -100,6 +101,13 @@ final class ContentTranslator {
 		foreach ( $accommodation['rooms'] ?? array() as $ri => $room ) {
 			$key                                    = (string) ( $room['key'] ?? '' );
 			$accommodation['rooms'][ $ri ]['label'] = self::pick( $rooms, $key, (string) ( $room['label'] ?? '' ) );
+		}
+
+		// Doby: tylko label. Klucz bez wpisu w overlayu (osierocone tłumaczenie po usuniętej
+		// dobie) zostaje inertny dzięki pick() — ta tolerancja jest nośna, nie zaostrzaj jej.
+		foreach ( $accommodation['nights'] ?? array() as $ni => $night ) {
+			$key                                     = (string) ( $night['key'] ?? '' );
+			$accommodation['nights'][ $ni ]['label'] = self::pick( $nights, $key, (string) ( $night['label'] ?? '' ) );
 		}
 
 		return $accommodation;

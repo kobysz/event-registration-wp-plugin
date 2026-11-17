@@ -263,3 +263,31 @@ describe( 'i18nOps accommodation bucket', () => {
 		expect( overlay.en.mail.optin.subject ).toBe( 'Hello' );
 	} );
 } );
+
+describe( 'i18nOps nights bucket', () => {
+	const accommodation = {
+		mode: 'nights',
+		nights: [ { key: 'n1', label: '18/19 XI' }, { key: 'n2', label: '' } ],
+	};
+
+	it( 'translatableItems dopisuje wiersz na dobę (etykieta, a bez niej klucz)', () => {
+		const items = translatableItems( schema, types, accommodation );
+		expect( items ).toContainEqual( { kind: 'accommodation', accKind: 'nights', key: 'n1', base: '18/19 XI' } );
+		expect( items ).toContainEqual( { kind: 'accommodation', accKind: 'nights', key: 'n2', base: 'n2' } );
+	} );
+
+	it( 'set/getAccommodationTranslation obsługuje nights', () => {
+		const overlay = setAccommodationTranslation( {}, 'en', 'nights', 'n1', 'Night 18/19' );
+		expect( getAccommodationTranslation( overlay, 'en', 'nights', 'n1' ) ).toBe( 'Night 18/19' );
+		expect( overlay.en.accommodation.nights.n1 ).toBe( 'Night 18/19' );
+	} );
+
+	it( 'zapis innego bucketu nie kasuje nights (regresja utraty danych)', () => {
+		let overlay = setAccommodationTranslation( {}, 'en', 'nights', 'n1', 'Night 18/19' );
+		overlay = setTranslation( overlay, 'en', 'field', 'imie', 'Name' );
+		overlay = setMailTranslation( overlay, 'en', 'optin', 'subject', 'Hello' );
+		overlay = setAccommodationTranslation( overlay, 'en', 'packages', 'n12', 'Night 1–2' );
+		expect( overlay.en.accommodation.nights.n1 ).toBe( 'Night 18/19' );
+		expect( overlay.en.accommodation.packages.n12 ).toBe( 'Night 1–2' );
+	} );
+} );
