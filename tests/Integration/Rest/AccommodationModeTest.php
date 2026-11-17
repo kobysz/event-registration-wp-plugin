@@ -153,6 +153,11 @@ final class AccommodationModeTest extends WP_UnitTestCase {
 				'nights' => array(
 					array( 'key' => 'n1', 'label' => '<b>Piątek</b>', 'price' => 120.5, 'seats' => 30, 'companion_cap' => 4 ),
 					array( 'key' => 'n2', 'label' => 'Sobota', 'price' => 0, 'seats' => 0, 'companion_cap' => '' ),
+					// Trzecia konwencja pustki, którą łatwo pomylić z dwiema wyżej:
+					// companion_cap === 0 to doba ZAMKNIĘTA dla par, nie „bez limitu”.
+					// Gdyby sanitize zaczęło przycinać wartości falsy, limit 0 zamieniłby
+					// się po cichu w brak limitu i nikt by tego nie zauważył.
+					array( 'key' => 'n3', 'label' => 'Niedziela', 'price' => 10, 'seats' => 5, 'companion_cap' => 0 ),
 				),
 			)
 		);
@@ -164,6 +169,7 @@ final class AccommodationModeTest extends WP_UnitTestCase {
 			array(
 				array( 'key' => 'n1', 'label' => 'Piątek', 'price' => 120.5, 'seats' => 30, 'companion_cap' => 4 ),
 				array( 'key' => 'n2', 'label' => 'Sobota', 'price' => 0, 'seats' => 0, 'companion_cap' => '' ),
+				array( 'key' => 'n3', 'label' => 'Niedziela', 'price' => 10, 'seats' => 5, 'companion_cap' => 0 ),
 			),
 			$saved['nights']
 		);
