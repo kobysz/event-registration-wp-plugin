@@ -588,16 +588,22 @@ final class RegistrationRepository {
 	/**
 	 * Zastępuje komplet dób zgłoszenia podanym zbiorem (kasowanie + wstawienie w jednym wywołaniu).
 	 *
+	 * Zwraca liczbę faktycznie wstawionych wierszy. Wołający MUSI porównać ją z liczbą próśb
+	 * (count( $nights )) i w razie różnicy wycofać transakcję: nieudany INSERT nie rzuca wyjątku,
+	 * a niedoliczona doba oznaczałaby niedoliczone miejsca.
+	 *
 	 * @param int                                                             $registration_id ID zgłoszenia.
 	 * @param array<int,array{key:string,label:string,seats:int,price:float}> $nights          Doby do zapisania.
+	 * @return int Liczba wstawionych wierszy.
 	 */
-	public function replaceBookingNights( int $registration_id, array $nights ): void {
+	public function replaceBookingNights( int $registration_id, array $nights ): int {
 		global $wpdb;
 
 		$this->deleteBookingNights( $registration_id );
 
+		$written = 0;
 		foreach ( $nights as $night ) {
-			$wpdb->insert( // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+			$result = $wpdb->insert( // phpcs:ignore WordPress.DB.DirectDatabaseQuery
 				$this->bookingNights(),
 				array(
 					'registration_id' => $registration_id,
@@ -608,7 +614,12 @@ final class RegistrationRepository {
 				),
 				array( '%d', '%s', '%s', '%d', '%f' )
 			);
+			if ( 1 === $result ) {
+				++$written;
+			}
 		}
+
+		return $written;
 	}
 
 	/**
@@ -663,8 +674,13 @@ final class RegistrationRepository {
 	public function eventHasAccommodation( int $event_id ): bool {
 		global $wpdb;
 
-		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-		$found = $wpdb->get_var( $wpdb->prepare( "SELECT 1 FROM {$this->registrations()} r WHERE r.event_id = %d AND ( EXISTS ( SELECT 1 FROM {$this->bookings()} b WHERE b.registration_id = r.id ) OR EXISTS ( SELECT 1 FROM {$this->bookingNights()} n WHERE n.registration_id = r.id ) ) LIMIT 1", $event_id ) );
+		$statuses = RegistrationStatus::occupyingValues();
+		$in       = implode( ',', array_fill( 0, count( $statuses ), '%s' ) );
+		$args     = array_merge( array( $event_id ), $statuses );
+
+		// Obie połówki EXISTS są skorelowane z r, więc filtr statusu na r obejmuje oba rodzaje wierszy.
+		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQLPlaceholders.ReplacementsWrongNumber, WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare -- $in oraz $args mają zmienną, ale dopasowaną liczbę elementów.
+		$found = $wpdb->get_var( $wpdb->prepare( "SELECT 1 FROM {$this->registrations()} r WHERE r.event_id = %d AND r.status IN ($in) AND ( EXISTS ( SELECT 1 FROM {$this->bookings()} b WHERE b.registration_id = r.id ) OR EXISTS ( SELECT 1 FROM {$this->bookingNights()} n WHERE n.registration_id = r.id ) ) LIMIT 1", $args ) );
 
 		return null !== $found;
 	}

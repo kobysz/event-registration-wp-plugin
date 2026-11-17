@@ -20,7 +20,7 @@ final class MigrationsCompanionColumnTest extends WP_UnitTestCase {
 		$this->assertContains( 'seats', $cols );
 	}
 
-	public function test_db_version_is_five(): void {
+	public function test_companion_column_ships_with_current_schema_version(): void {
 		$this->assertSame( 7, Migrations::DB_VERSION );
 	}
 }

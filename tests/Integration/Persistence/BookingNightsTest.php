@@ -122,11 +122,26 @@ final class BookingNightsTest extends WP_UnitTestCase {
 		$id     = $this->register();
 		$nights = array( $this->night( 'n1' ), $this->night( 'n2' ) );
 
-		$this->repository->replaceBookingNights( $id, $nights );
-		$this->repository->replaceBookingNights( $id, $nights );
+		$this->assertSame( 2, $this->repository->replaceBookingNights( $id, $nights ) );
+		$this->assertSame( 2, $this->repository->replaceBookingNights( $id, $nights ) );
 
 		$this->assertSame( 2, $this->rowCount( $id ) );
 		$this->assertSame( 1, $this->repository->nightOccupancy( $this->event_id, self::OCCUPYING )->seatsFor( 'n1' ) );
+	}
+
+	public function test_replace_overwrites_stored_values_and_returns_written_count(): void {
+		$id = $this->register();
+		$this->repository->replaceBookingNights( $id, array( $this->night( 'n1', 1, 100.0 ) ) );
+
+		$this->assertSame( 1, $this->repository->replaceBookingNights( $id, array( $this->night( 'n1', 2, 175.0 ) ) ) );
+
+		$this->assertSame( 1, $this->rowCount( $id ) );
+		$stored = $this->repository->bookingNightsFor( array( $id ) );
+		$this->assertSame( 2, $stored[ $id ][0]['seats'] );
+		$this->assertSame( 175.0, $stored[ $id ][0]['price'] );
+
+		$this->assertSame( 0, $this->repository->replaceBookingNights( $id, array() ) );
+		$this->assertSame( 0, $this->rowCount( $id ) );
 	}
 
 	public function test_replace_removes_nights_that_left_the_set(): void {
@@ -176,8 +191,19 @@ final class BookingNightsTest extends WP_UnitTestCase {
 		$this->repository->replaceBookingNights( $id, array( $this->night( 'n1' ) ) );
 		$this->assertTrue( $this->repository->eventHasAccommodation( $this->event_id ) );
 
+		// Wiersze dób zostają: predykat sam ma zignorować anulowane zgłoszenie.
 		$this->repository->markCancelled( $id );
-		$this->repository->deleteBookingNights( $id );
+
+		$this->assertSame( 1, $this->rowCount( $id ) );
+		$this->assertFalse( $this->repository->eventHasAccommodation( $this->event_id ) );
+	}
+
+	public function test_cancelled_registration_with_leftover_classic_booking_is_not_locked(): void {
+		$id = $this->register( 'confirmed' );
+		$this->repository->insertAccommodationBooking( $id, new AccommodationSelection( 'n12', 'double', '' ), 180.0 );
+		$this->assertTrue( $this->repository->eventHasAccommodation( $this->event_id ) );
+
+		$this->repository->markCancelled( $id );
 
 		$this->assertFalse( $this->repository->eventHasAccommodation( $this->event_id ) );
 	}
