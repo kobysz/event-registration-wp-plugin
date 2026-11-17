@@ -174,9 +174,13 @@ final class NightFormTest extends WP_UnitTestCase {
 	}
 
 	public function test_submit_extracts_the_selected_night_keys(): void {
+		// Powtórzony klucz zostaje w próbce: deduplikacja i porządek konfiguracji są
+		// poprawnym wynikiem, a nie cichą redukcją. Doba NIEZNANA konfiguracji to już
+		// inna sprawa i odrzuca całość — pilnuje tego
+		// test_a_mixed_selection_is_refused_whole.
 		$assembled = ( new SubmissionAssembler() )->assemble(
 			$this->schema(),
-			$this->post( 'a@example.com', array( 'n1920', 'n1819', 'n1819', 'bogus' ) ),
+			$this->post( 'a@example.com', array( 'n1920', 'n1819', 'n1819' ) ),
 			NightsResolver::forSchema( $this->schema() )
 		);
 
@@ -222,6 +226,16 @@ final class NightFormTest extends WP_UnitTestCase {
 
 	public function test_unknown_keys_only_is_an_invalid_choice(): void {
 		$result = $this->handler()->process( $this->event_id, $this->post( 'a@example.com', array( 'bogus' ) ) );
+
+		$this->assertSame( 'invalid', $result->code() );
+		$this->assertSame( 'invalid_accommodation', $result->errors()['nocleg'] ?? null );
+	}
+
+	public function test_a_mixed_selection_is_refused_whole(): void {
+		// Anty-cel nr 1 specyfikacji: nigdy nie przyjmujemy części zaznaczenia po cichu.
+		// Zaznaczenie z jedną dobą znaną i jedną nieznaną nie może zwalidować się do
+		// samej znanej — zgłaszający dostałby mniej, niż poprosił, bez ani jednego słowa.
+		$result = $this->handler()->process( $this->event_id, $this->post( 'a@example.com', array( 'n1819', 'bogus' ) ) );
 
 		$this->assertSame( 'invalid', $result->code() );
 		$this->assertSame( 'invalid_accommodation', $result->errors()['nocleg'] ?? null );

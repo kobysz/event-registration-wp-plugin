@@ -78,6 +78,21 @@ final class AccommodationValidator implements FieldValidator {
 		$keys      = is_array( $raw ) && is_array( $raw['nights'] ?? null ) ? $raw['nights'] : array();
 		$selection = NightSelection::fromKeys( $keys, $config );
 
+		// Zaznaczenie przyjmujemy W CAŁOŚCI albo nie przyjmujemy wcale (anty-cel nr 1
+		// specyfikacji). Normalizacja odfiltrowuje doby nieznane konfiguracji, więc gdy
+		// znormalizowany zbiór jest KRÓTSZY od podanego, przynajmniej jedna doba wypadła
+		// i przyjęcie resztki byłoby cichym daniem komuś mniej, niż poprosił.
+		//
+		// Punktem odniesienia są podane klucze UNIKALNE i skalarne, dokładnie te, które
+		// widzi NightSelection::fromKeys. Powtórzony klucz nie jest życzeniem, które
+		// gubimy — to ta sama doba zaznaczona dwa razy, więc deduplikacja nic nie zabiera
+		// i nie może być błędem (porządek i unikalność pilnuje osobny test).
+		$submitted = array_unique( array_map( 'strval', array_filter( $keys, 'is_scalar' ) ) );
+
+		if ( count( $submitted ) !== count( $selection->keys() ) ) {
+			return FieldOutcome::error( 'invalid_accommodation' );
+		}
+
 		if ( $selection->isEmpty() ) {
 			// Podane klucze, z których żaden nie istnieje w konfiguracji, to zły wybór,
 			// a nie „bez noclegu” — inaczej literówka po cichu zamieniałaby się w rezygnację.
