@@ -11,8 +11,11 @@ namespace EvReg\Services;
 
 use EvReg\Domain\Accommodation\AccommodationConfig;
 use EvReg\Domain\Accommodation\AccommodationSelection;
+use EvReg\Domain\Accommodation\NightSelection;
+use EvReg\Domain\Accommodation\NightsConfig;
 use EvReg\Domain\Capacity\CapacityCalculator;
 use EvReg\Domain\Capacity\CapacityLimits;
+use EvReg\Domain\Capacity\NightCapacity;
 use EvReg\Domain\Capacity\Outcome;
 use EvReg\Domain\Pricing\PriceCalculator;
 use EvReg\Domain\Registration\RegistrationStatus;
@@ -76,10 +79,21 @@ final class ReservationService {
 	public function reserve( int $event_id, ReservationRequest $request ): ReservationResult {
 		global $wpdb;
 
-		$config        = $this->config->get( $event_id );
-		$types         = RegistrationTypeCollection::fromArray( is_array( $config['types'] ) ? $config['types'] : array() );
-		$accommodation = AccommodationConfig::fromArray( is_array( $config['accommodation'] ) ? $config['accommodation'] : array() );
-		$settings      = is_array( $config['settings'] ) ? $config['settings'] : array();
+		$config            = $this->config->get( $event_id );
+		$types             = RegistrationTypeCollection::fromArray( is_array( $config['types'] ) ? $config['types'] : array() );
+		$settings          = is_array( $config['settings'] ) ? $config['settings'] : array();
+		$accommodation_raw = is_array( $config['accommodation'] ) ? $config['accommodation'] : array();
+
+		// Rozgałęzienie trybu stoi na WEJŚCIU, przed AccommodationConfig::fromArray —
+		// ta rzuca SchemaException na niespójnym inwentarzu, a event w trybie „doby”
+		// może nieść zapomniane dane klasyczne. Gałąź dobowa nie buduje jej nigdy.
+		$nights_config = NightsConfig::fromArray( $accommodation_raw );
+
+		if ( $nights_config->isNights() ) {
+			return $this->reserveNights( $event_id, $request, $nights_config, $settings, $types );
+		}
+
+		$accommodation = AccommodationConfig::fromArray( $accommodation_raw );
 
 		$wpdb->query( 'START TRANSACTION' );
 
@@ -195,6 +209,204 @@ final class ReservationService {
 		}
 
 		return $result;
+	}
+
+	/**
+	 * Rezerwuje miejsca w każdej wybranej dobie (tryb „doby”).
+	 *
+	 * Powtarza szkielet transakcji ścieżki klasycznej — START → lockEvent → guard duplikatu →
+	 * zajętość → limit globalny i typu → bramka dób → INSERT (+ doby) → COMMIT → hooki poza
+	 * try/catch — podmieniając bramkę slotu na NightCapacity::blockingNight i zapis bookingu na
+	 * replaceBookingNights. W trybie „doby” NIE powstaje wiersz w accommodation_bookings: nie
+	 * ma pakietu ani pokoju, którym można by go wypełnić, a wiersze dób SĄ rezerwacją noclegu.
+	 * Świadomie nie buduje AccommodationConfig — wspólne flagi czyta z NightsConfig.
+	 *
+	 * @param int                        $event_id      ID eventu.
+	 * @param ReservationRequest         $request       Dane zgłoszenia.
+	 * @param NightsConfig               $nights_config Konfiguracja trybu „doby”.
+	 * @param array<mixed>               $settings      Ustawienia eventu.
+	 * @param RegistrationTypeCollection $types         Typy zgłoszeń eventu.
+	 *
+	 * @throws \RuntimeException Gdy liczba zapisanych dób nie zgadza się z liczbą żądanych
+	 *                           (ROLLBACK w catch; niedoliczona doba = niedoliczone miejsca).
+	 * @throws \Throwable        Gdy operacja w transakcji się nie powiedzie (ROLLBACK przed ponownym
+	 *                           rzuceniem) albo gdy nasłuch rzuci po COMMIT.
+	 */
+	private function reserveNights(
+		int $event_id,
+		ReservationRequest $request,
+		NightsConfig $nights_config,
+		array $settings,
+		RegistrationTypeCollection $types
+	): ReservationResult {
+		global $wpdb;
+
+		$selection = $request->nights ?? NightSelection::fromKeys( array(), $nights_config );
+		$seats     = $request->companion ? 2 : 1;
+
+		$wpdb->query( 'START TRANSACTION' );
+
+		try {
+			// KRYTYCZNA KOLEJNOŚĆ (jak w reserve()): lockEvent() (SELECT ... FOR UPDATE) MUSI
+			// wykonać się przed pierwszym odczytem zajętości — zgłoszeń ORAZ dób. Pod InnoDB
+			// REPEATABLE READ migawka odczytu ustala się przy pierwszym spójnym odczycie, więc
+			// blokada jako pierwsza wymusza, że zablokowany rywal zobaczy zatwierdzone miejsca
+			// poprzednika. To jedyna rzecz zapobiegająca sprzedaniu ostatniego łóżka dwa razy.
+			// NIE ZMIENIAJ KOLEJNOŚCI.
+			$this->repository->lockEvent( $event_id );
+
+			if ( $this->repository->activeRegistrationExists( $event_id, $request->email ) ) {
+				$wpdb->query( 'ROLLBACK' );
+				return ReservationResult::duplicate();
+			}
+
+			// Limit wydarzenia i limit typu rozstrzygają PRZED bramką dób, dokładnie jak dziś —
+			// łącznie z regułą companion_counts_event. Doba nie jest slotem klasycznym, więc
+			// limity slotów są puste, a decide() dostaje selection=null i wraca po limicie typu.
+			$limits = new CapacityLimits(
+				isset( $settings['global_cap'] ) && null !== $settings['global_cap'] ? (int) $settings['global_cap'] : null,
+				$types->capacities(),
+				array(),
+				(bool) ( $settings['waitlist_enabled'] ?? true ),
+				$nights_config->companionCountsEvent(),
+				array()
+			);
+
+			$decision = $this->calculator->decide(
+				$limits,
+				$this->repository->occupancy( $event_id ),
+				$request->typeKey,
+				null,
+				$request->companion
+			);
+
+			if ( Outcome::Rejected === $decision->outcome ) {
+				$wpdb->query( 'ROLLBACK' );
+				return ReservationResult::rejected( (string) $decision->reason );
+			}
+
+			$is_waitlist = Outcome::Waitlisted === $decision->outcome;
+			$granted     = ! $is_waitlist && ! $selection->isEmpty();
+
+			if ( $granted ) {
+				// Bramka dób — po blokadzie, na świeżo policzonej zajętości dób.
+				// Odmowa jest całościowa: jedna ciasna doba przepada cały wybór i NIE
+				// zapisujemy ani wiersza dla doby wolnej (żadnego cichego przyjęcia części).
+				$blocking = NightCapacity::blockingNight(
+					$nights_config,
+					$this->repository->nightOccupancy( $event_id, RegistrationStatus::occupyingValues() ),
+					$selection,
+					$request->companion
+				);
+
+				if ( null !== $blocking ) {
+					$wpdb->query( 'ROLLBACK' );
+					return ReservationResult::accommodationFull( $blocking );
+				}
+			}
+
+			$status     = $is_waitlist ? RegistrationStatus::Waitlist : RegistrationStatus::Pending;
+			$expires_at = $is_waitlist ? null : gmdate( 'Y-m-d H:i:s', strtotime( self::PENDING_TTL, time() ) );
+
+			$type  = $types->get( $request->typeKey );
+			$empty = NightSelection::fromKeys( array(), $nights_config );
+			// Doby liczą się do ceny tylko wtedy, gdy faktycznie przyznane — zgłoszenie
+			// z listy rezerwowej nie dostaje wierszy dób, więc nie może być nimi obciążone.
+			$price = null === $type
+				? 0.0
+				: $this->pricing->totalForNights( $type, $nights_config, $granted ? $selection : $empty, $seats );
+			$token = bin2hex( random_bytes( 16 ) );
+
+			$id = $this->repository->insertRegistration(
+				array(
+					'event_id'       => $event_id,
+					'type_key'       => $request->typeKey,
+					'status'         => $status->value,
+					'email'          => $request->email,
+					'name'           => $request->name,
+					'token'          => $token,
+					'data'           => (string) wp_json_encode( $this->nightAnswers( $request->data ) ),
+					'price_total'    => $price,
+					'expires_at'     => $expires_at,
+					'lang'           => $request->lang,
+					'companion'      => $request->companion ? 1 : 0,
+					'companion_name' => $request->companion ? $request->companionName : '',
+				)
+			);
+
+			if ( $granted ) {
+				$rows = array();
+
+				foreach ( $selection->keys() as $key ) {
+					$night = $nights_config->night( $key );
+
+					if ( null === $night ) {
+						continue;
+					}
+
+					$rows[] = array(
+						'key'   => $night->key,
+						'label' => $night->label,
+						'seats' => $seats,
+						'price' => $night->price * $seats,
+					);
+				}
+
+				$written = $this->repository->replaceBookingNights( $id, $rows );
+
+				// Nieudany INSERT nie rzuca — replaceBookingNights zwraca liczbę zapisanych
+				// wierszy właśnie po to, by cichy zapis częściowy nie przeszedł niezauważony.
+				// Niedoliczona doba to niedoliczone miejsca, czyli dokładnie ta awaria, której
+				// ta funkcja ma nie dopuścić. Rzut trafia do catch → ROLLBACK → nic nie zostaje.
+				if ( count( $rows ) !== $written ) {
+					throw new \RuntimeException(
+						sprintf( 'Zapisano %d z %d dób zgłoszenia %d.', $written, count( $rows ), $id )
+					);
+				}
+			}
+
+			$wpdb->query( 'COMMIT' );
+
+			$result = $is_waitlist
+				? ReservationResult::waitlisted( $id, $token, (string) $decision->reason )
+				: ReservationResult::reserved( $id, $token, $granted, $decision->reason );
+		} catch ( \Throwable $e ) {
+			$wpdb->query( 'ROLLBACK' );
+			throw $e;
+		}
+
+		// Hooki cyklu życia POZA try/catch, po COMMIT — nasłuch nigdy nie działa
+		// w transakcji rezerwacji (patrz komentarz w reserve()).
+		if ( $is_waitlist ) {
+			do_action( 'evreg_registration_waitlisted', $id, $event_id );
+		} else {
+			do_action( 'evreg_registration_reserved', $id, $event_id, $token );
+		}
+
+		return $result;
+	}
+
+	/**
+	 * Normalizuje odpowiedzi trybu „doby”: wybór dób zapisuje się jako PŁASKA LISTA
+	 * kluczy, nigdy jako obiekt.
+	 *
+	 * Ścieżka klasyczna trzyma tam obiekt selekcji i kosztowało to błąd produkcyjny
+	 * (ekran edycji admina czytał inne klucze, niż zapisano) — tryb „doby” tego kształtu
+	 * nie dziedziczy. Normalizacja siedzi tutaj, żeby kształt zapisu nie zależał od tego,
+	 * co w `data` włoży wywołujący.
+	 *
+	 * @param array<string,mixed> $data Odpowiedzi zgłoszenia.
+	 *
+	 * @return array<string,mixed>
+	 */
+	private function nightAnswers( array $data ): array {
+		foreach ( $data as $key => $value ) {
+			if ( $value instanceof NightSelection ) {
+				$data[ $key ] = $value->keys();
+			}
+		}
+
+		return $data;
 	}
 
 	/**

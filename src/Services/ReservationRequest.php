@@ -10,6 +10,7 @@ declare( strict_types=1 );
 namespace EvReg\Services;
 
 use EvReg\Domain\Accommodation\AccommodationSelection;
+use EvReg\Domain\Accommodation\NightSelection;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -29,6 +30,8 @@ final class ReservationRequest {
 	 * @param string                      $lang           Slug języka zgłoszenia ('' gdy brak).
 	 * @param bool                        $companion      Czy zgłoszenie obejmuje osobę towarzyszącą.
 	 * @param string                      $companionName  Imię i nazwisko osoby towarzyszącej ('' gdy brak/nie dotyczy).
+	 * @param NightSelection|null         $nights         Wybrane doby w trybie „doby”; null poza tym trybem (domyślny —
+	 *                                                    istniejące wywołania ścieżki klasycznej zostają bez zmian).
 	 */
 	public function __construct(
 		public readonly string $email,
@@ -38,7 +41,8 @@ final class ReservationRequest {
 		public readonly ?AccommodationSelection $selection = null,
 		public readonly string $lang = '',
 		public readonly bool $companion = false,
-		public readonly string $companionName = ''
+		public readonly string $companionName = '',
+		public readonly ?NightSelection $nights = null
 	) {
 	}
 }
