@@ -469,6 +469,44 @@ final class NightEditTest extends WP_UnitTestCase {
 		$this->assertSame( 2, $this->occupancy()->seatsFor( 'n1920' ) );
 	}
 
+	public function test_companion_flip_without_a_selection_is_refused_when_every_stored_night_vanished(): void {
+		// Przypadek skrajny do odmowy przy dobie znikniętej: gdy z konfiguracji zniknęły
+		// WSZYSTKIE zapisane doby, zbiór odbudowany z bieżącej konfiguracji jest pusty.
+		// Grant policzony z NIEGO wpadłby w gałąź „bez noclegu" i skasował wiersze, więc
+		// zgłoszenie po cichu traciłoby nocleg i cenę przy zwykłej zmianie flagi. Grant
+		// liczy się z dób ŻĄDANYCH, a zniknięta doba jest odmawiana po nazwie — tak samo
+		// jak przy zniknięciu części dób.
+		$id     = $this->reserve( 'vanish@example.com', array( 'n1819', 'n1920' ), true );
+		$before = $this->nightsOf( $id );
+		$this->assertSame( '440.00', $this->repository->findById( $id )['price_total'] );
+
+		// Admin przebudował konfigurację: obu dób zgłoszenia już nie ma.
+		$this->configure(
+			array(
+				array(
+					'key'   => 'n2021',
+					'label' => '20/21 XI',
+					'price' => 95.0,
+					'seats' => 4,
+				),
+			)
+		);
+
+		$result = $this->service->editAnswers( $id, $this->requestWithoutNights( 'vanish@example.com' ) );
+
+		$this->assertSame( 'accommodation_full', $result->code );
+		// Pierwsza zapisana doba zgłoszenia, czyli ta, którą odmowa ma nazwać.
+		$this->assertSame( 'n1819', $result->reason );
+
+		// Nic się nie ruszyło: ani flaga, ani wiersze, ani miejsca, ani cena.
+		$row = $this->repository->findById( $id );
+		$this->assertSame( '1', (string) $row['companion'] );
+		$this->assertSame( '440.00', $row['price_total'] );
+		$this->assertSame( $before, $this->nightsOf( $id ) );
+		$this->assertSame( 2, $this->occupancy()->seatsFor( 'n1819' ) );
+		$this->assertSame( 2, $this->occupancy()->seatsFor( 'n1920' ) );
+	}
+
 	public function test_dropping_the_companion_without_a_selection_rewrites_the_seats(): void {
 		// Kierunek nieszkodliwy dla pojemności (zwalnia miejsce), ale przypięty, żeby nie
 		// zmienił się po cichu: zostawienie wierszy z seats=2 trzymałoby miejsce dla

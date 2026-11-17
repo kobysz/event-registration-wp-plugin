@@ -1176,7 +1176,16 @@ final class ReservationService {
 				&& ( ! $supplied || $sorted_stored === $sorted_new );
 
 			// Zgłoszenie z listy rezerwowej nie zajmuje miejsc, więc nie dostaje wierszy dób.
-			$granted = $occupies && ! $selection->isEmpty();
+			//
+			// Grant liczy się z dób ŻĄDANYCH, nie z tego, co przetrwało odczyt konfiguracji.
+			// Gdyby liczył się z $selection, zniknięcie z konfiguracji WSZYSTKICH dób
+			// zapisanych przy zgłoszeniu dałoby pusty zbiór odbudowany, edycja wpadłaby
+			// w gałąź „bez noclegu", skasowała wiersze i obniżyła cenę — po cichu, przy
+			// zwykłej zmianie flagi towarzyszącej. Pusty jest tylko wybór PODANY i pusty,
+			// czyli świadoma rezygnacja; dla niej $requested_keys też jest pusty, więc
+			// rozróżnienie zostaje. Zniknięta doba jest odmawiana po nazwie w pętli niżej —
+			// zarówno gdy zniknęła część dób, jak i gdy wszystkie.
+			$granted = $occupies && array() !== $requested_keys;
 			$rows    = array();
 
 			if ( $occupies ) {
