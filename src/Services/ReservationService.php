@@ -262,6 +262,33 @@ final class ReservationService {
 	}
 
 	/**
+	 * Zapisuje komplet wierszy dób i rzuca, gdy baza przyjęła mniej, niż zażądano.
+	 *
+	 * Nieudany INSERT nie rzuca — replaceBookingNights() zwraca liczbę zapisanych wierszy
+	 * właśnie po to, by cichy zapis częściowy nie przeszedł niezauważony. Niedoliczona doba
+	 * to niedoliczone miejsca, czyli dokładnie ta awaria, której tryb „doby” ma nie dopuścić.
+	 * Rzut trafia do catch wołającego → ROLLBACK → nic nie zostaje.
+	 *
+	 * Punktem odniesienia jest liczba dób ŻĄDANYCH, podawana przez wołającego — nie liczba
+	 * zbudowanych wierszy, bo tę dałoby się ściszyć pominięciem przy ich budowie.
+	 *
+	 * @param int                                                             $id        ID zgłoszenia.
+	 * @param array<int,array{key:string,label:string,seats:int,price:float}> $rows      Wiersze dób do zapisu.
+	 * @param int                                                             $requested Liczba dób ŻĄDANYCH.
+	 *
+	 * @throws \RuntimeException Gdy liczba zapisanych wierszy nie zgadza się z żądaną.
+	 */
+	private function writeNightRows( int $id, array $rows, int $requested ): void {
+		$written = $this->repository->replaceBookingNights( $id, $rows );
+
+		if ( $requested !== $written ) {
+			throw new \RuntimeException(
+				sprintf( 'Zapisano %d z %d dób zgłoszenia %d.', $written, $requested, $id )
+			);
+		}
+	}
+
+	/**
 	 * Rezerwuje miejsce dla zgłoszenia w ramach jednej transakcji z blokadą per event.
 	 *
 	 * Kolejność: START → lockEvent → guard duplikatu → zajętość → decyzja →
@@ -413,10 +440,10 @@ final class ReservationService {
 	 * @param array<mixed>               $settings      Ustawienia eventu.
 	 * @param RegistrationTypeCollection $types         Typy zgłoszeń eventu.
 	 *
-	 * @throws \RuntimeException Gdy liczba zapisanych dób nie zgadza się z liczbą żądanych
-	 *                           (ROLLBACK w catch; niedoliczona doba = niedoliczone miejsca).
-	 * @throws \Throwable        Gdy operacja w transakcji się nie powiedzie (ROLLBACK przed ponownym
-	 *                           rzuceniem) albo gdy nasłuch rzuci po COMMIT.
+	 * @throws \Throwable Gdy operacja w transakcji się nie powiedzie (ROLLBACK przed ponownym
+	 *                    rzuceniem), w tym \RuntimeException z writeNightRows() przy liczbie
+	 *                    zapisanych dób innej niż żądana (niedoliczona doba = niedoliczone
+	 *                    miejsca), albo gdy nasłuch rzuci po COMMIT.
 	 */
 	private function reserveNights(
 		int $event_id,
@@ -529,18 +556,7 @@ final class ReservationService {
 				// Punktem odniesienia jest liczba dób ŻĄDANYCH, nie liczba zbudowanych
 				// wierszy: po odmowie nieznanej doby wyżej są równe, ale baseline z
 				// $selection nie da się ściszyć pominięciem przy budowie wierszy.
-				$written   = $this->repository->replaceBookingNights( $id, $rows );
-				$requested = count( $selection->keys() );
-
-				// Nieudany INSERT nie rzuca — replaceBookingNights zwraca liczbę zapisanych
-				// wierszy właśnie po to, by cichy zapis częściowy nie przeszedł niezauważony.
-				// Niedoliczona doba to niedoliczone miejsca, czyli dokładnie ta awaria, której
-				// ta funkcja ma nie dopuścić. Rzut trafia do catch → ROLLBACK → nic nie zostaje.
-				if ( $requested !== $written ) {
-					throw new \RuntimeException(
-						sprintf( 'Zapisano %d z %d dób zgłoszenia %d.', $written, $requested, $id )
-					);
-				}
+				$this->writeNightRows( $id, $rows, count( $selection->keys() ) );
 			}
 
 			$this->repository->commit();
@@ -885,10 +901,10 @@ final class ReservationService {
 	 * @param array<string,array<mixed>> $config        Konfiguracja eventu (settings + schema z kluczem pola noclegu).
 	 * @param RegistrationTypeCollection $types         Typy zgłoszeń eventu.
 	 *
-	 * @throws \RuntimeException Gdy liczba zapisanych dób nie zgadza się z liczbą żądanych
-	 *                           (ROLLBACK w catch; niedoliczona doba = niedoliczone miejsca).
-	 * @throws \Throwable        Gdy operacja w transakcji się nie powiedzie (ROLLBACK przed ponownym
-	 *                           rzuceniem) albo gdy nasłuch rzuci po COMMIT.
+	 * @throws \Throwable Gdy operacja w transakcji się nie powiedzie (ROLLBACK przed ponownym
+	 *                    rzuceniem), w tym \RuntimeException z writeNightRows() przy liczbie
+	 *                    zapisanych dób innej niż żądana (niedoliczona doba = niedoliczone
+	 *                    miejsca), albo gdy nasłuch rzuci po COMMIT.
 	 */
 	private function promoteFromWaitlistNights(
 		int $id,
@@ -954,16 +970,7 @@ final class ReservationService {
 			$accommodation_lost = $wished && ! $granted;
 
 			if ( $granted ) {
-				$written   = $this->repository->replaceBookingNights( $id, $rows );
-				$requested = count( $selection->keys() );
-
-				// Nieudany INSERT nie rzuca — porównanie liczby wierszy to jedyna obrona przed
-				// cichym zapisem częściowym, czyli przed niedoliczonymi miejscami.
-				if ( $requested !== $written ) {
-					throw new \RuntimeException(
-						sprintf( 'Zapisano %d z %d dób zgłoszenia %d.', $written, $requested, $id )
-					);
-				}
+				$this->writeNightRows( $id, $rows, count( $selection->keys() ) );
 			} else {
 				// Bez przyznania noclegu zgłoszenie nie może wejść w status zajmujący miejsce
 				// z wierszami dób sprzed awansu: markPending() poniżej uczyniłby je realną
@@ -1349,10 +1356,10 @@ final class ReservationService {
 	 *                                                  noclegu) — jak w promoteFromWaitlistNights().
 	 * @param RegistrationTypeCollection $types         Typy zgłoszeń eventu.
 	 *
-	 * @throws \RuntimeException Gdy liczba zapisanych dób nie zgadza się z liczbą żądanych
-	 *                           (ROLLBACK w catch; niedoliczona doba = niedoliczone miejsca).
-	 * @throws \Throwable        Gdy operacja w transakcji się nie powiedzie (ROLLBACK przed
-	 *                           ponownym rzuceniem).
+	 * @throws \Throwable Gdy operacja w transakcji się nie powiedzie (ROLLBACK przed ponownym
+	 *                    rzuceniem), w tym \RuntimeException z writeNightRows() przy liczbie
+	 *                    zapisanych dób innej niż żądana (niedoliczona doba = niedoliczone
+	 *                    miejsca).
 	 */
 	private function editAnswersNights(
 		int $id,
@@ -1542,18 +1549,7 @@ final class ReservationService {
 
 			if ( ! $unchanged ) {
 				if ( $granted ) {
-					$written   = $this->repository->replaceBookingNights( $id, $rows );
-					$requested = count( $requested_keys );
-
-					// Nieudany INSERT nie rzuca — porównanie liczby wierszy to jedyna obrona
-					// przed cichym zapisem częściowym, czyli przed niedoliczonymi miejscami.
-					// Punktem odniesienia jest liczba dób ŻĄDANYCH: baseline z $rows dałby się
-					// ściszyć pominięciem przy ich budowie.
-					if ( $requested !== $written ) {
-						throw new \RuntimeException(
-							sprintf( 'Zapisano %d z %d dób zgłoszenia %d.', $written, $requested, $id )
-						);
-					}
+					$this->writeNightRows( $id, $rows, count( $requested_keys ) );
 				} else {
 					// Rezygnacja z noclegu albo powrót na listę rezerwową: wiersze dób giną
 					// razem z roszczeniem do miejsc.
