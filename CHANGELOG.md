@@ -11,6 +11,8 @@ so keep entries user-facing and concise.
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-17
+
 ### Added
 - A second accommodation mode, "nights", chosen per event. Instead of packages and room types, you list the nights and give each a price, a number of seats and, optionally, a limit on registrations that bring a companion. Participants simply tick the nights they want.
 - Nights with no seats left are shown as unavailable, and a night that has a seat but no room for two people is closed only while "companion" is ticked and opens again when it is unticked. A night that gets closed after you ticked it is unticked with a note, so nobody submits believing they still hold it.
@@ -136,7 +138,8 @@ so keep entries user-facing and concise.
 ### Added
 - Initial internal release covering the full roadmap: event configuration (custom post type, REST API, React admin), public registration form with transactional seat reservation and double opt-in, transactional mail queue with templates and an admin queue screen, submissions panel with lifecycle actions, answer editing and CSV export, data-lifecycle/compliance tooling (gated uninstall, WordPress privacy export/erase), and self-hosted auto-update from GitHub Releases.
 
-[Unreleased]: https://github.com/kobysz/event-registration-wp-plugin/compare/v0.1.17...HEAD
+[Unreleased]: https://github.com/kobysz/event-registration-wp-plugin/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/kobysz/event-registration-wp-plugin/releases/tag/v0.2.0
 [0.1.17]: https://github.com/kobysz/event-registration-wp-plugin/releases/tag/v0.1.17
 [0.1.16]: https://github.com/kobysz/event-registration-wp-plugin/releases/tag/v0.1.16
 [0.1.15]: https://github.com/kobysz/event-registration-wp-plugin/releases/tag/v0.1.15
