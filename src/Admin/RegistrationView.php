@@ -41,7 +41,7 @@ final class RegistrationView {
 	 *
 	 * @var EventFormLoader
 	 */
-	private EventFormLoader $loader;
+	private readonly EventFormLoader $loader;
 
 	/**
 	 * Tworzy widok z wstrzykniętymi repozytoriami.
@@ -58,6 +58,10 @@ final class RegistrationView {
 
 	/**
 	 * Renderuje ekran szczegółów zgłoszenia (read-only + notatka).
+	 *
+	 * Wypisuje dane osobowe zgłaszającego się (imię, e-mail, notatkę, cenę) i NIE sprawdza
+	 * uprawnień sama — wołający MUSI mieć sprawdzone `current_user_can( Capabilities::CAP )`
+	 * (robi to router w `RegistrationsScreen::render()`).
 	 *
 	 * @param int $id ID zgłoszenia.
 	 */
@@ -151,6 +155,10 @@ final class RegistrationView {
 
 	/**
 	 * Renderuje formularz edycji odpowiedzi zgłoszenia (albo notice dla braku/anulowanego/niepoprawnego eventu).
+	 *
+	 * Prefilluje dane osobowe zgłaszającego się i NIE sprawdza uprawnień sama — wołający
+	 * MUSI mieć sprawdzone `current_user_can( Capabilities::CAP )` (robi to router
+	 * w `RegistrationsScreen::render()`).
 	 *
 	 * @param int $id ID zgłoszenia.
 	 */

@@ -315,6 +315,14 @@ final class EditAnswersTest extends WP_UnitTestCase {
 		$this->assertSame( 'vip', $row['type_key'] );
 		// 500 (VIP) + 50 (nietknięty nocleg). Skasowany nocleg dałby 500.
 		$this->assertSame( '550.00', $row['price_total'] );
+
+		// Zgłoszenie zasiane z `data = '{}'` nie ma zapisanej odpowiedzi na nocleg, więc
+		// przeniesienie nie ma czego przenieść. Bez guardu `array_key_exists` w
+		// answersKeepingAccommodation() wpisałoby się tu `nocleg => null`, czyli dokładnie
+		// ta kasacja, której B21 zapobiega — tylko w odpowiedziach zamiast w bookingu.
+		$answers = json_decode( (string) $row['data'], true );
+		$this->assertIsArray( $answers );
+		$this->assertArrayNotHasKey( 'nocleg', $answers );
 	}
 
 	public function test_edit_hiding_the_accommodation_field_keeps_the_waitlisted_wish_in_the_answers(): void {
@@ -394,6 +402,20 @@ final class EditAnswersTest extends WP_UnitTestCase {
 		$this->assertSame( 'edited', $result->code );
 		$this->assertNull( $this->repository->findAccommodationBooking( $edited ) );
 		$this->assertSame( '100.00', $this->repository->findById( $edited )['price_total'] );
+	}
+
+	public function test_reserve_with_a_hidden_accommodation_field_books_nothing(): void {
+		// GUARD, nie poprawka: na ścieżce REZERWACJI „nie podano" i „bez noclegu" znaczą to
+		// samo (nie ma zapisanego wyboru, który mógłby obowiązywać), więc flaga
+		// accommodationSupplied jest tam nieczytana. Ten test pilnuje, żeby przeniesienie
+		// odpowiedzi z B21 nigdy nie zaczęło wymyślać noclegu nowemu zgłoszeniu.
+		$this->configureConditionalAccommodation();
+
+		$result = $this->service->reserve( $this->event_id, $this->assembledRequest( 'vip', 'n1|std' ) );
+
+		$this->assertSame( 'reserved', $result->code );
+		$this->assertNull( $this->repository->findAccommodationBooking( (int) $result->registrationId ) );
+		$this->assertSame( '500.00', $this->repository->findById( (int) $result->registrationId )['price_total'] );
 	}
 
 	public function test_waitlist_edit_skips_capacity_gate(): void {

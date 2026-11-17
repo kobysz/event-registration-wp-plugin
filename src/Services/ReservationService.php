@@ -770,6 +770,14 @@ final class ReservationService {
 			return AdminActionResult::invalidStatus();
 		}
 
+		// Odczyt bookingu stoi PRZED transakcją — inaczej niż w editAnswers(), gdzie siedzi
+		// POD lockiem, i to celowo: tam rozstrzyga, czy zgłoszenie „się przesuwa”, więc
+		// nieaktualny slot kazałby pominąć bramkę i wpisać z powrotem starą liczbę miejsc.
+		// Tutaj nie rozstrzyga niczego poza tym, CZEGO spróbować: cokolwiek odczyt zwróci,
+		// o przyznaniu decyduje dopiero decide() pod lockiem, a wiersz bookingu zapisuje się
+		// w tej samej transakcji. Nieaktualność jest więc nieszkodliwa — a przeniesienie
+		// odczytu pod lock nie dałoby nic ponad dłuższy lock. NIE „naprawiaj” jednego
+		// z tych dwóch miejsc po to, żeby wyglądały tak samo: różnią się z powodu.
 		$selection = $this->storedSelection( $this->repository->findAccommodationBooking( $id ) );
 		$from_wish = false;
 
@@ -1254,7 +1262,7 @@ final class ReservationService {
 			// samo NIE obejmuje flagi osoby towarzyszącej: ta zmienia zapotrzebowanie na
 			// miejsca, więc nadal musi przejść bramką i przepisać wiersz — tylko już na
 			// zapisanym slocie, a nie w miejsce skasowanego bookingu.
-			$supplied       = $request->accommodationAnswered( false );
+			$supplied       = $request->accommodationAnswered( nights_mode: false );
 			$selection      = $supplied
 				? $request->selection
 				: $this->storedSelection( $stored_booking );
@@ -1393,7 +1401,7 @@ final class ReservationService {
 		// z checkboxa evreg_companion także wtedy, gdy formularz pola dób nie renderuje
 		// (SubmissionAssembler czyta companion_enabled niezależnie od trybu), a para
 		// z wierszami po jednym miejscu to doba sprzedana dwa razy.
-		$supplied = $request->accommodationAnswered( true );
+		$supplied = $request->accommodationAnswered( nights_mode: true );
 		$seats    = $request->companion ? 2 : 1;
 
 		$this->repository->beginTransaction();
