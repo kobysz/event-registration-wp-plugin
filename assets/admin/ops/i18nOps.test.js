@@ -276,6 +276,28 @@ describe( 'i18nOps nights bucket', () => {
 		expect( items ).toContainEqual( { kind: 'accommodation', accKind: 'nights', key: 'n2', base: 'n2' } );
 	} );
 
+	it( 'translatableItems filtruje wiersze noclegu po trybie', () => {
+		// Przełączenie na `nights` ZOSTAWIA klasyczną konfigurację zapisaną, żeby powrót
+		// nie był destrukcyjny — więc oba kształty leżą obok siebie w jednym configu.
+		// Zakładka nie może prosić o tłumaczenie etykiet, których ten event nie wyrenderuje.
+		const both = {
+			mode: 'nights',
+			nights: [ { key: 'n1', label: '18/19 XI' } ],
+			packages: [ { key: 'n12', label: 'Noc 1–2' } ],
+			rooms: [ { key: 'double', label: 'Pokój 2-osobowy' } ],
+		};
+		const nightsItems = translatableItems( schema, types, both );
+		expect( nightsItems.filter( ( i ) => i.kind === 'accommodation' ) ).toEqual( [
+			{ kind: 'accommodation', accKind: 'nights', key: 'n1', base: '18/19 XI' },
+		] );
+
+		const classicItems = translatableItems( schema, types, { ...both, mode: 'classic' } );
+		expect( classicItems.filter( ( i ) => i.kind === 'accommodation' ) ).toEqual( [
+			{ kind: 'accommodation', accKind: 'packages', key: 'n12', base: 'Noc 1–2' },
+			{ kind: 'accommodation', accKind: 'rooms', key: 'double', base: 'Pokój 2-osobowy' },
+		] );
+	} );
+
 	it( 'set/getAccommodationTranslation obsługuje nights', () => {
 		const overlay = setAccommodationTranslation( {}, 'en', 'nights', 'n1', 'Night 18/19' );
 		expect( getAccommodationTranslation( overlay, 'en', 'nights', 'n1' ) ).toBe( 'Night 18/19' );

@@ -45,16 +45,23 @@ export function translatableItems( schema, types, accommodation ) {
 	( types || [] ).forEach( ( type ) => {
 		items.push( { kind: 'type', key: type.key, base: type.label || type.key } );
 	} );
+	// Etykiety noclegu tylko dla trybu, który event faktycznie renderuje. Przełączenie na
+	// `nights` ZOSTAWIA klasyczną konfigurację zapisaną (żeby powrót nie był destrukcyjny),
+	// więc bez tego filtra zakładka prosiłaby o tłumaczenie pakietów i pokojów, których ten
+	// event nie pokaże na żadnej powierzchni — i odwrotnie dla dób w trybie klasycznym.
 	const acc = accommodation || {};
-	( acc.packages || [] ).forEach( ( pkg ) => {
-		items.push( { kind: 'accommodation', accKind: 'packages', key: pkg.key, base: pkg.label || pkg.key } );
-	} );
-	( acc.rooms || [] ).forEach( ( room ) => {
-		items.push( { kind: 'accommodation', accKind: 'rooms', key: room.key, base: room.label || room.key } );
-	} );
-	( acc.nights || [] ).forEach( ( night ) => {
-		items.push( { kind: 'accommodation', accKind: 'nights', key: night.key, base: night.label || night.key } );
-	} );
+	if ( acc.mode === 'nights' ) {
+		( acc.nights || [] ).forEach( ( night ) => {
+			items.push( { kind: 'accommodation', accKind: 'nights', key: night.key, base: night.label || night.key } );
+		} );
+	} else {
+		( acc.packages || [] ).forEach( ( pkg ) => {
+			items.push( { kind: 'accommodation', accKind: 'packages', key: pkg.key, base: pkg.label || pkg.key } );
+		} );
+		( acc.rooms || [] ).forEach( ( room ) => {
+			items.push( { kind: 'accommodation', accKind: 'rooms', key: room.key, base: room.label || room.key } );
+		} );
+	}
 	return items;
 }
 
