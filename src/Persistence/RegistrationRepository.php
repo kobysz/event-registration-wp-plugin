@@ -549,6 +549,21 @@ final class RegistrationRepository {
 	}
 
 	/**
+	 * Kasuje CAŁY nocleg zgłoszenia: wiersz bookingu klasycznego ORAZ wiersze dób.
+	 *
+	 * Jedna metoda, żeby nie dało się skasować połowy. Nocleg zgłoszenia ma jeden
+	 * z dwóch kształtów zależnie od trybu eventu, a ścieżki cyklu życia, które go
+	 * zwalniają (anulowanie, twarde usunięcie), trybu NIE znają i znać nie muszą —
+	 * kształt, którego zgłoszenie nie ma, kasuje się bez skutku.
+	 *
+	 * @param int $id ID zgłoszenia.
+	 */
+	public function deleteAccommodationFor( int $id ): void {
+		$this->deleteAccommodationBooking( $id );
+		$this->deleteBookingNights( $id );
+	}
+
+	/**
 	 * Zajętość dób eventu: miejsca i pary (seats >= 2) per doba, tylko dla statusów zajmujących miejsce.
 	 *
 	 * @param int           $event_id   ID eventu.

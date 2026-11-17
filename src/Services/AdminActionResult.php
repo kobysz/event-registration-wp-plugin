@@ -20,7 +20,8 @@ final class AdminActionResult {
 	 * Tworzy wynik.
 	 *
 	 * @param string      $code   Kod: confirmed|cancelled|promoted|promoted_no_accommodation|deleted|rejected|invalid_status|not_found|edited|capacity_full|accommodation_full|occupancy_mismatch.
-	 * @param string|null $reason Kod powodu (np. przy rejected), jeśli dotyczy.
+	 * @param string|null $reason Kod powodu (np. przy rejected) albo klucz blokującej doby
+	 *                           przy accommodation_full w trybie „doby”, jeśli dotyczy.
 	 */
 	private function __construct(
 		public readonly string $code,
@@ -96,8 +97,14 @@ final class AdminActionResult {
 		return new self( 'capacity_full' );
 	}
 
-	/** Edycja odrzucona: wybrany slot noclegu pełny. */
-	public static function accommodationFull(): self {
-		return new self( 'accommodation_full' );
+	/**
+	 * Edycja odrzucona: wybrany slot noclegu pełny.
+	 *
+	 * @param string|null $night Klucz blokującej doby w trybie „doby”; null na ścieżce
+	 *                           klasycznej (parametr opcjonalny — wywołania klasyczne
+	 *                           zostają bez zmian, z pustym powodem).
+	 */
+	public static function accommodationFull( ?string $night = null ): self {
+		return new self( 'accommodation_full', $night );
 	}
 }
