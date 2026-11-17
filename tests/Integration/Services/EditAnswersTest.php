@@ -63,7 +63,7 @@ final class EditAnswersTest extends WP_UnitTestCase {
 		parent::tearDown();
 	}
 
-	private function seed( string $status, string $type_key = 'std', string $token = '' ): int {
+	private function seed( string $status, string $type_key = 'std', string $token = '', string $data = '{}' ): int {
 		static $counter = 0;
 		++$counter;
 		$token = '' === $token ? str_pad( (string) $counter, 32, 'a', STR_PAD_LEFT ) : $token;
@@ -76,7 +76,7 @@ final class EditAnswersTest extends WP_UnitTestCase {
 				'email'       => 'user' . $counter . '@example.com',
 				'name'        => 'Jan',
 				'token'       => $token,
-				'data'        => '{}',
+				'data'        => $data,
 				'price_total' => 0.0,
 				'expires_at'  => 'waitlist' === $status ? null : '2099-01-01 00:00:00',
 			)
@@ -315,6 +315,45 @@ final class EditAnswersTest extends WP_UnitTestCase {
 		$this->assertSame( 'vip', $row['type_key'] );
 		// 500 (VIP) + 50 (nietknięty nocleg). Skasowany nocleg dałby 500.
 		$this->assertSame( '550.00', $row['price_total'] );
+	}
+
+	public function test_edit_hiding_the_accommodation_field_keeps_the_waitlisted_wish_in_the_answers(): void {
+		// Zgłoszenie z listy rezerwowej NIE MA bookingu — jego wybór noclegu mieszka wyłącznie
+		// w odpowiedziach, więc tylko one mogą go ochronić. Zapis odpowiedzi bez klucza pola
+		// ukrytego skasowałby go bezpowrotnie, a awans (po B12 czytający `data`) nie miałby
+		// już czego przyznać.
+		$this->configureConditionalAccommodation();
+		$wish   = array(
+			'package'  => 'n1',
+			'room'     => 'std',
+			'roommate' => 'Anna',
+		);
+		$edited = $this->seed(
+			'waitlist',
+			'std',
+			'',
+			(string) wp_json_encode(
+				array(
+					'__type' => 'std',
+					'email'  => 'rezerwowy@example.com',
+					'nocleg' => $wish,
+				)
+			)
+		);
+
+		$result = $this->service->editAnswers( $edited, $this->assembledRequest( 'vip', 'n1|std' ) );
+
+		$this->assertSame( 'edited', $result->code );
+		$row = $this->repository->findById( $edited );
+		$this->assertSame( 'waitlist', $row['status'] );
+		$this->assertSame( 'vip', $row['type_key'] );
+
+		$answers = json_decode( (string) $row['data'], true );
+		$this->assertIsArray( $answers );
+		$this->assertSame( $wish, $answers['nocleg'] ?? null, 'Życzenie noclegu musi przeżyć edycję, która noclegu nie podała.' );
+		// To, co edycja PODAŁA, zapisuje się normalnie — przeniesienie dotyczy tylko noclegu.
+		$this->assertSame( 'edited@example.com', $answers['email'] ?? null );
+		$this->assertSame( 'vip', $answers['__type'] ?? null );
 	}
 
 	public function test_edit_adding_the_companion_without_a_supplied_choice_rewrites_the_seats(): void {

@@ -755,6 +755,32 @@ final class NightEditTest extends WP_UnitTestCase {
 		$this->assertSame( '280.00', $row['price_total'] );
 	}
 
+	public function test_edit_hiding_the_night_field_keeps_the_waitlisted_wish_for_the_promotion(): void {
+		// Zgłoszenie z listy rezerwowej NIE MA wierszy dób — jego życzenie mieszka wyłącznie
+		// w odpowiedziach, więc zapis odpowiedzi bez klucza pola ukrytego skasowałby je, a awans
+		// (`nightWish`) nie miałby już czego przyznać.
+		$this->configureConditionalNights();
+		$id = $this->seedWaitlist( 'rezerwowy@example.com', array( 'n1819' ) );
+
+		$result = $this->service->editAnswers( $id, $this->assembledRequest( 'rezerwowy@example.com', 'prelegent', array( 'n1819' ) ) );
+
+		$this->assertSame( 'edited', $result->code );
+		$answers = json_decode( (string) $this->repository->findById( $id )['data'], true );
+		$this->assertIsArray( $answers );
+		$this->assertSame( array( 'n1819' ), $answers['nocleg'] ?? null, 'Życzenie dób musi przeżyć edycję, która dób nie podała.' );
+
+		// Dowód, że życzenie dalej DZIAŁA, a nie tylko leży w kolumnie: awans przyznaje dobę,
+		// której sama edycja nie podała.
+		$promoted = $this->service->promoteFromWaitlist( $id );
+
+		$this->assertSame( 'promoted', $promoted->code );
+		$rows = $this->nightsOf( $id );
+		$this->assertCount( 1, $rows );
+		$this->assertSame( 'n1819', $rows[0]['key'] );
+		$this->assertSame( 1, $rows[0]['seats'] );
+		$this->assertSame( 1, $this->occupancy()->seatsFor( 'n1819' ) );
+	}
+
 	public function test_edit_with_the_night_field_visible_and_empty_drops_the_accommodation(): void {
 		// Druga strona tej samej monety, tą samą drogą (asembler): warunek dalej pasuje,
 		// więc pole JEST widoczne, a brak zaznaczeń to świadoma rezygnacja. Bez tego testu

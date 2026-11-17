@@ -12,7 +12,7 @@ so keep entries user-facing and concise.
 ## [Unreleased]
 
 ### Fixed
-- Editing a submission no longer destroys its accommodation when the accommodation field is hidden by a visibility condition. Changing the answer that condition depends on — typically the registration type — took the field out of the form mid-edit, and the booking (or the booked nights), its seats and its price quietly disappeared under "Submission answers updated". An edit that does not put the accommodation field in play now leaves the accommodation exactly as it was, while unticking it with the field visible still drops it on purpose.
+- Editing a submission no longer destroys its accommodation when the accommodation field is hidden by a visibility condition. Changing the answer that condition depends on — typically the registration type — took the field out of the form mid-edit, and the booking (or the booked nights), its seats and its price quietly disappeared under "Submission answers updated". A waitlisted submission, which holds its accommodation only in its answers, lost it there the same way, so a later promotion had nothing left to grant. An edit that does not put the accommodation field in play now leaves the accommodation exactly as it was, while unticking it with the field visible still drops it on purpose.
 
 ## [0.2.1] - 2026-11-17
 

@@ -925,6 +925,55 @@ final class ReservationService {
 	}
 
 	/**
+	 * Odpowiedzi do zapisu z PRZENIESIONĄ wartością pola noclegu, gdy edycja jej nie podała.
+	 *
+	 * Validator zwraca wartości wyłącznie pól WIDOCZNYCH, więc pole noclegu ukryte warunkiem
+	 * wypada z `data` i zapis odpowiedzi skasowałby zapisaną odpowiedź na nie. Dla zgłoszenia
+	 * zajmującego miejsce księgą jest booking/wiersze dób, ale zgłoszenie z LISTY REZERWOWEJ
+	 * wierszy nie ma — jego życzenie mieszka TYLKO tutaj i przepadłoby bezpowrotnie, a awans
+	 * (`nightWish`, a po B12 także ścieżka klasyczna) nie miałby już czego przyznać.
+	 *
+	 * Przeniesiona wartość idzie VERBATIM: czytający rozumieją każdy zapisany kształt (lista
+	 * kluczy, goły klucz, obiekt selekcji), a normalizacja przy okazji niezwiązanej edycji
+	 * przepisywałaby historię, której ta edycja nie dotyczy.
+	 *
+	 * Klucz pola bierze `accommodationFieldKey()` z SUROWEJ schemy — ten sam rozstrzygacz,
+	 * z którego korzysta `nightWish()`, i z tego samego powodu (patrz jego docblock).
+	 *
+	 * @param array<string,mixed>        $data      Odpowiedzi z żądania (bez pól niewidocznych).
+	 * @param array<string,array<mixed>> $config    Konfiguracja eventu (schema niesie klucz pola noclegu).
+	 * @param string                     $data_json Odpowiedzi ZAPISANE przy zgłoszeniu, jako JSON.
+	 * @param bool                       $supplied  Czy edycja podała odpowiedź na pole noclegu. Każda ścieżka
+	 *                                              podaje tu swoją rozstrzygającą odpowiedź na to jedno pytanie:
+	 *                                              klasyczna flagę `ReservationRequest::$accommodationSupplied`,
+	 *                                              dobowa własne `null !== $request->nights` (ta sama asymetria,
+	 *                                              co przy wierszach — patrz docblock tej flagi).
+	 *
+	 * @return array<string,mixed>
+	 */
+	private function answersKeepingAccommodation( array $data, array $config, string $data_json, bool $supplied ): array {
+		if ( $supplied ) {
+			return $data;
+		}
+
+		$key = $this->accommodationFieldKey( is_array( $config['schema'] ) ? $config['schema'] : array() );
+
+		if ( null === $key ) {
+			return $data;
+		}
+
+		$stored = json_decode( $data_json, true );
+
+		if ( ! is_array( $stored ) || ! array_key_exists( $key, $stored ) ) {
+			return $data;
+		}
+
+		$data[ $key ] = $stored[ $key ];
+
+		return $data;
+	}
+
+	/**
 	 * Odtwarza wybór zakwaterowania z ZAPISANEGO bookingu (null, gdy zgłoszenie go nie ma).
 	 *
 	 * Odczytany wiersz jest jedynym świadectwem wyboru, którego edycja nie podała — razem
@@ -986,7 +1035,7 @@ final class ReservationService {
 		$settings      = is_array( $config['settings'] ) ? $config['settings'] : array();
 
 		if ( $nights_config->isNights() ) {
-			return $this->editAnswersNights( $id, $row, $status, $request, $nights_config, $settings, $types );
+			return $this->editAnswersNights( $id, $row, $status, $request, $nights_config, $config, $types );
 		}
 
 		$accommodation = AccommodationConfig::fromArray( $accommodation_raw );
@@ -1069,7 +1118,9 @@ final class ReservationService {
 				$request->typeKey,
 				$request->email,
 				$request->name,
-				(string) wp_json_encode( $request->data ),
+				(string) wp_json_encode(
+					$this->answersKeepingAccommodation( $request->data, $config, (string) $row['data'], $request->accommodationSupplied )
+				),
 				$price,
 				$request->companion ? 1 : 0,
 				$request->companion ? $request->companionName : ''
@@ -1134,7 +1185,8 @@ final class ReservationService {
 	 * @param RegistrationStatus         $status        Status zgłoszenia przed edycją.
 	 * @param ReservationRequest         $request       Nowe dane zgłoszenia.
 	 * @param NightsConfig               $nights_config Konfiguracja trybu „doby”.
-	 * @param array<mixed>               $settings      Ustawienia eventu.
+	 * @param array<string,array<mixed>> $config        Konfiguracja eventu (settings + schema z kluczem pola
+	 *                                                  noclegu) — jak w promoteFromWaitlistNights().
 	 * @param RegistrationTypeCollection $types         Typy zgłoszeń eventu.
 	 *
 	 * @throws \RuntimeException Gdy liczba zapisanych dób nie zgadza się z liczbą żądanych
@@ -1148,12 +1200,13 @@ final class ReservationService {
 		RegistrationStatus $status,
 		ReservationRequest $request,
 		NightsConfig $nights_config,
-		array $settings,
+		array $config,
 		RegistrationTypeCollection $types
 	): AdminActionResult {
 		global $wpdb;
 
 		$event_id = (int) $row['event_id'];
+		$settings = is_array( $config['settings'] ) ? $config['settings'] : array();
 		$type     = $types->get( $request->typeKey );
 
 		if ( null === $type ) {
@@ -1350,7 +1403,11 @@ final class ReservationService {
 				$request->typeKey,
 				$request->email,
 				$request->name,
-				(string) wp_json_encode( $this->nightAnswers( $request->data ) ),
+				(string) wp_json_encode(
+					$this->nightAnswers(
+						$this->answersKeepingAccommodation( $request->data, $config, (string) $row['data'], $supplied )
+					)
+				),
 				$price,
 				$request->companion ? 1 : 0,
 				$request->companion ? $request->companionName : ''
