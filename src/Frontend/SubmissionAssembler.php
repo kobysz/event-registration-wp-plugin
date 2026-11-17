@@ -11,6 +11,8 @@ namespace EvReg\Frontend;
 
 use EvReg\Domain\Accommodation\AccommodationConfig;
 use EvReg\Domain\Accommodation\AccommodationSelection;
+use EvReg\Domain\Accommodation\NightSelection;
+use EvReg\Domain\Accommodation\NightsConfig;
 use EvReg\Domain\Conditions\ConditionEngine;
 use EvReg\Domain\Schema\Field;
 use EvReg\Domain\Schema\FieldType;
@@ -79,7 +81,8 @@ final class SubmissionAssembler {
 			$this->extractSelection( $schema, $values ),
 			CurrentLanguage::get(),
 			$companion,
-			$companionName
+			$companionName,
+			$this->extractNights( $schema, $values )
 		);
 
 		return AssembledSubmission::valid( $values, $request, $answers );
@@ -95,8 +98,14 @@ final class SubmissionAssembler {
 	 * @return array{0:bool,1:string}
 	 */
 	private function extractCompanion( Field $accommodationField, array $post ): array {
-		$config = AccommodationConfig::fromArray( $accommodationField->config );
-		if ( ! $config->companionEnabled() ) {
+		// Jedno rozgałęzienie po trybie: „doby” czyta flagę z NightsConfig i NIE buduje
+		// AccommodationConfig (rzuca na niespójnym inwentarzu, a stare dane klasyczne mogą
+		// zostać w konfiguracji eventu w trybie „doby”).
+		$nights  = NightsConfig::fromArray( $accommodationField->config );
+		$enabled = $nights->isNights()
+			? $nights->companionEnabled()
+			: AccommodationConfig::fromArray( $accommodationField->config )->companionEnabled();
+		if ( ! $enabled ) {
 			return array( false, '' );
 		}
 
@@ -135,7 +144,13 @@ final class SubmissionAssembler {
 		$answers = array();
 		foreach ( $schema->allFields() as $field ) {
 			if ( FieldType::Accommodation === $field->type ) {
-				$raw                    = is_array( $fields[ $field->key ] ?? null ) ? $fields[ $field->key ] : array();
+				$raw = is_array( $fields[ $field->key ] ?? null ) ? $fields[ $field->key ] : array();
+				if ( NightsConfig::fromArray( $field->config )->isNights() ) {
+					// Tryb „doby”: surowa lista kluczy z checkboxów, nic z pól klasycznych.
+					$nights                 = is_array( $raw['nights'] ?? null ) ? array_values( array_filter( $raw['nights'], 'is_scalar' ) ) : array();
+					$answers[ $field->key ] = array( 'nights' => array_map( 'strval', $nights ) );
+					continue;
+				}
 				$slot                   = (string) ( $raw['slot'] ?? '' );
 				$parts                  = '' === $slot ? array( '', '' ) : explode( '|', $slot, 2 );
 				$answers[ $field->key ] = array(
@@ -202,11 +217,44 @@ final class SubmissionAssembler {
 			if ( FieldType::Accommodation !== $field->type ) {
 				continue;
 			}
+			// W trybie „doby” wybór niesie ReservationRequest::$nights, nie selekcja klasyczna.
+			if ( NightsConfig::fromArray( $field->config )->isNights() ) {
+				return null;
+			}
 			$sel = $values[ $field->key ] ?? null;
 			if ( $sel instanceof AccommodationSelection ) {
 				return $sel;
 			}
 			return null;
+		}
+
+		return null;
+	}
+
+	/**
+	 * Zwraca wybór dób w trybie „doby”; poza tym trybem null.
+	 *
+	 * Gdy pole jest w trybie „doby”, wynik to ZAWSZE prawdziwy NightSelection, także pusty
+	 * i także gdy pole jest ukryte warunkiem: null znaczy dla serwisu „nie podano”, co
+	 * ścieżka edycji czyta jako „nie zmieniaj niczego” — a pusty zbiór to jawna rezygnacja.
+	 *
+	 * @param FormSchema          $schema Schemat formularza.
+	 * @param array<string,mixed> $values Znormalizowane wartości z Validatora.
+	 */
+	private function extractNights( FormSchema $schema, array $values ): ?NightSelection {
+		foreach ( $schema->allFields() as $field ) {
+			if ( FieldType::Accommodation !== $field->type ) {
+				continue;
+			}
+
+			$config = NightsConfig::fromArray( $field->config );
+			if ( ! $config->isNights() ) {
+				return null;
+			}
+
+			$keys = $values[ $field->key ] ?? array();
+
+			return NightSelection::fromKeys( is_array( $keys ) ? $keys : array(), $config );
 		}
 
 		return null;

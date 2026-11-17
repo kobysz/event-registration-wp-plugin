@@ -147,6 +147,47 @@
 		}
 	}
 
+	// Lustro EvReg\Domain\Capacity\NightCapacity (tryb „doby”): doba jest zamknięta, gdy
+	// brakuje miejsc dla potrzebnej liczby osób albo gdy para nie mieści się w limicie par.
+	// Dotyczy WYŁĄCZNIE checkboxów z data-evreg-night-seats-left; lustro trybu klasycznego
+	// (seatsFor, applySlotState) nie dotyka tych elementów i odwrotnie.
+	function applyNightState( form ) {
+		var checkbox = form.querySelector( 'input[name="evreg_companion"]' );
+		var companion = !! ( checkbox && checkbox.checked );
+		var needed = companion ? 2 : 1;
+		var dropped = false;
+
+		form.querySelectorAll( 'input[data-evreg-night-seats-left]' ).forEach( function ( el ) {
+			var left = parseInt( el.getAttribute( 'data-evreg-night-seats-left' ), 10 );
+			var pairs = el.getAttribute( 'data-evreg-night-pairs-left' );
+			var noSeats = ! isNaN( left ) && left < 1;
+			var noPair = ! noSeats && ( ( ! isNaN( left ) && left < needed )
+				|| ( companion && pairs !== null && pairs !== '' && parseInt( pairs, 10 ) < 1 ) );
+			var full = noSeats || noPair;
+
+			el.disabled = full;
+			// `disabled` nie wysyła wartości — zaznaczenie zdejmujemy jawnie i ogłaszamy,
+			// żeby nikt nie wysłał formularza w przekonaniu, że nadal trzyma tę dobę.
+			if ( full && el.checked ) {
+				el.checked = false;
+				dropped = true;
+			}
+
+			var wrap = el.closest( '.evreg-choice' );
+			if ( wrap ) {
+				wrap.classList.toggle( 'is-full', full );
+				var seatsNote = wrap.querySelector( '[data-evreg-night-note="full"]' );
+				if ( seatsNote ) { seatsNote.hidden = ! noSeats; }
+				var pairNote = wrap.querySelector( '[data-evreg-night-note="pair"]' );
+				if ( pairNote ) { pairNote.hidden = ! noPair; }
+			}
+		} );
+
+		var droppedNote = form.querySelector( '.evreg-nights-dropped' );
+		// Przy starcie nie chowamy komunikatu wyrenderowanego przez serwer po błędzie POST.
+		if ( droppedNote && dropped ) { droppedNote.hidden = false; }
+	}
+
 	// Programowe el.checked = false w applySlotState NIE emituje zdarzenia `change`,
 	// więc widoczność pola współlokatora trzeba przeliczyć ręcznie — inaczej zostaje
 	// widoczna po odebraniu zaznaczenia. Kontenery .evreg-accommodation poza
@@ -159,11 +200,13 @@
 		apply( form );
 		applyCompanion( form );
 		applySlotState( form, false );
+		applyNightState( form );
 		refreshAccommodation( form );
 		form.addEventListener( 'change', function () {
 			apply( form );
 			applyCompanion( form );
 			applySlotState( form, true );
+			applyNightState( form );
 			refreshAccommodation( form );
 		} );
 		form.addEventListener( 'input', function () { apply( form ); } );

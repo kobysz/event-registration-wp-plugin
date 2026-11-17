@@ -10,7 +10,10 @@ declare( strict_types=1 );
 namespace EvReg\Frontend;
 
 use EvReg\Domain\Accommodation\AccommodationConfig;
+use EvReg\Domain\Accommodation\NightsConfig;
 use EvReg\Domain\Accommodation\SlotAvailability;
+use EvReg\Domain\Capacity\NightOccupancy;
+use EvReg\Domain\Registration\RegistrationStatus;
 use EvReg\Domain\Schema\SchemaException;
 use EvReg\Persistence\EventConfigRepository;
 use EvReg\Persistence\RegistrationRepository;
@@ -80,7 +83,37 @@ final class Shortcode {
 		$result = SubmitHandler::resultFor( $event_id );
 		$notice = null === $result ? '' : self::resultNotice( $result );
 
-		return $notice . ( new FormRenderer( self::availability( $event_id ) ) )->render( $schema, $event_id, $result );
+		return $notice . ( new FormRenderer( self::availability( $event_id ), self::nightOccupancy( $event_id ) ) )->render( $schema, $event_id, $result );
+	}
+
+	/**
+	 * Czy event ma zakwaterowanie w trybie „doby”. Czyta tylko NightsConfig — nigdy
+	 * AccommodationConfig, który rzuca na niespójnym (np. zostawionym) inwentarzu klasycznym.
+	 *
+	 * @param int $event_id ID posta eventu.
+	 */
+	private static function isNightsEvent( int $event_id ): bool {
+		$config = ( new EventConfigRepository() )->get( $event_id );
+		$raw    = is_array( $config['accommodation'] ) ? $config['accommodation'] : array();
+
+		try {
+			return NightsConfig::fromArray( $raw )->isNights();
+		} catch ( SchemaException ) {
+			return false;
+		}
+	}
+
+	/**
+	 * Składa zajętość dób eventu w trybie „doby”; null poza tym trybem.
+	 *
+	 * @param int $event_id ID posta eventu.
+	 */
+	private static function nightOccupancy( int $event_id ): ?NightOccupancy {
+		if ( ! self::isNightsEvent( $event_id ) ) {
+			return null;
+		}
+
+		return ( new RegistrationRepository() )->nightOccupancy( $event_id, RegistrationStatus::occupyingValues() );
 	}
 
 	/**
@@ -91,6 +124,10 @@ final class Shortcode {
 	 * @param int $event_id ID posta eventu.
 	 */
 	private static function availability( int $event_id ): ?SlotAvailability {
+		if ( self::isNightsEvent( $event_id ) ) {
+			return null;
+		}
+
 		$config = ( new EventConfigRepository() )->get( $event_id );
 		$raw    = is_array( $config['accommodation'] ) ? $config['accommodation'] : array();
 
@@ -174,6 +211,7 @@ final class Shortcode {
 			'spam'         => __( 'Nie udało się wysłać zgłoszenia. Spróbuj ponownie.', 'event-registration' ),
 			'config_error' => __( 'Formularz jest nieprawidłowo skonfigurowany.', 'event-registration' ),
 			'invalid'      => __( 'Popraw zaznaczone pola.', 'event-registration' ),
+			'error'        => __( 'Nie udało się zapisać zgłoszenia z powodu błędu po naszej stronie. Nic nie zostało zapisane — spróbuj ponownie za chwilę lub skontaktuj się z organizatorem.', 'event-registration' ),
 		);
 		$text = $map[ $result->code() ] ?? '';
 

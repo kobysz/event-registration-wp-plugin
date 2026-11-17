@@ -134,6 +134,8 @@ final class SubmitHandler {
 	 *
 	 * @param int                 $event_id ID posta eventu.
 	 * @param array<string,mixed> $post     Surowe $_POST.
+	 *
+	 * @throws \RuntimeException Gdy ścieżka klasyczna rzuci wyjątek zapisu (w trybie „doby” jest łapany i logowany).
 	 */
 	public function process( int $event_id, array $post ): SubmitResult {
 		if ( '' !== (string) ( $post['evreg_hp'] ?? '' ) ) {
@@ -170,17 +172,37 @@ final class SubmitHandler {
 				: SubmitResult::invalid( array( $accommodation_key => $mismatch ), $assembled->rawAnswers() );
 		}
 
-		$reservation = $this->reservations->reserve( $event_id, $request );
+		try {
+			$reservation = $this->reservations->reserve( $event_id, $request );
+		} catch ( \RuntimeException $e ) {
+			// Tryb „doby”: serwis rzuca, gdy liczba zapisanych wierszy dób nie zgadza się z
+			// żądaną (awaria zapisu, transakcja już wycofana). To głośny sygnał dla operatora,
+			// nie błąd wyboru uczestnika — logujemy go i pokazujemy ogólny komunikat na poziomie
+			// formularza, nigdy fatala ani „brak miejsc”. Ścieżka klasyczna nie ma takiego rzutu,
+			// więc jej wyjątki nadal lecą dalej.
+			if ( null === $request->nights ) {
+				throw $e;
+			}
+
+			// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
+			error_log( 'evreg reservation failed: ' . $e->getMessage() );
+
+			return SubmitResult::failure();
+		}
 
 		// Wybrany nocleg zajęty w wyścigu: zgłoszenie nie zostało zapisane, więc wracamy
 		// na formularz z błędem przy polu noclegu i ODTWORZONYMI surowymi odpowiedziami.
 		if ( 'accommodation_full' === $reservation->code ) {
 			$accommodation_key = $schema->accommodationFieldKey();
 
+			// W trybie „doby” kod niesie klucz doby, która zablokowała wybór — renderer
+			// zamienia go na zdanie z jej etykietą. Ścieżka klasyczna zostaje bez zmian.
+			$code = '' === $reservation->blockingNight ? 'accommodation_full' : 'night_full:' . $reservation->blockingNight;
+
 			return null === $accommodation_key
 				? SubmitResult::rejected()
 				: SubmitResult::invalid(
-					array( $accommodation_key => 'accommodation_full' ),
+					array( $accommodation_key => $code ),
 					$assembled->rawAnswers()
 				);
 		}

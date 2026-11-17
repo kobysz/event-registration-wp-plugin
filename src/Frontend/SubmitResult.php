@@ -73,6 +73,13 @@ final class SubmitResult {
 	}
 
 	/**
+	 * Tworzy wynik awarii po stronie serwera (np. nieudany zapis dób) — bez błędów pól.
+	 */
+	public static function failure(): self {
+		return new self( 'error', false );
+	}
+
+	/**
 	 * Tworzy wynik błędu konfiguracji eventu.
 	 */
 	public static function configError(): self {
