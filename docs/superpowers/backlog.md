@@ -338,7 +338,20 @@ sanitize_text_field.
 
 ---
 
-## B12 — Promocja z waitlisty nie ponawia wybranego noclegu
+## B12 — Promocja z waitlisty nie ponawia wybranego noclegu — **ZAMKNIĘTE**
+
+**Naprawione** na gałęzi `feature/backlog-cleanup`: `promoteFromWaitlist` bez bookingu czyta
+życzenie z JSON-a odpowiedzi (`accommodationWish()` — bliźniak `nightWish()`, klucz pola
+z `accommodationFieldKey()`, oba zapisane kształty przez
+`AccommodationSelection::normalizeArray()`) i próbuje je przyznać **po cenniku bieżącym**;
+to jest odpowiedź na decyzję produktową, której szkic poniżej nie podjął. Rozstrzygnięcie
+rozchodzi się wg POCHODZENIA wyboru, bo życzenie i przyznane łóżko to różne fakty:
+życzenie, którego pokój dziś nie zgadza się z flagą towarzyszącej, jest **zdejmowane**
+z kodem `promoted_no_accommodation` (odmowa zamieniłaby JEDNĄ zmianę konfiguracji w N
+ręcznych edycji i trzymała ludzi na liście mimo wolnych miejsc), a selekcja odtworzona
+z WIERSZA bookingu nadal odmawia `occupancyMismatch()` — to łóżko system realnie przyznał.
+Nocleg poza tym jednym wypadkiem nigdy nie blokuje samego awansu. Testy:
+`tests/Integration/Services/PromoteFromWaitlistTest.php`. Opis luki zostaje poniżej dla zapisu.
 
 **Priorytet:** średni. Luka funkcjonalna, bez ryzyka dla danych (nic nie jest zepsute ani przesprzedane).
 
@@ -388,7 +401,21 @@ przy enqueue bundla, zdjęcie `assets/admin` z `--exclude` w `i18n:pot` (albo sk
 
 ---
 
-## B14 — Ukryte warunkowo pole `required` blokuje wysyłkę bez komunikatu
+## B14 — Ukryte warunkowo pole `required` blokuje wysyłkę bez komunikatu — **ZAMKNIĘTE**
+
+**Naprawione** na gałęzi `feature/backlog-cleanup`: `assets/public/form.js` dostał
+`syncRequired( form )`, wołane z `apply()` zaraz po przełączeniu `hidden`. Przenosi
+`required` na/z atrybutu zapasowego `data-evreg-required` (stan odtwarza się przy ponownym
+pokazaniu), licząc go dla KAŻDEJ kontrolki osobno przez
+`control.closest( '[data-evreg-when-field][hidden]' )` — pole może mieć kilku warunkowych
+przodków, więc oglądanie jednego kontenera nie wystarczy. Drugą połową naprawy jest
+**jeden właściciel atrybutu**: `required` imienia osoby towarzyszącej należy WYŁĄCZNIE do
+`applyCompanion` (ustawia je na `on && ! input.closest( '[data-evreg-when-field][hidden]' )`),
+a `syncRequired` pomija `[data-evreg-companion-input]` — dwóch właścicieli jednego atrybutu
+było tu prawdziwym zagrożeniem, bo sekcja schowana warunkiem wymagałaby pola, które
+`applyCompanion` właśnie odwymagało. Serwer był arbitrem już wcześniej, więc zmiana jest
+czysto kliencka. E2E: `tests/e2e/conditional-visibility.spec.js`. Opis pułapki zostaje
+poniżej dla zapisu.
 
 **Priorytet:** średni (pułapka cicha — formularz po prostu nie wysyła się).
 
@@ -450,7 +477,25 @@ odziedziczyć.
 
 ---
 
-## B16 — `ReservationService` zduplikowany po gałęziach `nights`
+## B16 — `ReservationService` zduplikowany po gałęziach `nights` — ZROBIONE CZĘŚCIOWO (2026-11-17)
+
+**Status:** duplikacja zniesiona, długość nie. Na gałęzi `feature/backlog-cleanup` z każdej
+z trzech rzeczy wymienionych w „Szkicu" została jedna kopia: budowa `CapacityLimits`
+6 miejsc → 1 (`limits()` za nazwanymi `classicLimits()`/`nightsLimits()`), budowa wierszy dób
+3 → 1 (`nightRows()` + `writeNightRows()`), odczyt zajętości 9 miejsc → 2
+(`decideUnderLock()`, `blockingNightUnderLock()`). Wszystkie transakcje przechodzą przez
+`RegistrationRepository::beginTransaction()/commit()/rollback()` — **poza repozytorium nie
+ma już ani jednego inline `START TRANSACTION`/`COMMIT`/`ROLLBACK`**. Zachowanie
+niezmienione (refaktor pod pełną siatką testów integracyjnych), inwariant
+`lockEvent` → zliczenie nietknięty: helpery świadomie NIE biorą locka same, a nazwy
+`*UnderLock` są kontraktem wołania.
+
+**POZOSTAJE:** plik ma nadal 1616 linii, czyli objaw z nagłówka („ponad 1300") nie zniknął.
+Task świadomie zabronił rozdzielania ścieżek (`reserve`/`reserveNights`,
+`editAnswers`/`editAnswersNights`, `promoteFromWaitlist`/`promoteFromWaitlistNights`), bo
+cięcie kodu transakcyjnego to osobna decyzja z własnym ryzykiem, a nie dokończenie tego
+wpisu. Gdy wrócimy: dzielić po TRYBIE (klasyczny vs doby), nie po czasowniku — dzisiejsze
+pary metod już tak stoją.
 
 **Priorytet:** średni (dług, który już raz kosztował błąd).
 
@@ -464,7 +509,18 @@ odziedziczyć.
 
 ---
 
-## B17 — Wyścig sprawdzenie-zapis przy zmianie trybu noclegu
+## B17 — Wyścig sprawdzenie-zapis przy zmianie trybu noclegu — **ZAMKNIĘTE**
+
+**Naprawione** na gałęzi `feature/backlog-cleanup`: `EventConfigController::update_config`
+owija sprawdzenie (`mode_change_locked`) i zapis (`EventConfigRepository::save`) w JEDNĄ
+transakcję pod tym samym wierszem `evreg_locks`, który biorą ścieżki rezerwacji
+(`beginTransaction` → `lockEvent` → sprawdzenie → `save` → `commit`; odmowa 409 i rzut idą
+przez `rollback`). Kolejność `lockEvent` przed pierwszym odczytem zajętości — jak w
+`reserve`, nie zmieniać. `build_payload()` (kolejne odczyty zajętości) przeniesione ZA
+`commit`, żeby żadna rezerwacja nie czekała dłużej, niż trzeba. Przy okazji
+`RegistrationRepository` dostał `beginTransaction()`/`commit()`/`rollback()`, których używa
+teraz cały rdzeń (B16). Test: `tests/Integration/Rest/AccommodationModeTest.php`. Opis
+wyścigu zostaje poniżej dla zapisu.
 
 **Priorytet:** niski.
 
@@ -490,7 +546,27 @@ odziedziczyć.
 
 ---
 
-## B19 — Dwie drogi rozstrzygania trybu noclegu
+## B19 — Dwie drogi rozstrzygania trybu noclegu — ZROBIONE (2026-11-17), z dopiskiem
+
+**Status:** scalone na gałęzi `feature/backlog-cleanup`. Jedno źródło prawdy o trybie:
+`NightsResolver::isNightsRaw` → **`isNights( array $accommodation )`**,
+`forSchema( FormSchema )` → **`forAccommodation( array $accommodation )`** (deleguje do
+`isNights`, więc nie mogą się rozejść), a `isNightsMode` **usunięte** — nie miało
+wołającego produkcyjnego. Droga obiektowa to teraz **`EventFormLoader::nights( int $event_id )`**
+i rozstrzyga z konfiguracji PRZETŁUMACZONEJ, więc overlay etykiet dób (B6) nie jest
+obchodzony — to był dokładnie skutek opisany niżej. Reguła „tryb jest właściwością EVENTU,
+nie schematu" nie tylko zachowana, ale dopiero teraz egzekwowana: detal i edycja w adminie
+pokazują zapisane doby także dla eventu, któremu pole noclegu usunięto z formularza.
+Nazwy historyczne poniżej (`isNightsRaw`, `forSchema`, `isNightsMode`) NIE ISTNIEJĄ już
+w kodzie — nie wskrzeszaj ich z tego opisu.
+
+**Dopisek (nie zamyka się do końca):** `RegistrationsOverview`
+(`src/Admin/RegistrationsOverview.php:94`) nadal buduje `NightsConfig::fromArray( $accommodation_raw )`
+sam, z surowego meta, więc panel zajętości jest ślepy na overlay językowy. To NIE jest
+rozjazd *trybu* — czyta konfigurację tego samego eventu, czyli dokładnie to, o co B19
+prosiło — ale jest dosłownie tym skutkiem, który B19 zapowiadało, więc zostaje zapisane,
+a nie zamknięte milczeniem. Szkic: brać obiekt z `EventFormLoader::nights()` i degradować
+na `SchemaException`, jak reszta wejść.
 
 **Priorytet:** niski.
 
@@ -502,7 +578,15 @@ odziedziczyć.
 
 ---
 
-## B20 — `RegistrationsScreen` ma ponad 950 linii
+## B20 — `RegistrationsScreen` ma ponad 950 linii — ZROBIONE (2026-11-17)
+
+**Status:** scalone na gałęzi `feature/backlog-cleanup`. 1053 → 508 linii. Oczywiste cięcie
+ze „Szkicu" wykonane: renderowanie detalu, edycji i inline'owego re-renderu błędów edycji
+wyszło do nowego **`RegistrationView`** (`src/Admin/`, instancyjne, wstrzykiwane
+`RegistrationRepository` + `EventConfigRepository`), a mapa kod→komunikat do nowego
+**`RegistrationNotice`**. Na ekranie zostały, jak zapowiadał szkic: router `render()`,
+siedem handlerów `admin-post`, lista i eksport. Objaw z nagłówka zniesiony; że 508 linii
+to nadal dwie rzeczy — patrz B29.
 
 **Priorytet:** niski (dług strukturalny).
 
@@ -514,7 +598,25 @@ odziedziczyć.
 
 ---
 
-## B21 — Nocleg ukryty warunkową widocznością gubi się przy edycji w adminie
+## B21 — Nocleg ukryty warunkową widocznością gubi się przy edycji w adminie — **ZAMKNIĘTE**
+
+**Naprawione** na gałęzi `feature/backlog-cleanup`, głębiej niż szkic recenzenta poniżej:
+„nie podano" jest teraz FAKTEM NIESIONYM PRZEZ ŻĄDANIE, a nie wyczytywanym z `null`.
+`ReservationRequest` dostał dziesiąty parametr `$accommodationSupplied` (default `true`,
+czyli zero regresji dla wołających) i akcesor `accommodationAnswered( bool $nights_mode )`
+— jedyny nośnik tej odpowiedzi (dobowy czyta `nights !== null`, klasyczny tę flagę).
+`SubmissionAssembler::accommodationSupplied()` to JEDYNY dom reguły: odpowiedź udzieloną
+od nieudzielonej odróżnia OBECNOŚĆ klucza pola w wartościach z `Validatora` (pole widoczne
+trafia tam zawsze, choćby z `null` = pusty wybór; schemat bez pola noclegu daje
+„nie podano", żeby samo usunięcie pola z formularza nie kasowało wierszy zastanych
+zgłoszeń). Edycja, która odpowiedzi nie podała, zostaje przy wyborze ZAPISANYM
+(`storedSelection()` z bookingu na ścieżce klasycznej, `nights === null` na dobowej), więc
+booking/wiersze dób, miejsca i cena zostają; świadoma rezygnacja przy polu WIDOCZNYM nadal
+zdejmuje nocleg. `answersKeepingAccommodation()` przepisuje przy tym zapisany klucz noclegu
+do JSON-a odpowiedzi — bez tego zgłoszenie z LISTY REZERWOWEJ, którego nocleg żyje
+wyłącznie w JSON-ie, traciłoby życzenie i późniejszy awans nie miałby czego przyznać (B12).
+Testy: `tests/Integration/Services/EditAnswersTest.php`,
+`tests/Integration/Services/NightEditTest.php`. Opis utraty zostaje poniżej dla zapisu.
 
 **Priorytet:** średni (cicha utrata danych i pieniędzy, ale wymaga zbiegu okoliczności).
 
@@ -525,3 +627,175 @@ odziedziczyć.
 **Dlaczego nie teraz:** zachowanie jest **identyczne na ścieżce klasycznej**, więc problem jest wspólny i zastany, a nie wniesiony przez pule dobowe. Naprawa dotyka `Validator`/`SubmissionAssembler`, czyli kodu wspólnego dla obu trybów i dla formularza publicznego — to osobna gałąź z własną siatką testów, nie fala poprawek po przeglądzie.
 
 **Szkic (propozycja recenzenta):** dla pola noclegu niewidocznego zwracać `null` zamiast pustej selekcji. Jest to bezpieczne na obu ścieżkach i w obu trybach: `reserve` czyta `null` jako „bez noclegu" (nic nie traci, bo nowe zgłoszenie nic nie ma), a `editAnswers` czyta `null` jako „nie dotykaj noclegu" — ta asymetria jest już zbudowana i opisana przy `ReservationRequest::$nights`. Testy: edycja zmieniająca typ tak, że warunek pola noclegu przestaje pasować, osobno dla trybu `nights` i `classic`; w obu wiersze, miejsca i cena muszą zostać nietknięte.
+
+---
+
+## B22 — `RegistrationRepository::beginTransaction()` ignoruje wynik `$wpdb->query()`
+
+**Priorytet:** średni. **To nie jest nowa ekspozycja** — inline'owe `START TRANSACTION`,
+które ta metoda zastąpiła (B16), ignorowały wynik dokładnie tak samo. Konsolidacja daje
+przyszłej poprawce jedno gardło zamiast dziewięciu miejsc, i dlatego wpis stoi tu, a nie
+przy B16.
+
+**Stan:** `beginTransaction()`, `commit()` i `rollback()` wołają `$wpdb->query( ... )`
+i wyrzucają wynik. `beginTransaction()` ma dziś dziewięciu wołających: ośmiu
+w `ReservationService` (`reserve`, `reserveNights`, `cancel`, `promoteFromWaitlist`,
+`promoteFromWaitlistNights`, `editAnswers`, `editAnswersNights`, `deleteRegistration`)
+i jednego w `src/Rest/EventConfigController.php` (B17).
+
+**Skutek:** cicho nieudane `START TRANSACTION` zostawia następne `SELECT … FOR UPDATE`
+w autocommit — zamek wiersza puszcza na końcu instrukcji, zliczenie zajętości dostaje
+własny snapshot, więc dwie równoległe rezerwacje mogą sprzedać to samo ostatnie miejsce.
+To jest dokładnie ten inwariant, którego pilnuje 3A. Każdy późniejszy `rollback()` jest
+wtedy no-opem: awaria w połowie zapisu zostawia wiersz zgłoszenia bez bookingu albo bez
+wierszy dób.
+
+**Szkic:** sprawdzać wynik `$wpdb->query()` w tych trzech metodach i rzucać
+`\RuntimeException` przy `false` — wołający mają już `catch ( \Throwable )` z `rollback()`
+i ponownym rzuceniem, a ścieżka REST opakowuje to w 500. Wymaga **własnego testu**:
+podstawić `$wpdb`, którego `query()` zwraca `false`, i asertować, że ścieżka rzuca, a nie
+idzie dalej.
+
+---
+
+## B23 — Reguła companion/pokój sądzona poza lockiem
+
+**Priorytet:** niski (wąskie okno, wymaga dwóch adminów edytujących JEDNO zgłoszenie), ale
+to **wycinek defektu właśnie zamkniętego, nie inny defekt** — stąd jedna pozycja na oba
+poniższe fakty.
+
+**Stan:** `RegistrationsScreen::handle_edit` sądzi regułę pary na bookingu odczytanym POZA
+transakcją (odczyt dla `$previous_slot`; zastany, nie wniesiony przez falę poprawek),
+a `editAnswers` czyta swój booking POD lockiem. W okienku między tymi dwoma odczytami
+dwóch adminów nadal zbuduje cichą sprzeczność: admin A przenosi slot do pokoju
+jednoosobowego bez towarzyszącej; admin B, w locie, przestawia flagę na edycji
+„niepodanej", przeczytawszy stary pokój dwuosobowy — sędzia przyklepuje na nieaktualnym
+pokoju, a `editAnswers` przesadza zgłoszenie do nowego, zapisanego pokoju jednoosobowego
+z `companion = 1`.
+
+**Ta sama pozycja obejmuje nieobramowany `AccommodationConfig::fromArray`:**
+`RegistrationsScreen::companionRoomMismatch` buduje konfigurację POZA oba
+`try`/`catch ( SchemaException )` bloki `handle_edit` (jeden wokół `$loader->nights()`,
+drugi wokół `editAnswers`), więc event klasyczny z zalegającymi, niespójnymi danymi
+noclegu daje przy zapisie fatal zamiast komunikatu `config_error`, który dałby
+`editAnswers`. Zastane dla ścieżki „podanej"; fala poprawek wpuściła w ten sam rzut także
+ścieżkę „niepodaną".
+
+**Szkic:** solidnym domem reguły jest **efektywna selekcja wewnątrz `editAnswers`** — tam
+booking jest już czytany pod lockiem — plus kod wyniku umiejący nieść POLE.
+`AdminActionResult` niesie dziś kod i `reason`, więc błąd da się dowieźć do ekranu edycji
+tą samą drogą, którą jedzie `accommodation_gone`. Przy przeniesieniu reguły
+`companionRoomMismatch` znika razem z rzutem; dopóki stoi, objąć ją
+`catch ( SchemaException )`.
+
+---
+
+## B24 — Klasyczna edycja „niepodana" przelicza snapshot ceny bookingu
+
+**Priorytet:** niski. Nie regresja (przed B21 booking ginął w całości, a przeliczanie przy
+edycji „nieprzesuwającej" jest starsze niż gałąź), ale ścieżka z B21 czyni to osiągalnym
+bez pokazania operatorowi pola, o którym mowa.
+
+**Stan:** `editAnswers` (klasyczny) na edycji nieruszającej ani slotu, ani flagi zachowuje
+`seats` (`$stored_seats`), ale booking **kasuje i wstawia od nowa**, licząc `$acc_price`
+z `$accommodation->item( ... )`, czyli z CENNIKA BIEŻĄCEGO. Bliźniak dobowy
+(`editAnswersNights`) snapshotów nie tyka wcale, a pozycję, która zniknęła z konfiguracji,
+odrzuca po nazwie (`accommodationGone`).
+
+**Skutek:** gdy pokój albo pakiet usunięto z inwentarza, `item()` zwraca `null`, więc cena
+noclegu po cichu staje się `0.00`, a wiersz zostaje. Gdy tylko zmieniono cenę — historia
+przepisuje się na dzisiejszą. Operator widzi „Odpowiedzi zgłoszenia zaktualizowane".
+
+**Szkic:** nie przepisywać wiersza, gdy slot i flaga się nie zmieniły (zachować snapshot
+`price` tak, jak zachowujemy `seats`) — mniejsze i spójne z `night_label`/`price` jako
+snapshotami. Alternatywa: odrzucać po nazwie, jak ścieżka dobowa.
+
+---
+
+## B25 — Niewidoczne pola innych typów niż nocleg nadal wypadają z JSON-a przy edycji
+
+**Priorytet:** niski (stawka = jedna odpowiedź, nie miejsca i pieniądze).
+
+**Stan:** mechanizm jest ten sam co w B21: `RegistrationEditForm` renderuje WSZYSTKIE pola,
+`Validator` zwraca wartości tylko WIDOCZNYCH, a `updateRegistration` zapisuje
+`$request->data` jako całość. B21 ratuje wyłącznie klucz pola noclegu
+(`answersKeepingAccommodation()`), bo na nim wiszą miejsca i pieniądze.
+
+**Skutek:** edycja zmieniająca odpowiedź, od której zależy warunek innego pola, gubi
+dotychczasową odpowiedź tego pola. Cicho, pod „zaktualizowano".
+
+**Szkic:** uogólnić `answersKeepingAccommodation()` na „scal zapisany JSON z nowymi
+wartościami dla kluczy, których ta edycja nie podała" — z rozstrzygnięciem produktowym,
+którego B21 nie potrzebowało: czy odpowiedź na pole, które przestało obowiązywać, ma
+zostać zachowana, czy skasowana? (Nocleg zachowujemy, bo niesie przydział miejsc.)
+
+---
+
+## B26 — `NightsResolver` siedzi w `src/Frontend/`
+
+**Priorytet:** niski (czysto strukturalne, zero zachowania).
+
+**Stan:** `NightsResolver` jest rozstrzygaczem na poziomie EVENTU, a zależą od niego
+`src/Admin/`, `src/Mail/`, `src/Privacy/` i `src/Rest/` — nazwa katalogu jest dziś
+najmniej trafną rzeczą w tej klasie. Kandydat: `src/Accommodation/`.
+
+**Uwaga przy przeprowadzce:** `RegistrationView` i `RegistrationsScreen` tworzą po B20
+cykl na poziomie KLAS (View czyta `RegistrationsScreen::SLUG` i `ACTION_*`, Screen
+instancjuje View). Tylko stałe, więc nic się nie psuje, ale **żadnej z tych dwóch nie da
+się przenieść niezależnie** — parami albo wcale.
+
+---
+
+## B27 — Dwie luki testowe
+
+**Priorytet:** niski. Oba sprawdzone jako nieszkodliwe DZIŚ — zapisane właśnie dlatego, że
+„nieszkodliwe dziś" ugryzło ten projekt już trzy razy.
+
+**Stan:**
+1. Zmigrowane w B19 wołanie rozstrzygania trybu w `RegistrationsScreen::handle_edit`
+   (`$loader->nights( $event_id )`) nie jest przypięte żadnym testem: cofnięcie go do
+   starego spaceru po schemacie nie potrafi dziś zgubić wierszy, bo schemat bez pola
+   noclegu daje `nights === null`, czyli „nie podano", po obu drogach jednakowo.
+2. Brzeg łączony: schemat BEZ pola noclegu **plus** niepoprawna konfiguracja dób. Każda
+   połowa ma swój test, ścieżki są ortogonalne, więc samego złożenia nikt nie pokrywa.
+
+**Szkic:** test integracyjny na (1), który stawia event dobowy z polem noclegu usuniętym
+ze schematu i asertuje, że edycja odpowiedzi zachowuje wiersze dób; test na (2) wokół
+degradacji opisanej w B28 — jedna konfiguracja obsłuży oba.
+
+---
+
+## B28 — Zawężona degradacja wniesiona przez B19
+
+**Priorytet:** niski. Decyzja o trybie stoi tam, gdzie ma stać — **szersza niż trzeba jest
+tylko degradacja**, nie reguła.
+
+**Stan:** dla eventu dobowego, któremu pole noclegu usunięto z formularza, **gdy
+jednocześnie** lista dób jest nieczytelna, publiczna strona pokazuje dziś „Rejestracja
+jest niedostępna" (`Shortcode` łapie `SchemaException`), a każda edycja odpowiedzi
+w adminie odbija się kodem `config_error` — choć obie powierzchnie wcześniej działały, dla
+formularza, który o nocleg nawet nie pyta. `forSchema()` rzucało tylko wtedy, gdy schemat
+niósł pole; `EventFormLoader::nights()` rozstrzyga z EVENTU, więc rzuca niezależnie od
+schematu.
+
+**Skutek:** osiągalność jest większa, niż wygląda — `Night::fromArray` rzuca na pustym
+kluczu, więc wystarczy jedna pusta karta doby zapisana z buildera.
+
+**Szkic:** degradować węziej, nie cofać decyzji o trybie. Gdy schemat pola noclegu nie
+niesie, niepoprawna lista dób nie ma na co wpłynąć na ścieżce formularza — wystarczy
+wtedy sam `mode`, tak jak robi `RegistrationsScreen::build_export_csv` (czyta
+`NightsResolver::isNights` i obiektu nie buduje). Alternatywa albo uzupełnienie:
+walidować karty dób przy zapisie w REST, żeby pusty klucz nie trafiał do meta.
+
+---
+
+## B29 — `RegistrationsScreen` to nadal dwie rzeczy
+
+**Priorytet:** niski (dług strukturalny, następnik B20).
+
+**Stan:** po B20 ekran ma 508 linii i niesie prezentację listy **plus** siedem handlerów
+`admin-post` **plus** eksport. Objaw z nagłówka B20 („ponad 950 linii") jest zniesiony.
+
+**Szkic:** dalsze cięcie lista/handlery to osobna decyzja, nie dokończenie B20 —
+podejmować, gdy ekran znów zacznie rosnąć, nie prewencyjnie. Patrz też uwaga o cyklu
+`RegistrationView` ↔ `RegistrationsScreen` w B26.
