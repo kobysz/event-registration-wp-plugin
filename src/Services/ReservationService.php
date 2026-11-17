@@ -14,6 +14,7 @@ use EvReg\Domain\Accommodation\AccommodationSelection;
 use EvReg\Domain\Accommodation\NightSelection;
 use EvReg\Domain\Accommodation\NightsConfig;
 use EvReg\Domain\Capacity\CapacityCalculator;
+use EvReg\Domain\Capacity\CapacityDecision;
 use EvReg\Domain\Capacity\CapacityLimits;
 use EvReg\Domain\Capacity\NightCapacity;
 use EvReg\Domain\Capacity\Outcome;
@@ -136,6 +137,69 @@ final class ReservationService {
 	}
 
 	/**
+	 * Rozstrzyga pojemność na zajętości zgłoszeń odczytanej TUTAJ — tylko POD blokadą eventu.
+	 *
+	 * WYMÓG WYWOŁANIA, nie ozdoba nazwy: `lockEvent( $event_id )` musi być już wykonane
+	 * w tej samej transakcji. To tutaj pada odczyt zajętości, a inwariant 3A (InnoDB
+	 * REPEATABLE READ ustala migawkę przy pierwszym spójnym odczycie) wymaga, by blokada
+	 * stała PRZED nim — inaczej dwóch rywali zajmie to samo ostatnie miejsce.
+	 *
+	 * Metoda świadomie NIE bierze blokady sama: ścieżki różnią się tym, co robią między
+	 * blokadą a tym odczytem (guard duplikatu w reserve(), odczyt zapisanego bookingu
+	 * w editAnswers(), warunek `$occupies`), a blokada schowana tutaj zniknęłaby
+	 * z widoku ścieżek, które mają ją pokazywać wprost.
+	 *
+	 * @param CapacityLimits              $limits    Limity pojemności eventu.
+	 * @param int                         $event_id  ID eventu.
+	 * @param int|null                    $exclude   ID zgłoszenia pomijanego w zajętości (edycja siebie); null = licz wszystkie.
+	 * @param string                      $type_key  Klucz typu zgłoszenia.
+	 * @param AccommodationSelection|null $selection Wybór noclegu dla bramki slotowej; null = bez niej.
+	 * @param bool                        $companion Czy zgłoszenie obejmuje osobę towarzyszącą.
+	 */
+	private function decideUnderLock(
+		CapacityLimits $limits,
+		int $event_id,
+		?int $exclude,
+		string $type_key,
+		?AccommodationSelection $selection,
+		bool $companion
+	): CapacityDecision {
+		$taken = null === $exclude
+			? $this->repository->occupancy( $event_id )
+			: $this->repository->occupancyExcluding( $event_id, $exclude );
+
+		return $this->calculator->decide( $limits, $taken, $type_key, $selection, $companion );
+	}
+
+	/**
+	 * Klucz pierwszej doby bez miejsca albo null — na zajętości dób odczytanej TUTAJ.
+	 *
+	 * Ten sam kontrakt co decideUnderLock() i z tego samego powodu: wołać WYŁĄCZNIE po
+	 * `lockEvent( $event_id )` w tej samej transakcji. Odmowa jest całościowa (jedna
+	 * ciasna doba przepada cały wybór) — rozstrzyga o tym NightCapacity, nie wołający.
+	 *
+	 * @param NightsConfig   $nights_config Konfiguracja trybu „doby”.
+	 * @param int            $event_id      ID eventu.
+	 * @param int|null       $exclude       ID zgłoszenia pomijanego w zajętości dób; null = licz wszystkie.
+	 * @param NightSelection $selection     Wybrane doby.
+	 * @param bool           $companion     Czy zgłoszenie obejmuje osobę towarzyszącą.
+	 */
+	private function blockingNightUnderLock(
+		NightsConfig $nights_config,
+		int $event_id,
+		?int $exclude,
+		NightSelection $selection,
+		bool $companion
+	): ?string {
+		return NightCapacity::blockingNight(
+			$nights_config,
+			$this->repository->nightOccupancy( $event_id, RegistrationStatus::occupyingValues(), $exclude ?? 0 ),
+			$selection,
+			$companion
+		);
+	}
+
+	/**
 	 * Rezerwuje miejsce dla zgłoszenia w ramach jednej transakcji z blokadą per event.
 	 *
 	 * Kolejność: START → lockEvent → guard duplikatu → zajętość → decyzja →
@@ -186,13 +250,7 @@ final class ReservationService {
 
 			$limits = $this->classicLimits( $settings, $types, $accommodation );
 
-			$decision = $this->calculator->decide(
-				$limits,
-				$this->repository->occupancy( $event_id ),
-				$request->typeKey,
-				$request->selection,
-				$request->companion
-			);
+			$decision = $this->decideUnderLock( $limits, $event_id, null, $request->typeKey, $request->selection, $request->companion );
 
 			if ( Outcome::Rejected === $decision->outcome ) {
 				$this->repository->rollback();
@@ -333,13 +391,7 @@ final class ReservationService {
 			// łącznie z regułą companion_counts_event (patrz nightsLimits()).
 			$limits = $this->nightsLimits( $settings, $types, $nights_config );
 
-			$decision = $this->calculator->decide(
-				$limits,
-				$this->repository->occupancy( $event_id ),
-				$request->typeKey,
-				null,
-				$request->companion
-			);
+			$decision = $this->decideUnderLock( $limits, $event_id, null, $request->typeKey, null, $request->companion );
 
 			if ( Outcome::Rejected === $decision->outcome ) {
 				$this->repository->rollback();
@@ -377,12 +429,7 @@ final class ReservationService {
 				// Bramka dób — po blokadzie, na świeżo policzonej zajętości dób.
 				// Odmowa jest całościowa: jedna ciasna doba przepada cały wybór i NIE
 				// zapisujemy ani wiersza dla doby wolnej (żadnego cichego przyjęcia części).
-				$blocking = NightCapacity::blockingNight(
-					$nights_config,
-					$this->repository->nightOccupancy( $event_id, RegistrationStatus::occupyingValues() ),
-					$selection,
-					$request->companion
-				);
+				$blocking = $this->blockingNightUnderLock( $nights_config, $event_id, null, $selection, $request->companion );
 
 				if ( null !== $blocking ) {
 					$this->repository->rollback();
@@ -706,13 +753,7 @@ final class ReservationService {
 
 			$limits = $this->classicLimits( $settings, $types, $accommodation );
 
-			$decision = $this->calculator->decide(
-				$limits,
-				$this->repository->occupancy( $event_id ),
-				(string) $row['type_key'],
-				$selection,
-				$companion
-			);
+			$decision = $this->decideUnderLock( $limits, $event_id, null, (string) $row['type_key'], $selection, $companion );
 
 			if ( Outcome::Accepted !== $decision->outcome ) {
 				$this->repository->rollback();
@@ -838,13 +879,7 @@ final class ReservationService {
 			// companion_counts_event (patrz nightsLimits()).
 			$limits = $this->nightsLimits( $settings, $types, $nights_config );
 
-			$decision = $this->calculator->decide(
-				$limits,
-				$this->repository->occupancy( $event_id ),
-				(string) $row['type_key'],
-				null,
-				$companion
-			);
+			$decision = $this->decideUnderLock( $limits, $event_id, null, (string) $row['type_key'], null, $companion );
 
 			if ( Outcome::Accepted !== $decision->outcome ) {
 				$this->repository->rollback();
@@ -870,12 +905,7 @@ final class ReservationService {
 					);
 				}
 
-				$granted = null === NightCapacity::blockingNight(
-					$nights_config,
-					$this->repository->nightOccupancy( $event_id, RegistrationStatus::occupyingValues(), $id ),
-					$selection,
-					$companion
-				);
+				$granted = null === $this->blockingNightUnderLock( $nights_config, $event_id, $id, $selection, $companion );
 			}
 
 			$accommodation_lost = $wished && ! $granted;
@@ -1185,13 +1215,7 @@ final class ReservationService {
 			if ( $occupies ) {
 				$limits = $this->classicLimits( $settings, $types, $accommodation );
 
-				$decision = $this->calculator->decide(
-					$limits,
-					$this->repository->occupancyExcluding( $event_id, $id ),
-					$request->typeKey,
-					$gate_selection,
-					$request->companion
-				);
+				$decision = $this->decideUnderLock( $limits, $event_id, $id, $request->typeKey, $gate_selection, $request->companion );
 
 				if ( Outcome::Accepted !== $decision->outcome ) {
 					$this->repository->rollback();
@@ -1411,13 +1435,7 @@ final class ReservationService {
 			if ( $occupies ) {
 				$limits = $this->nightsLimits( $settings, $types, $nights_config );
 
-				$decision = $this->calculator->decide(
-					$limits,
-					$this->repository->occupancyExcluding( $event_id, $id ),
-					$request->typeKey,
-					null,
-					$request->companion
-				);
+				$decision = $this->decideUnderLock( $limits, $event_id, $id, $request->typeKey, null, $request->companion );
 
 				// Accepted to jedyny wynik dopuszczający edycję: przy pełnym typie z włączoną
 				// listą rezerwową decide() zwraca Waitlisted, co też musi blokować (inaczej
@@ -1454,12 +1472,7 @@ final class ReservationService {
 
 					// Bramka dób z wykluczeniem samego zgłoszenia — inaczej jego własne miejsca
 					// blokowałyby jego własną edycję. Odmowa jest całościowa.
-					$blocking = NightCapacity::blockingNight(
-						$nights_config,
-						$this->repository->nightOccupancy( $event_id, RegistrationStatus::occupyingValues(), $id ),
-						$selection,
-						$request->companion
-					);
+					$blocking = $this->blockingNightUnderLock( $nights_config, $event_id, $id, $selection, $request->companion );
 
 					if ( null !== $blocking ) {
 						$this->repository->rollback();
