@@ -259,6 +259,42 @@ final class PlaceholderFactoryTest extends WP_UnitTestCase {
 		$this->assertStringContainsString( 'Noc 1–2', $values->get( 'podsumowanie' ) );
 	}
 
+	public function test_inconsistent_classic_inventory_does_not_stall_the_mail(): void {
+		// Dyspozytor maili leci z crona: fatal zostawia wiersz w `sending`, sweep odzysku
+		// podejmuje go po pięciu minutach i wywala znowu, więc kolejka staje dla WSZYSTKICH
+		// eventów, nie tylko tego z zepsutą konfiguracją. Nocleg degraduje do snapshotów
+		// etykiet z bookingu (jak w eksporcie), a reszta maila renderuje się normalnie.
+		$row = $this->registration();
+		$this->registrations->insertAccommodationBooking(
+			(int) $row['id'],
+			new AccommodationSelection( 'n12', 'double' ),
+			180.0,
+			1,
+			'Noc 1–2',
+			'Pokój 2-osobowy'
+		);
+
+		// Pozycja inwentarza wskazuje pakiet, którego nie ma w konfiguracji — fromArray rzuca.
+		( new EventConfigRepository() )->save(
+			$this->event_id,
+			array(
+				'accommodation' => array(
+					'packages'  => array( array( 'key' => 'n12', 'label' => 'Noc 1–2' ) ),
+					'rooms'     => array( array( 'key' => 'double', 'label' => 'Pokój 2-osobowy' ) ),
+					'inventory' => array(
+						array( 'package' => 'widmo', 'room' => 'double', 'capacity' => 1, 'price' => 1.0 ),
+					),
+				),
+			)
+		);
+
+		$values = $this->placeholderFactory->build( $row );
+
+		$this->assertStringContainsString( 'Noc 1–2', $values->get( 'nocleg' ) );
+		$this->assertStringContainsString( 'Pokój 2-osobowy', $values->get( 'nocleg' ) );
+		$this->assertSame( 'Jan Kowalski', $values->get( 'imie' ) );
+	}
+
 	public function test_companion_placeholder_empty_and_no_summary_line_without_companion(): void {
 		$values = $this->placeholderFactory->build( $this->registration() );
 

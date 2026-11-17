@@ -11,6 +11,9 @@ so keep entries user-facing and concise.
 
 ## [Unreleased]
 
+### Fixed
+- A single event with leftover accommodation data can no longer stop the e-mail queue. Building a confirmation for such an event failed, and because the queue is driven by cron the same message was retried every few minutes forever, which held up confirmations for every other event too. The accommodation line now falls back to the names stored with the booking.
+
 ## [0.2.0] - 2026-11-17
 
 ### Added

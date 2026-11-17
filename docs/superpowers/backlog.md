@@ -476,7 +476,9 @@ odziedziczyć.
 
 ---
 
-## B18 — Kolejka maili wciąż może stanąć przez event klasyczny
+## B18 — Kolejka maili wciąż może stanąć przez event klasyczny — **ZAMKNIĘTE**
+
+**Naprawione** na gałęzi `fix/classic-mail-queue-stall`: `accommodationLabel` łapie `SchemaException` i degraduje do pustej konfiguracji, czyli do snapshotów etykiet z bookingu (a w ostateczności surowych kluczy), tak jak eksport. Test integracyjny stawia niespójny inwentarz pod istniejącym bookingiem i asertuje, że mail buduje się z czytelnym noclegiem. Opis problemu zostaje poniżej dla zapisu.
 
 **Priorytet:** średni (zatrzymuje WSZYSTKIE eventy), choć wymaga niespójnych danych.
 
