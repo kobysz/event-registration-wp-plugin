@@ -122,9 +122,12 @@ final class EventConfigController {
 	}
 
 	/**
-	 * Zapisuje konfigurację (nieblokująco) i zwraca ją z raportem walidacji.
+	 * Zapisuje konfigurację (walidacja nie blokuje zapisu) i zwraca ją z raportem walidacji.
 	 *
 	 * @param WP_REST_Request $request Żądanie REST.
+	 *
+	 * @throws \Throwable Gdy zapis w transakcji się nie powiedzie (ROLLBACK — czyli
+	 *                    zwolnienie zamka eventu — przed ponownym rzuceniem).
 	 */
 	public function update_config( WP_REST_Request $request ): WP_REST_Response|WP_Error {
 		$event_id = (int) $request['id'];
@@ -139,17 +142,40 @@ final class EventConfigController {
 			}
 		}
 
-		// Serwer jest arbitrem: zmiana trybu noclegów przy istniejących noclegach
-		// zmieniłaby sens zapisanych rezerwacji, więc odmowa idzie PRZED zapisem.
-		if ( isset( $incoming['accommodation'] ) && $this->mode_change_locked( $event_id, $incoming['accommodation'] ) ) {
-			return new WP_Error(
-				'evreg_mode_locked',
-				__( 'Nie można zmienić trybu noclegów: wydarzenie ma już zgłoszenia z noclegiem. Anuluj te zgłoszenia, aby zmienić tryb.', 'event-registration' ),
-				array( 'status' => 409 )
-			);
-		}
+		$registrations = new RegistrationRepository();
 
-		$this->repository->save( $event_id, $incoming );
+		// Sprawdzenie i zapis pod TYM SAMYM zamkiem wiersza evreg_locks, który biorą
+		// ścieżki rezerwacji: inaczej zgłoszenie z noclegiem zatwierdzone MIĘDZY
+		// sprawdzeniem a zapisem przeszłoby bramkę, a zapis przełączyłby tryb i zostawił
+		// booking, którego sens już nie pasuje do trybu. Zamek trzymamy tylko na czas
+		// odczytu zajętości i czterech update_post_meta() — budowa odpowiedzi (kolejne
+		// odczyty zajętości) leży już po COMMIT, żeby żadna rezerwacja nie czekała dłużej,
+		// niż trzeba. KOLEJNOŚĆ: lockEvent() przed pierwszym odczytem zajętości (jak w
+		// ReservationService::reserve) — NIE ZMIENIAĆ.
+		$registrations->beginTransaction();
+
+		try {
+			$registrations->lockEvent( $event_id );
+
+			// Serwer jest arbitrem: zmiana trybu noclegów przy istniejących noclegach
+			// zmieniłaby sens zapisanych rezerwacji, więc odmowa idzie PRZED zapisem.
+			if ( isset( $incoming['accommodation'] ) && $this->mode_change_locked( $registrations, $event_id, $incoming['accommodation'] ) ) {
+				$registrations->rollback();
+
+				return new WP_Error(
+					'evreg_mode_locked',
+					__( 'Nie można zmienić trybu noclegów: wydarzenie ma już zgłoszenia z noclegiem. Anuluj te zgłoszenia, aby zmienić tryb.', 'event-registration' ),
+					array( 'status' => 409 )
+				);
+			}
+
+			$this->repository->save( $event_id, $incoming );
+
+			$registrations->commit();
+		} catch ( \Throwable $e ) {
+			$registrations->rollback();
+			throw $e;
+		}
 
 		return new WP_REST_Response( $this->build_payload( $event_id ), 200 );
 	}
@@ -159,17 +185,21 @@ final class EventConfigController {
 	 *
 	 * Brak klucza `mode` znaczy tryb klasyczny — tak samo jak w domenie.
 	 *
-	 * @param int          $event_id ID eventu.
-	 * @param array<mixed> $incoming Przychodzący (już sanityzowany) config noclegów.
+	 * Wołać WYŁĄCZNIE pod zamkiem eventu: odczyt zajętości musi być w tej samej
+	 * transakcji co zapis, inaczej wraca wyścig B17.
+	 *
+	 * @param RegistrationRepository $registrations Repozytorium zgłoszeń trzymające zamek.
+	 * @param int                    $event_id      ID eventu.
+	 * @param array<mixed>           $incoming      Przychodzący (już sanityzowany) config noclegów.
 	 */
-	private function mode_change_locked( int $event_id, array $incoming ): bool {
+	private function mode_change_locked( RegistrationRepository $registrations, int $event_id, array $incoming ): bool {
 		$stored = $this->repository->get( $event_id )['accommodation'];
 
 		if ( $this->mode_of( $incoming ) === $this->mode_of( $stored ) ) {
 			return false;
 		}
 
-		return ( new RegistrationRepository() )->eventHasAccommodation( $event_id );
+		return $registrations->eventHasAccommodation( $event_id );
 	}
 
 	/**

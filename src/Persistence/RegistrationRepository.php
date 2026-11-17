@@ -65,6 +65,35 @@ final class RegistrationRepository {
 	}
 
 	/**
+	 * Otwiera transakcję. Istnieje, bo lockEvent() ma sens tylko w transakcji,
+	 * a ścieżki poza ReservationService (np. REST konfiguracji) nie mają prawa
+	 * trzymać własnego SQL-a — całe SQL zgłoszeń żyje w tym repozytorium.
+	 */
+	public function beginTransaction(): void {
+		global $wpdb;
+
+		$wpdb->query( 'START TRANSACTION' );
+	}
+
+	/**
+	 * Zatwierdza transakcję otwartą przez beginTransaction().
+	 */
+	public function commit(): void {
+		global $wpdb;
+
+		$wpdb->query( 'COMMIT' );
+	}
+
+	/**
+	 * Wycofuje transakcję otwartą przez beginTransaction() — zwalnia też zamek eventu.
+	 */
+	public function rollback(): void {
+		global $wpdb;
+
+		$wpdb->query( 'ROLLBACK' );
+	}
+
+	/**
 	 * Czy istnieje aktywne (niebędące anulowanym) zgłoszenie na ten e-mail w evencie.
 	 *
 	 * @param int    $event_id ID eventu.
