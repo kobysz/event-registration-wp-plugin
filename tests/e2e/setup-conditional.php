@@ -55,10 +55,40 @@ $schema = array(
 					'key'       => 'pwz',
 					'type'      => 'text',
 					'label'     => 'PWZ',
+					'required'  => true,
 					'condition' => array(
 						'field'    => '__type',
 						'operator' => 'equals',
 						'value'    => 'prelegent',
+					),
+				),
+			),
+		),
+		// Sekcja schowana warunkiem, z wymaganym polem w środku (B14) oraz
+		// zagnieżdżonym polem warunkowym zależnym od pola z tej samej sekcji.
+		array(
+			'key'       => 'prel',
+			'title'     => 'Prelegent',
+			'condition' => array(
+				'field'    => '__type',
+				'operator' => 'equals',
+				'value'    => 'prelegent',
+			),
+			'fields'    => array(
+				array(
+					'key'      => 'temat',
+					'type'     => 'text',
+					'label'    => 'Temat',
+					'required' => true,
+				),
+				array(
+					'key'       => 'abstrakt',
+					'type'      => 'text',
+					'label'     => 'Abstrakt',
+					'required'  => true,
+					'condition' => array(
+						'field'    => 'temat',
+						'operator' => 'not_empty',
 					),
 				),
 			),

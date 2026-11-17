@@ -55,6 +55,28 @@
 			try { expected = toList( JSON.parse( raw ) ); } catch ( e ) { expected = toList( raw ); }
 			el.hidden = ! isMet( operator, readTrigger( form, key ), expected );
 		} );
+		syncRequired( form );
+	}
+
+	// `required` musi chodzić W PARZE z widocznością: kontrolek w schowanym kontenerze
+	// przeglądarka nie potrafi sfokusować, więc ukryte-i-wymagane pole przerywa submit
+	// bez komunikatu. Serwer i tak nie waliduje pól schowanych warunkiem (Validator +
+	// VisibilityResolver). Oryginalny stan zapamiętujemy jawnie w data-evreg-required
+	// (nie wnioskujemy go) i przywracamy po pokazaniu. Stan liczymy per kontrolka po
+	// WSZYSTKICH przodkach warunkowych (closest), więc zagnieżdżone kontenery nie
+	// przywracają `required` kontrolce, którą nadal chowa inny kontener.
+	function syncRequired( form ) {
+		form.querySelectorAll( '[data-evreg-when-field] input, [data-evreg-when-field] select, [data-evreg-when-field] textarea' ).forEach( function ( control ) {
+			if ( control.closest( '[data-evreg-when-field][hidden]' ) ) {
+				if ( control.required ) {
+					control.setAttribute( 'data-evreg-required', '1' );
+					control.required = false;
+				}
+			} else if ( control.hasAttribute( 'data-evreg-required' ) ) {
+				control.required = true;
+				control.removeAttribute( 'data-evreg-required' );
+			}
+		} );
 	}
 
 	function selectedSlotAllowsRoommate( container ) {
