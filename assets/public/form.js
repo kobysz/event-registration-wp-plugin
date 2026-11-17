@@ -67,6 +67,8 @@
 	// przywracają `required` kontrolce, którą nadal chowa inny kontener.
 	function syncRequired( form ) {
 		form.querySelectorAll( '[data-evreg-when-field] input, [data-evreg-when-field] select, [data-evreg-when-field] textarea' ).forEach( function ( control ) {
+			// `required` imienia towarzyszącej ma jednego właściciela: applyCompanion.
+			if ( control.hasAttribute( 'data-evreg-companion-input' ) ) { return; }
 			if ( control.closest( '[data-evreg-when-field][hidden]' ) ) {
 				if ( control.required ) {
 					control.setAttribute( 'data-evreg-required', '1' );
@@ -106,7 +108,9 @@
 		if ( ! checkbox || ! input ) { return; }
 		var on = checkbox.checked;
 		input.hidden = ! on;
-		input.required = on;
+		// Blok towarzyszącej leży wewnątrz fieldsetu sekcji, więc sekcja schowana warunkiem
+		// chowa też to pole — wtedy nie może być wymagane (syncRequired go nie dotyka).
+		input.required = on && ! input.closest( '[data-evreg-when-field][hidden]' );
 		var label = form.querySelector( '[data-evreg-companion-label]' );
 		if ( label ) { label.hidden = ! on; }
 	}
@@ -238,7 +242,7 @@
 			applyNightState( form, e );
 			refreshAccommodation( form );
 		} );
-		form.addEventListener( 'input', function () { apply( form ); } );
+		form.addEventListener( 'input', function () { apply( form ); applyCompanion( form ); } );
 	} );
 
 	document.querySelectorAll( '.evreg-accommodation' ).forEach( function ( container ) {

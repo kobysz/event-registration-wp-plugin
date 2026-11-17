@@ -81,3 +81,45 @@ test( 'a hidden required field does not block submit; once shown it does', async
 	await page.locator( 'button.evreg-submit' ).click();
 	await expect( page.locator( '.evreg-success' ) ).toBeVisible();
 } );
+
+// B14 x companion: blok osoby towarzyszącej renderuje się wewnątrz fieldsetu sekcji, więc
+// sekcja schowana warunkiem chowa też imię towarzyszącej. `applyCompanion` i `syncRequired`
+// piszą `required` na tej samej kontrolce — ukryta nie może być wymagana, widoczna z
+// zaznaczonym checkboxem musi wrócić wymagana (nie stale), a odznaczona nie.
+test( 'companion name inside a conditional section: required follows visibility, not stale', async ( { page } ) => {
+	const out = execSync(
+		'node scripts/wp-env.cjs run cli --env-cwd=wp-content/plugins/event-registration -- wp eval-file tests/e2e/setup-conditional.php',
+		{ encoding: 'utf8' }
+	);
+	const [ , pageId ] = out.trim().split( '\n' ).pop().trim().split( /\s+/ );
+	await page.goto( `http://localhost:8891/?page_id=${ pageId }` );
+
+	const name = page.locator( '#evreg_companion_name' );
+	const box = page.locator( 'input[name="evreg_companion"]' );
+	const required = () => name.evaluate( ( el ) => el.required );
+	const type = ( v ) => page.check( `input[name="evreg_field[__type]"][value="${ v }"]` );
+
+	await type( 'gosc' );
+	await expect( box ).toBeVisible();
+	await box.check();
+	await expect( name ).toBeVisible();
+	expect( await required() ).toBe( true );
+
+	// Sekcja chowa się przy zaznaczonym checkboxie: imię ukryte i NIE wymagane.
+	await type( 'pacjent' );
+	await expect( name ).toBeHidden();
+	expect( await required() ).toBe( false );
+
+	// Pokazanie sekcji: checkbox nadal zaznaczony → imię wraca wymagane.
+	await type( 'gosc' );
+	await expect( name ).toBeVisible();
+	expect( await required() ).toBe( true );
+
+	// Odznaczenie checkboxa: imię schowane, niewymagane (syncRequired nie wskrzesza stanu).
+	await box.uncheck();
+	await expect( name ).toBeHidden();
+	expect( await required() ).toBe( false );
+	await type( 'pacjent' );
+	await type( 'gosc' );
+	expect( await required() ).toBe( false );
+} );

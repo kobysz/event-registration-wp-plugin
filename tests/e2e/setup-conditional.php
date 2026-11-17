@@ -93,6 +93,24 @@ $schema = array(
 				),
 			),
 		),
+		// Sekcja schowana warunkiem, w której siedzi pole noclegu z osobą towarzyszącą:
+		// blok towarzyszącej renderuje się wewnątrz fieldsetu sekcji (B14 x applyCompanion).
+		array(
+			'key'       => 'nocleg_sek',
+			'title'     => 'Nocleg',
+			'condition' => array(
+				'field'    => '__type',
+				'operator' => 'equals',
+				'value'    => 'gosc',
+			),
+			'fields'    => array(
+				array(
+					'key'   => 'nocleg',
+					'type'  => 'accommodation',
+					'label' => 'Nocleg',
+				),
+			),
+		),
 	),
 );
 
@@ -107,6 +125,19 @@ $types = array(
 		'label' => 'Prelegent',
 		'price' => 0,
 	),
+	array(
+		'key'   => 'gosc',
+		'label' => 'Gość',
+		'price' => 0,
+	),
+);
+
+$accommodation = array(
+	'packages'          => array( array( 'key' => 'n18', 'label' => 'Noc 18/19' ) ),
+	'rooms'             => array( array( 'key' => 'single', 'label' => 'Pokój' ) ),
+	'inventory'         => array( array( 'package' => 'n18', 'room' => 'single', 'capacity' => 5, 'price' => 100.0 ) ),
+	'allow_none'        => true,
+	'companion_enabled' => true,
 );
 
 $settings = array(
@@ -118,7 +149,8 @@ $settings = array(
 	(int) $event_id,
 	array(
 		'schema'   => $schema,
-		'types'    => $types,
+		'types'         => $types,
+		'accommodation' => $accommodation,
 		'settings' => $settings,
 	)
 );
