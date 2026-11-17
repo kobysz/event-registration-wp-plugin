@@ -55,4 +55,22 @@ final class ReservationRequest {
 		public readonly bool $accommodationSupplied = true
 	) {
 	}
+
+	/**
+	 * Czy ta submisja PODAŁA odpowiedź na pole noclegu — rozstrzygnięcie zależne od trybu.
+	 *
+	 * Jedno pytanie, dwóch nosicieli faktu: tryb klasyczny niesie odpowiedź flagą
+	 * `accommodationSupplied`, tryb „doby” w samym `nights` (null = nie podano, PUSTY
+	 * zbiór = świadoma rezygnacja). Oba rozstrzygnięcia mieszkają TUTAJ, przy polach,
+	 * których dotyczą: ścieżka dobowa wyprowadzała swoje u siebie, więc żądanie zbudowane
+	 * z `nights = null` i `accommodationSupplied = true` odpowiadało na to jedno pytanie
+	 * różnie, zależnie od tego, kto pyta. SubmissionAssembler trzyma oba nosicielstwa
+	 * zgodne (`nights` powstaje wyłącznie dla PODANEJ odpowiedzi), a ten akcesor pilnuje,
+	 * żeby czytający nie rozeszli się z nim ani ze sobą.
+	 *
+	 * @param bool $nights_mode Czy event jest w trybie „doby”.
+	 */
+	public function accommodationAnswered( bool $nights_mode ): bool {
+		return $nights_mode ? null !== $this->nights : $this->accommodationSupplied;
+	}
 }

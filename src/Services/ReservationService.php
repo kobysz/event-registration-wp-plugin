@@ -1087,11 +1087,10 @@ final class ReservationService {
 	 * @param array<string,mixed>        $data      Odpowiedzi z żądania (bez pól niewidocznych).
 	 * @param array<string,array<mixed>> $config    Konfiguracja eventu (schema niesie klucz pola noclegu).
 	 * @param string                     $data_json Odpowiedzi ZAPISANE przy zgłoszeniu, jako JSON.
-	 * @param bool                       $supplied  Czy edycja podała odpowiedź na pole noclegu. Każda ścieżka
-	 *                                              podaje tu swoją rozstrzygającą odpowiedź na to jedno pytanie:
-	 *                                              klasyczna flagę `ReservationRequest::$accommodationSupplied`,
-	 *                                              dobowa własne `null !== $request->nights` (ta sama asymetria,
-	 *                                              co przy wierszach — patrz docblock tej flagi).
+	 * @param bool                       $supplied  Czy edycja podała odpowiedź na pole noclegu. Obie ścieżki
+	 *                                              dostają ją z `ReservationRequest::accommodationAnswered()`,
+	 *                                              który trzyma rozstrzygnięcie per tryb przy polach, których
+	 *                                              dotyczy (flaga w klasycznym, `nights` w dobowym).
 	 *
 	 * @return array<string,mixed>
 	 */
@@ -1248,7 +1247,8 @@ final class ReservationService {
 			// samo NIE obejmuje flagi osoby towarzyszącej: ta zmienia zapotrzebowanie na
 			// miejsca, więc nadal musi przejść bramką i przepisać wiersz — tylko już na
 			// zapisanym slocie, a nie w miejsce skasowanego bookingu.
-			$selection      = $request->accommodationSupplied
+			$supplied       = $request->accommodationAnswered( false );
+			$selection      = $supplied
 				? $request->selection
 				: $this->storedSelection( $stored_booking );
 			$new_slot       = null === $selection ? '' : $selection->slotKey();
@@ -1279,7 +1279,7 @@ final class ReservationService {
 				$request->email,
 				$request->name,
 				(string) wp_json_encode(
-					$this->answersKeepingAccommodation( $request->data, $config, (string) $row['data'], $request->accommodationSupplied )
+					$this->answersKeepingAccommodation( $request->data, $config, (string) $row['data'], $supplied )
 				),
 				$price,
 				$request->companion ? 1 : 0,
@@ -1386,7 +1386,7 @@ final class ReservationService {
 		// z checkboxa evreg_companion także wtedy, gdy formularz pola dób nie renderuje
 		// (SubmissionAssembler czyta companion_enabled niezależnie od trybu), a para
 		// z wierszami po jednym miejscu to doba sprzedana dwa razy.
-		$supplied = null !== $request->nights;
+		$supplied = $request->accommodationAnswered( true );
 		$seats    = $request->companion ? 2 : 1;
 
 		$this->repository->beginTransaction();
