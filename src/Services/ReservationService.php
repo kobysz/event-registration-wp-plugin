@@ -19,6 +19,7 @@ use EvReg\Domain\Capacity\CapacityLimits;
 use EvReg\Domain\Capacity\NightCapacity;
 use EvReg\Domain\Capacity\Outcome;
 use EvReg\Domain\Pricing\PriceCalculator;
+use EvReg\Domain\Registration\ManualEntry;
 use EvReg\Domain\Registration\RegistrationStatus;
 use EvReg\Domain\Registration\RegistrationTypeCollection;
 use EvReg\Domain\Schema\FieldType;
@@ -289,6 +290,90 @@ final class ReservationService {
 	}
 
 	/**
+	 * Stempluje `confirmed_at` wpisu ręcznego przyjętego — w TEJ SAMEJ, otwartej transakcji.
+	 *
+	 * WYMÓG WYWOŁANIA: zaraz po insertRegistration(), przed COMMIT, żeby wiersz nigdy nie był
+	 * widoczny jako potwierdzony bez daty potwierdzenia. Stempel idzie przez markConfirmed(),
+	 * bo to JEDYNE miejsce znające konwencję „potwierdzone = status + confirmed_at + updated_at”;
+	 * dopisanie kolumny do insertRegistration() rozdzieliłoby tę wiedzę na dwa miejsca.
+	 *
+	 * Lista rezerwowa i ścieżka publiczna nie dostają stempla — tam nic nie jest potwierdzone.
+	 *
+	 * @param int              $id          ID zapisanego zgłoszenia.
+	 * @param bool             $is_waitlist Czy zgłoszenie trafiło na listę rezerwową.
+	 * @param ManualEntry|null $manual      Znacznik wpisu ręcznego; null = ścieżka publiczna.
+	 */
+	private function stampConfirmedUnderTransaction( int $id, bool $is_waitlist, ?ManualEntry $manual ): void {
+		if ( $is_waitlist || null === $manual ) {
+			return;
+		}
+
+		$this->repository->markConfirmed( $id );
+	}
+
+	/**
+	 * Status zapisywanego zgłoszenia: lista rezerwowa, wpis ręczny potwierdzony, albo oczekujący.
+	 *
+	 * Jedna kopia dla obu gałęzi trybów noclegu, z tego samego powodu co announceAfterCommit():
+	 * rozjazd znaczyłby wpis ręczny, który w jednym trybie wchodzi potwierdzony, a w drugim
+	 * czeka na link, którego nikt nie dostanie.
+	 *
+	 * @param bool             $is_waitlist Czy zgłoszenie trafiło na listę rezerwową.
+	 * @param ManualEntry|null $manual      Znacznik wpisu ręcznego; null = ścieżka publiczna.
+	 */
+	private function statusFor( bool $is_waitlist, ?ManualEntry $manual ): RegistrationStatus {
+		if ( $is_waitlist ) {
+			return RegistrationStatus::Waitlist;
+		}
+
+		return null === $manual ? RegistrationStatus::Pending : RegistrationStatus::Confirmed;
+	}
+
+	/**
+	 * Ogłasza wynik rezerwacji hookiem cyklu życia — tylko PO COMMIT, poza try/catch.
+	 *
+	 * WYMÓG WYWOŁANIA, jak sufiks *UnderLock przy odczytach: wołać dopiero po zamknięciu
+	 * try/catch udanej transakcji. Gdyby to szło wewnątrz try, rzut z nasłuchu trafiłby do
+	 * (no-op) ROLLBACK i wypłynął jako fałszywa porażka rezerwacji mimo trwale
+	 * zatwierdzonego wiersza (patrz komentarze w reserve()/reserveNights()).
+	 *
+	 * Rozstrzygnięcie, KTÓRY hook, siedzi tu w jednej kopii, bo obie gałęzie trybów muszą
+	 * ogłaszać identycznie — a rozjazd między kopiami tego wyboru znaczyłby mail z linkiem
+	 * potwierdzającym wysłany na wiersz już potwierdzony (albo brak maila, o który poproszono).
+	 *
+	 * Wpis ręczny przyjęty ogłasza evreg_registration_confirmed, NIE ...reserved: szablon
+	 * opt-in niesie link potwierdzający, a wiersz wpisu ręcznego jest już potwierdzony, więc
+	 * link prowadziłby w nikąd. Lista rezerwowa zostaje przy swoim hooku — tam nic nie jest
+	 * potwierdzone i mail mówi dokładnie to, co powinien. Przy notify === false nie leci nic:
+	 * organizator wpisuje ludzi, którzy o rejestracji wiedzą z rozmowy, nie z maila.
+	 *
+	 * @param bool             $is_waitlist Czy zgłoszenie trafiło na listę rezerwową.
+	 * @param ManualEntry|null $manual      Znacznik wpisu ręcznego; null = ścieżka publiczna.
+	 * @param int              $id          ID zapisanego zgłoszenia.
+	 * @param int              $event_id    ID eventu.
+	 * @param string           $token       Token zgłoszenia (link potwierdzający opt-in).
+	 */
+	private function announceAfterCommit( bool $is_waitlist, ?ManualEntry $manual, int $id, int $event_id, string $token ): void {
+		if ( $is_waitlist ) {
+			if ( null === $manual || $manual->notify ) {
+				do_action( 'evreg_registration_waitlisted', $id, $event_id );
+			}
+
+			return;
+		}
+
+		if ( null === $manual ) {
+			do_action( 'evreg_registration_reserved', $id, $event_id, $token );
+
+			return;
+		}
+
+		if ( $manual->notify ) {
+			do_action( 'evreg_registration_confirmed', $id, $event_id );
+		}
+	}
+
+	/**
 	 * Rezerwuje miejsce dla zgłoszenia w ramach jednej transakcji z blokadą per event.
 	 *
 	 * Kolejność: START → lockEvent → guard duplikatu → zajętość → decyzja →
@@ -297,14 +382,22 @@ final class ReservationService {
 	 * ROLLBACK i ponowne rzucenie. Hook odpala się strukturalnie po zamknięciu try/catch,
 	 * więc rzut z nasłuchu propaguje się do wywołującego bez wpływu na już zatwierdzony wiersz.
 	 *
+	 * Wpis ręczny (`$manual` niepuste) zmienia DOKŁADNIE pięć rzeczy: pomija guard duplikatu,
+	 * wchodzi jako potwierdzony zamiast oczekującego, zostaje bez `expires_at`, zapisuje
+	 * znacznik `manual` i ogłasza inny hook (patrz announceAfterCommit()). Pojemność, arytmetyka
+	 * miejsc osoby towarzyszącej, bramka noclegu, wycena i kolejność blokady są nietknięte —
+	 * organizator wpisuje człowieka na tych samych zasadach, na jakich wpisałby się sam.
+	 *
 	 * @param int                $event_id ID eventu.
 	 * @param ReservationRequest $request  Dane zgłoszenia.
+	 * @param ManualEntry|null   $manual   Znacznik wpisu ręcznego organizatora; null (domyślnie) =
+	 *                                     ścieżka publiczna bez żadnej zmiany zachowania.
 	 *
 	 * @throws \Throwable Gdy operacja w transakcji się nie powiedzie (ROLLBACK przed ponownym rzuceniem)
-	 *                    albo gdy nasłuch evreg_registration_reserved/evreg_registration_waitlisted
-	 *                    rzuci po COMMIT (wiersz pozostaje zatwierdzony).
+	 *                    albo gdy nasłuch evreg_registration_reserved/evreg_registration_waitlisted/
+	 *                    evreg_registration_confirmed rzuci po COMMIT (wiersz pozostaje zatwierdzony).
 	 */
-	public function reserve( int $event_id, ReservationRequest $request ): ReservationResult {
+	public function reserve( int $event_id, ReservationRequest $request, ?ManualEntry $manual = null ): ReservationResult {
 		$config            = $this->config->get( $event_id );
 		$types             = RegistrationTypeCollection::fromArray( is_array( $config['types'] ) ? $config['types'] : array() );
 		$settings          = is_array( $config['settings'] ) ? $config['settings'] : array();
@@ -316,7 +409,10 @@ final class ReservationService {
 		$nights_config = NightsConfig::fromArray( $accommodation_raw );
 
 		if ( $nights_config->isNights() ) {
-			return $this->reserveNights( $event_id, $request, $nights_config, $settings, $types );
+			// Tryb wpisu ręcznego MUSI przejść i tutaj: gałąź dobowa ma własny guard duplikatu,
+			// własny status, własne `expires_at` i własne ogłoszenie, więc pominięta dałaby wpis
+			// ręczny, który mimo znacznika wygasa po 48 godzinach.
+			return $this->reserveNights( $event_id, $request, $nights_config, $settings, $types, $manual );
 		}
 
 		$accommodation = AccommodationConfig::fromArray( $accommodation_raw );
@@ -332,7 +428,11 @@ final class ReservationService {
 			// zapobiegająca zajęciu ostatniego miejsca przez dwóch rywali. NIE ZMIENIAJ KOLEJNOŚCI.
 			$this->repository->lockEvent( $event_id );
 
-			if ( $this->repository->activeRegistrationExists( $event_id, $request->email ) ) {
+			// Guard duplikatu broni formularza publicznego od przypadkowej podwójnej wysyłki.
+			// Wpis ręczny pomija go BEZWARUNKOWO: organizator widzi listę zgłoszeń i ma powody
+			// użyć adresu drugi raz (rodzina na jednej skrzynce), a odmowa kazałaby mu obejść
+			// system zmyślonym adresem. Zgłoszeń admina nie da się wysłać przez pomyłkę dwa razy.
+			if ( null === $manual && $this->repository->activeRegistrationExists( $event_id, $request->email ) ) {
 				$this->repository->rollback();
 				return ReservationResult::duplicate();
 			}
@@ -360,8 +460,12 @@ final class ReservationService {
 			}
 
 			$is_waitlist = Outcome::Waitlisted === $decision->outcome;
-			$status      = $is_waitlist ? RegistrationStatus::Waitlist : RegistrationStatus::Pending;
-			$expires_at  = $is_waitlist ? null : gmdate( 'Y-m-d H:i:s', strtotime( self::PENDING_TTL, time() ) );
+			// Wpis ręczny przyjęty jest potwierdzony OD RAZU i bez terminu: uczestnik nigdy nie
+			// zobaczy linku potwierdzającego, więc `pending` z terminem 48 h znaczyłoby tylko
+			// tyle, że cron anuluje go po dwóch dniach. Lista rezerwowa zostaje przy swoim
+			// statusie — tam nic nie jest potwierdzone, a `expires_at` ma null już dziś.
+			$status     = $this->statusFor( $is_waitlist, $manual );
+			$expires_at = $is_waitlist || null !== $manual ? null : gmdate( 'Y-m-d H:i:s', strtotime( self::PENDING_TTL, time() ) );
 
 			$type = $types->get( $request->typeKey );
 			// Cena noclegu tylko gdy nocleg faktycznie przyznany — przy accommodation_full
@@ -383,8 +487,11 @@ final class ReservationService {
 					'lang'           => $request->lang,
 					'companion'      => $request->companion ? 1 : 0,
 					'companion_name' => $request->companion ? $request->companionName : '',
+					'manual'         => null !== $manual ? 1 : 0,
 				)
 			);
+
+			$this->stampConfirmedUnderTransaction( $id, $is_waitlist, $manual );
 
 			if ( $decision->accommodationGranted && null !== $request->selection ) {
 				$item      = $accommodation->item( $request->selection->packageKey, $request->selection->roomKey );
@@ -415,11 +522,7 @@ final class ReservationService {
 		// z nasłuchu trafiłby do (no-op) ROLLBACK powyżej i wypłynąłby jako fałszywa
 		// porażka rezerwacji mimo trwale zatwierdzonego wiersza. Tutaj rzut nasłuchu
 		// propaguje się do wywołującego bez cofania COMMIT — wiersz zostaje zapisany.
-		if ( $is_waitlist ) {
-			do_action( 'evreg_registration_waitlisted', $id, $event_id );
-		} else {
-			do_action( 'evreg_registration_reserved', $id, $event_id, $token );
-		}
+		$this->announceAfterCommit( $is_waitlist, $manual, $id, $event_id, $token );
 
 		return $result;
 	}
@@ -434,11 +537,17 @@ final class ReservationService {
 	 * ma pakietu ani pokoju, którym można by go wypełnić, a wiersze dób SĄ rezerwacją noclegu.
 	 * Świadomie nie buduje AccommodationConfig — wspólne flagi czyta z NightsConfig.
 	 *
+	 * Tryb wpisu ręcznego zmienia tu dokładnie to samo co w reserve() i przez te same, wspólne
+	 * metody (statusFor(), stampConfirmedUnderTransaction(), announceAfterCommit()) — pojemność
+	 * dób, wycena i kolejność blokady są nietknięte.
+	 *
 	 * @param int                        $event_id      ID eventu.
 	 * @param ReservationRequest         $request       Dane zgłoszenia.
 	 * @param NightsConfig               $nights_config Konfiguracja trybu „doby”.
 	 * @param array<mixed>               $settings      Ustawienia eventu.
 	 * @param RegistrationTypeCollection $types         Typy zgłoszeń eventu.
+	 * @param ManualEntry|null           $manual        Znacznik wpisu ręcznego organizatora;
+	 *                                                  null = ścieżka publiczna bez zmian.
 	 *
 	 * @throws \Throwable Gdy operacja w transakcji się nie powiedzie (ROLLBACK przed ponownym
 	 *                    rzuceniem), w tym \RuntimeException z writeNightRows() przy liczbie
@@ -450,7 +559,8 @@ final class ReservationService {
 		ReservationRequest $request,
 		NightsConfig $nights_config,
 		array $settings,
-		RegistrationTypeCollection $types
+		RegistrationTypeCollection $types,
+		?ManualEntry $manual
 	): ReservationResult {
 		// UWAGA: tutaj `nights === null` znaczy „nie poproszono o nocleg” i pusty zbiór jest
 		// tym samym co brak wyboru — nowe zgłoszenie nie ma żadnego stanu, który mógłby na
@@ -471,7 +581,8 @@ final class ReservationService {
 			// NIE ZMIENIAJ KOLEJNOŚCI.
 			$this->repository->lockEvent( $event_id );
 
-			if ( $this->repository->activeRegistrationExists( $event_id, $request->email ) ) {
+			// Guard duplikatu pomijany bezwarunkowo dla wpisu ręcznego — jak w reserve().
+			if ( null === $manual && $this->repository->activeRegistrationExists( $event_id, $request->email ) ) {
 				$this->repository->rollback();
 				return ReservationResult::duplicate();
 			}
@@ -519,8 +630,9 @@ final class ReservationService {
 				}
 			}
 
-			$status     = $is_waitlist ? RegistrationStatus::Waitlist : RegistrationStatus::Pending;
-			$expires_at = $is_waitlist ? null : gmdate( 'Y-m-d H:i:s', strtotime( self::PENDING_TTL, time() ) );
+			// Status i brak terminu wpisu ręcznego — ta sama reguła co w reserve() (patrz statusFor()).
+			$status     = $this->statusFor( $is_waitlist, $manual );
+			$expires_at = $is_waitlist || null !== $manual ? null : gmdate( 'Y-m-d H:i:s', strtotime( self::PENDING_TTL, time() ) );
 
 			$type = $types->get( $request->typeKey );
 			// Doby liczą się do ceny tylko wtedy, gdy faktycznie przyznane — zgłoszenie
@@ -549,8 +661,11 @@ final class ReservationService {
 					'lang'           => $request->lang,
 					'companion'      => $request->companion ? 1 : 0,
 					'companion_name' => $request->companion ? $request->companionName : '',
+					'manual'         => null !== $manual ? 1 : 0,
 				)
 			);
+
+			$this->stampConfirmedUnderTransaction( $id, $is_waitlist, $manual );
 
 			if ( $granted ) {
 				// Punktem odniesienia jest liczba dób ŻĄDANYCH, nie liczba zbudowanych
@@ -571,11 +686,7 @@ final class ReservationService {
 
 		// Hooki cyklu życia POZA try/catch, po COMMIT — nasłuch nigdy nie działa
 		// w transakcji rezerwacji (patrz komentarz w reserve()).
-		if ( $is_waitlist ) {
-			do_action( 'evreg_registration_waitlisted', $id, $event_id );
-		} else {
-			do_action( 'evreg_registration_reserved', $id, $event_id, $token );
-		}
+		$this->announceAfterCommit( $is_waitlist, $manual, $id, $event_id, $token );
 
 		return $result;
 	}
