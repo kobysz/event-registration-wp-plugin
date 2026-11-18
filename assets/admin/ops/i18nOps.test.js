@@ -329,6 +329,7 @@ describe( 'i18nOps companion note row', () => {
 	it( 'omits the row when the note is empty', () => {
 		expect( items( { companion_enabled: true, companion_note: '' } ) ).not.toContainEqual( expect.objectContaining( { accKind: 'companion' } ) );
 		expect( items( { companion_enabled: true } ) ).not.toContainEqual( expect.objectContaining( { accKind: 'companion' } ) );
+		expect( items( { companion_enabled: true, companion_note: '   ' } ) ).not.toContainEqual( expect.objectContaining( { accKind: 'companion' } ) );
 	} );
 
 	it( 'omits the row when the companion option is off', () => {

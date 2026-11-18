@@ -256,6 +256,11 @@ final class ContentTranslatorTest extends TestCase {
 
 		$spaces  = ( new ContentTranslator() )->translateAccommodation( array_merge( $this->accommodation(), array( 'companion_note' => '   ' ) ), $overlay, 'en' );
 
+		foreach ( array( '&nbsp;', '<p></p>', '<p>&nbsp;</p>' ) as $markup ) {
+			$out = ( new ContentTranslator() )->translateAccommodation( array_merge( $this->accommodation(), array( 'companion_note' => $markup ) ), $overlay, 'en' );
+			$this->assertSame( $markup, $out['companion_note'] );
+		}
+
 		$this->assertSame( '', $blank['companion_note'] );
 		$this->assertSame( '   ', $spaces['companion_note'] );
 		$this->assertSame( '', $missing['companion_note'] ?? '' );

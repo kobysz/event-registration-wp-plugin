@@ -99,7 +99,9 @@ final class I18nControllerTest extends WP_UnitTestCase {
 			array(
 				'en' => array(
 					'accommodation' => array(
+						'packages'  => array( 'note' => '<script>x()</script><a href="https://example.com">link</a> plain' ),
 						'companion' => array(
+							'other' => '<script>x()</script><a href="https://example.com">link</a> plain',
 							'note' => "Line one
 <a href=\"https://example.com\">link</a> <strong>bold</strong><script>alert(1)</script>",
 						),
@@ -119,6 +121,8 @@ final class I18nControllerTest extends WP_UnitTestCase {
 ", $note );
 		$this->assertStringNotContainsString( '<script', $note );
 		$this->assertSame( 'link plain', $data['en']['fields']['note'] );
+		$this->assertSame( 'link plain', $data['en']['accommodation']['packages']['note'] );
+		$this->assertSame( 'link plain', $data['en']['accommodation']['companion']['other'] );
 	}
 
 	private function store_overlay(): void {

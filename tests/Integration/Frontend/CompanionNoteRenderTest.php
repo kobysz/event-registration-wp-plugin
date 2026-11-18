@@ -76,7 +76,7 @@ final class CompanionNoteRenderTest extends WP_UnitTestCase {
 		$html = $this->render( 'classic', array( 'companion_note' => 'Dopłata za osobę.' ) );
 
 		$checkbox = strpos( $html, 'data-evreg-companion>' );
-		$note     = strpos( $html, '<p class="evreg-companion-note' );
+		$note     = strpos( $html, '<div class="evreg-companion-note' );
 		$label    = strpos( $html, 'data-evreg-companion-label' );
 
 		$this->assertNotFalse( $checkbox );
@@ -90,7 +90,7 @@ final class CompanionNoteRenderTest extends WP_UnitTestCase {
 	public function test_note_renders_in_nights_mode(): void {
 		$html = $this->render( 'nights', array( 'companion_note' => 'Dopłata za osobę.' ) );
 
-		$this->assertStringContainsString( '<p class="evreg-companion-note', $html );
+		$this->assertStringContainsString( '<div class="evreg-companion-note', $html );
 		$this->assertStringContainsString( 'Dopłata za osobę.', $html );
 	}
 
@@ -102,6 +102,38 @@ final class CompanionNoteRenderTest extends WP_UnitTestCase {
 	public function test_whitespace_only_note_renders_no_paragraph(): void {
 		$this->assertStringNotContainsString( 'evreg-companion-note', $this->render( 'classic', array( 'companion_note' => '   ' ) ) );
 		$this->assertStringNotContainsString( 'evreg-companion-note', $this->render( 'nights', array( 'companion_note' => '   ' ) ) );
+	}
+
+	public function test_markup_only_note_renders_no_block(): void {
+		foreach ( array( '&nbsp;', '<p></p>', '<p>&nbsp;</p>' ) as $note ) {
+			$this->assertStringNotContainsString( 'evreg-companion-note', $this->render( 'classic', array( 'companion_note' => $note ) ) );
+			$this->assertStringNotContainsString( 'evreg-companion-note', $this->render( 'nights', array( 'companion_note' => $note ) ) );
+		}
+	}
+
+	public function test_translated_note_reaches_the_form_in_classic_mode(): void {
+		$this->assert_translated_note( 'classic' );
+	}
+
+	public function test_translated_note_reaches_the_form_in_nights_mode(): void {
+		$this->assert_translated_note( 'nights' );
+	}
+
+	private function assert_translated_note( string $mode ): void {
+		$this->render( $mode, array( 'companion_note' => 'Dopłata PL.' ) );
+		( new EventConfigRepository() )->saveI18n(
+			$this->event_id,
+			array( 'en' => array( 'accommodation' => array( 'companion' => array( 'note' => 'Surcharge EN.' ) ) ) )
+		);
+		add_filter( 'evreg_current_language', static fn (): string => 'en' );
+
+		$loader = new EventFormLoader( new EventConfigRepository() );
+		$nights = 'nights' === $mode ? $loader->nights( $this->event_id ) : null;
+		$html   = ( new FormRenderer( null, null, $nights ) )->render( $loader->load( $this->event_id ), $this->event_id, null );
+		remove_all_filters( 'evreg_current_language' );
+
+		$this->assertStringContainsString( 'Surcharge EN.', $html );
+		$this->assertStringNotContainsString( 'Dopłata PL.', $html );
 	}
 
 	public function test_note_absent_when_companion_disabled(): void {
@@ -116,5 +148,13 @@ final class CompanionNoteRenderTest extends WP_UnitTestCase {
 
 		$this->assertStringContainsString( '<strong>Uwaga</strong>', $html );
 		$this->assertStringContainsString( '<a href="https://example.com/regulamin">regulamin</a>', $html );
+	}
+
+	public function test_note_strips_script_and_event_handlers_at_render_time(): void {
+		$html = $this->render( 'classic', array( 'companion_note' => 'Ok <script>alert(1)</script><a href="https://example.com" onclick="x()">link</a>' ) );
+
+		$this->assertStringNotContainsString( '<script', $html );
+		$this->assertStringNotContainsString( 'onclick', $html );
+		$this->assertStringContainsString( 'link</a>', $html );
 	}
 }
