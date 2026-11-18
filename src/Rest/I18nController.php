@@ -176,19 +176,30 @@ final class I18nController {
 	}
 
 	/**
-	 * Sanityzuje zagnieżdżoną mapę tłumaczeń: liście przez sanitize_text_field.
+	 * Sanityzuje zagnieżdżoną mapę tłumaczeń: liście przez sanitize_text_field,
+	 * z jednym wyjątkiem wskazanym ŚCIEŻKĄ.
 	 *
-	 * @param mixed $value Surowa wartość z żądania.
+	 * Przypis osoby towarzyszącej (`<lang>.accommodation.companion.note`) przechodzi
+	 * przez wp_kses_post, tak jak jego baza w EventConfigController::RICH_TEXT_KEYS —
+	 * inaczej ten sam przypis w innym języku tracił link, pogrubienie i znaki nowej
+	 * linii. Dopasowanie po ścieżce, nie po nazwie klucza: klucze pól i sekcji nadaje
+	 * autor, więc pole o kluczu `note` nie może dostać HTML-a.
+	 *
+	 * @param mixed             $value Surowa wartość z żądania.
+	 * @param array<int,string> $path  Klucze od korzenia (język, bucket, ...).
 	 *
 	 * @return array<string,mixed>|string
 	 */
-	private function sanitize( $value ) {
+	private function sanitize( $value, array $path = array() ) {
 		if ( is_array( $value ) ) {
 			$out = array();
 			foreach ( $value as $k => $v ) {
-				$out[ (string) $k ] = $this->sanitize( $v );
+				$out[ (string) $k ] = $this->sanitize( $v, array_merge( $path, array( (string) $k ) ) );
 			}
 			return $out;
+		}
+		if ( 4 === count( $path ) && 'accommodation' === $path[1] && 'companion' === $path[2] && 'note' === $path[3] ) {
+			return wp_kses_post( (string) $value );
 		}
 		return sanitize_text_field( (string) $value );
 	}

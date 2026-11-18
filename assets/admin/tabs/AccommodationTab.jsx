@@ -1,5 +1,5 @@
 import { useState } from '@wordpress/element';
-import { Button, Notice, SelectControl, TextControl, ToggleControl } from '@wordpress/components';
+import { Button, Notice, SelectControl, TextControl, TextareaControl, ToggleControl } from '@wordpress/components';
 import { __, sprintf } from '@wordpress/i18n';
 import {
 	emptyAccommodation,
@@ -13,6 +13,7 @@ import {
 	getInventoryCell,
 	setAllowNone,
 	setCompanionEnabled,
+	setCompanionNote,
 	setCompanionCountsEvent,
 	setMode,
 	addNight,
@@ -280,14 +281,25 @@ export default function AccommodationTab( { config, update, stats } ) {
 				onChange={ ( value ) => setAcc( setCompanionEnabled( acc, value ) ) }
 			/>
 			{ acc.companion_enabled && (
-				<ToggleControl
-					label={ __(
-						'Osoba towarzysząca zajmuje miejsce w limicie wydarzenia',
-						'event-registration'
-					) }
-					checked={ !! acc.companion_counts_event }
-					onChange={ ( value ) => setAcc( setCompanionCountsEvent( acc, value ) ) }
-				/>
+				<>
+					<ToggleControl
+						label={ __(
+							'Osoba towarzysząca zajmuje miejsce w limicie wydarzenia',
+							'event-registration'
+						) }
+						checked={ !! acc.companion_counts_event }
+						onChange={ ( value ) => setAcc( setCompanionCountsEvent( acc, value ) ) }
+					/>
+					<TextareaControl
+						label={ __( 'Przypis pod opcją osoby towarzyszącej', 'event-registration' ) }
+						help={ __(
+							'Opcjonalny tekst wyświetlany pod polem wyboru osoby towarzyszącej w formularzu. Dozwolone podstawowe formatowanie i linki; zostaw puste, aby nic nie pokazywać.',
+							'event-registration'
+						) }
+						value={ acc.companion_note || '' }
+						onChange={ ( value ) => setAcc( setCompanionNote( acc, value ) ) }
+					/>
+				</>
 			) }
 		</div>
 	);

@@ -10,6 +10,7 @@ import {
 	getInventoryCell,
 	setAllowNone,
 	setCompanionEnabled,
+	setCompanionNote,
 	setCompanionCountsEvent,
 	setMode,
 	addNight,
@@ -119,6 +120,18 @@ describe( 'accommodationOps', () => {
 	it( 'setCompanionEnabled rzutuje wartość na bool', () => {
 		expect( setCompanionEnabled( emptyAccommodation(), 1 ).companion_enabled ).toBe( true );
 		expect( setCompanionEnabled( emptyAccommodation(), 0 ).companion_enabled ).toBe( false );
+	} );
+
+	it( 'setCompanionNote ustawia przypis i nie mutuje wejścia', () => {
+		const acc = emptyAccommodation();
+		const before = JSON.stringify( acc );
+		const next = setCompanionNote( acc, 'Przypis.' );
+		expect( next.companion_note ).toBe( 'Przypis.' );
+		expect( JSON.stringify( acc ) ).toBe( before );
+	} );
+
+	it( 'setCompanionNote rzutuje brakującą wartość na pusty string', () => {
+		expect( setCompanionNote( emptyAccommodation(), undefined ).companion_note ).toBe( '' );
 	} );
 
 	it( 'setCompanionCountsEvent ustawia flagę i nie mutuje wejścia', () => {

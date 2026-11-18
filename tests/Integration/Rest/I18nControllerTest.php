@@ -91,6 +91,36 @@ final class I18nControllerTest extends WP_UnitTestCase {
 		$this->assertStringNotContainsString( '<script>', $data['en']['fields']['imie'] );
 	}
 
+	public function test_companion_note_leaf_keeps_rich_text_but_a_field_keyed_note_stays_plain(): void {
+		wp_set_current_user( $this->admin_id );
+
+		$post = new WP_REST_Request( 'POST', $this->path() );
+		$post->set_body_params(
+			array(
+				'en' => array(
+					'accommodation' => array(
+						'companion' => array(
+							'note' => "Line one
+<a href=\"https://example.com\">link</a> <strong>bold</strong><script>alert(1)</script>",
+						),
+					),
+					'fields'        => array(
+						'note' => '<a href="https://example.com">link</a> plain',
+					),
+				),
+			)
+		);
+		$data = rest_do_request( $post )->get_data();
+
+		$note = $data['en']['accommodation']['companion']['note'];
+		$this->assertStringContainsString( '<a href="https://example.com">link</a>', $note );
+		$this->assertStringContainsString( '<strong>bold</strong>', $note );
+		$this->assertStringContainsString( "
+", $note );
+		$this->assertStringNotContainsString( '<script', $note );
+		$this->assertSame( 'link plain', $data['en']['fields']['note'] );
+	}
+
 	private function store_overlay(): void {
 		( new \EvReg\Persistence\EventConfigRepository() )->saveI18n(
 			$this->event_id,

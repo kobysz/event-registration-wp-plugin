@@ -62,6 +62,11 @@ export function translatableItems( schema, types, accommodation ) {
 			items.push( { kind: 'accommodation', accKind: 'rooms', key: room.key, base: room.label || room.key } );
 		} );
 	}
+	// Przypis towarzyszącej istnieje w obu trybach, więc poza rozgałęzieniem. Bez treści albo
+	// przy wyłączonej opcji nic go nie renderuje — wiersz zapraszałby do tłumaczenia w próżnię.
+	if ( acc.companion_enabled && acc.companion_note ) {
+		items.push( { kind: 'accommodation', accKind: 'companion', key: 'note', base: acc.companion_note } );
+	}
 	return items;
 }
 

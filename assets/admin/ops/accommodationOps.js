@@ -105,6 +105,12 @@ export function setCompanionEnabled( acc, value ) {
 	return next;
 }
 
+export function setCompanionNote( acc, value ) {
+	const next = ensure( acc );
+	next.companion_note = String( value ?? '' );
+	return next;
+}
+
 export function setCompanionCountsEvent( acc, value ) {
 	const next = ensure( acc );
 	next.companion_counts_event = !! value;

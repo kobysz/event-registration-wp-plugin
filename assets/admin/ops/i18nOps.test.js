@@ -313,3 +313,25 @@ describe( 'i18nOps nights bucket', () => {
 		expect( overlay.en.accommodation.packages.n12 ).toBe( 'Night 1–2' );
 	} );
 } );
+
+describe( 'i18nOps companion note row', () => {
+	const noteRow = { kind: 'accommodation', accKind: 'companion', key: 'note', base: 'Przypis.' };
+	const items = ( acc ) => translatableItems( { sections: [] }, [], acc );
+
+	it( 'offers the companion note for translation when it is set', () => {
+		expect( items( { companion_enabled: true, companion_note: 'Przypis.' } ) ).toContainEqual( noteRow );
+	} );
+
+	it( 'offers the companion note in nights mode too', () => {
+		expect( items( { mode: 'nights', companion_enabled: true, companion_note: 'Przypis.' } ) ).toContainEqual( noteRow );
+	} );
+
+	it( 'omits the row when the note is empty', () => {
+		expect( items( { companion_enabled: true, companion_note: '' } ) ).not.toContainEqual( expect.objectContaining( { accKind: 'companion' } ) );
+		expect( items( { companion_enabled: true } ) ).not.toContainEqual( expect.objectContaining( { accKind: 'companion' } ) );
+	} );
+
+	it( 'omits the row when the companion option is off', () => {
+		expect( items( { companion_enabled: false, companion_note: 'Przypis.' } ) ).not.toContainEqual( expect.objectContaining( { accKind: 'companion' } ) );
+	} );
+} );
