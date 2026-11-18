@@ -16,8 +16,10 @@ defined( 'ABSPATH' ) || exit;
 /**
  * Komunikat wyniku akcji panelu zgłoszeń.
  *
- * Jedna mapa kod → zdanie dla organizatora, wołana przez trzy powierzchnie panelu:
- * listę, detal i ekran edycji. Handlery produkują kody (PRG), ten plik je nazywa.
+ * Jedna mapa kod → zdanie dla organizatora, wołana przez cztery powierzchnie panelu:
+ * listę, detal, ekran edycji (po PRG, przez render()) i ekran ręcznego dodawania, który
+ * odmowę pokazuje INLINE, więc zdanie bierze przez text(). Handlery produkują kody,
+ * ten plik je nazywa — i nazywa je identycznie niezależnie od drogi.
  */
 final class RegistrationNotice {
 
@@ -35,42 +37,7 @@ final class RegistrationNotice {
 
 		// phpcs:ignore WordPress.Security.NonceVerification.Recommended
 		$code     = sanitize_text_field( wp_unslash( (string) $_GET['evreg_msg'] ) );
-		$messages = array(
-			'confirmed'                 => array( 'success', __( 'Zgłoszenie potwierdzone.', 'event-registration' ) ),
-			'cancelled'                 => array( 'success', __( 'Zgłoszenie anulowane, miejsce zwolnione.', 'event-registration' ) ),
-			'promoted'                  => array( 'success', __( 'Awansowano z listy rezerwowej — wysłano prośbę o potwierdzenie.', 'event-registration' ) ),
-			// Dwa kody awansu, bo awans robi dwie różne rzeczy. Zgłoszenie publiczne wraca
-			// jako oczekujące i dostaje mail z prośbą o potwierdzenie; wpis ręczny wraca
-			// POTWIERDZONY i nie dostaje nic, więc to samo zdanie byłoby o nim nieprawdą
-			// (patrz RegistrationsScreen::handle_promote). promoted_no_accommodation jest
-			// wspólny — o mailu nie mówi, więc jest prawdziwy dla obu pochodzeń.
-			'promoted_manual'           => array( 'success', __( 'Awansowano z listy rezerwowej — zgłoszenie wpisane ręcznie jest od razu potwierdzone, więc nie wysłano żadnego e-maila.', 'event-registration' ) ),
-			'promoted_no_accommodation' => array( 'warning', __( 'Awansowano z listy rezerwowej, ale wybrany nocleg był już pełny — zgłoszenie nie ma przyznanego noclegu.', 'event-registration' ) ),
-			'occupancy_mismatch'        => array( 'error', __( 'Nie można awansować: wybrany pokój ma dziś inną liczbę osób niż zapisano w zgłoszeniu. Popraw nocleg albo osobę towarzyszącą w edycji odpowiedzi.', 'event-registration' ) ),
-			'deleted'                   => array( 'success', __( 'Zgłoszenie trwale usunięte.', 'event-registration' ) ),
-			'note'                      => array( 'success', __( 'Notatka zapisana.', 'event-registration' ) ),
-			'edited'                    => array( 'success', __( 'Odpowiedzi zgłoszenia zaktualizowane.', 'event-registration' ) ),
-			'rejected'                  => array( 'error', __( 'Brak wolnych miejsc — nie można awansować.', 'event-registration' ) ),
-			'invalid_status'            => array( 'error', __( 'Akcja niedozwolona dla tego statusu.', 'event-registration' ) ),
-			'not_found'                 => array( 'error', __( 'Nie znaleziono zgłoszenia.', 'event-registration' ) ),
-			'capacity_full'             => array( 'error', __( 'Brak wolnych miejsc dla wybranego typu zgłoszenia.', 'event-registration' ) ),
-			'accommodation_full'        => array( 'error', __( 'Brak wolnych miejsc dla wybranego noclegu.', 'event-registration' ) ),
-			'accommodation_gone'        => array( 'error', __( 'Doba zapisana w tym zgłoszeniu nie istnieje już w konfiguracji wydarzenia, więc edycja nie została zapisana.', 'event-registration' ) ),
-			'config_error'              => array( 'error', __( 'Konfiguracja noclegów tego wydarzenia jest niepoprawna — popraw ją w ustawieniach wydarzenia.', 'event-registration' ) ),
-			'export_no_event'           => array( 'error', __( 'Wybierz event, aby wyeksportować zgłoszenia.', 'event-registration' ) ),
-			// Komunikaty ręcznego dodawania milczą o mailu: o tym, czy cokolwiek poszło,
-			// decyduje przełącznik wysyłki na formularzu, a nie wynik zapisu. Zdanie
-			// o wysłanym (albo niewysłanym) potwierdzeniu byłoby prawdziwe tylko dla
-			// jednego ustawienia przełącznika.
-			'added'                     => array( 'success', __( 'Zgłoszenie dodane ręcznie i potwierdzone.', 'event-registration' ) ),
-			'added_waitlist'            => array( 'warning', __( 'Zgłoszenie dodane ręcznie na listę rezerwową — nie było wolnego miejsca, więc zajmie je dopiero po awansie.', 'event-registration' ) ),
-			'add_no_event'              => array( 'error', __( 'Nie znaleziono wydarzenia, do którego miało trafić zgłoszenie — zacznij od wyboru wydarzenia.', 'event-registration' ) ),
-			'add_notify_no_email'       => array( 'error', __( 'Zgłoszenie nie zostało zapisane: wysyłka potwierdzenia jest włączona, a formularz tego wydarzenia nie ma pola e-mail, więc nie ma na jaki adres wysłać. Odznacz wysyłkę albo dodaj do formularza pole e-mail.', 'event-registration' ) ),
-			// Awaria zapisu po naszej stronie, nie pomyłka organizatora: treść jak na
-			// formularzu publicznym (Shortcode::resultNotice), bez rady „skontaktuj się
-			// z organizatorem" — tu organizator właśnie to czyta.
-			'add_failed'                => array( 'error', __( 'Nie udało się zapisać zgłoszenia z powodu błędu po naszej stronie. Nic nie zostało zapisane — spróbuj ponownie za chwilę.', 'event-registration' ) ),
-		);
+		$messages = self::messages();
 
 		if ( ! isset( $messages[ $code ] ) ) {
 			return;
@@ -124,6 +91,76 @@ final class RegistrationNotice {
 			'<div class="notice notice-%s is-dismissible"><p>%s</p></div>',
 			esc_attr( $messages[ $code ][0] ),
 			esc_html( $text )
+		);
+	}
+
+	/**
+	 * Zwraca zdanie przypisane kodowi wyniku, bez dekoracji zależnych od adresu.
+	 *
+	 * Dla powierzchni, które komunikat pokazują INLINE, a nie po PRG: handler ręcznego
+	 * dodawania wraca na formularz z tym, co organizator wpisał, więc kodu nie ma w adresie
+	 * i render() nie ma skąd go wziąć. Zdanie zostaje jedno — dwie kopie rozjechałyby się
+	 * i ten sam wynik opowiadałby dwie historie, zależnie od tego, czy był PRG.
+	 *
+	 * @param string $code Kod wyniku akcji.
+	 *
+	 * @return string Zdanie dla organizatora albo '' dla kodu nieznanego.
+	 */
+	public static function text( string $code ): string {
+		$messages = self::messages();
+
+		return isset( $messages[ $code ] ) ? $messages[ $code ][1] : '';
+	}
+
+	/**
+	 * Mapa kod wyniku → [poziom notice, zdanie dla organizatora].
+	 *
+	 * Jedno źródło dla render() (po PRG) i text() (inline). Funkcja, nie stała klasy,
+	 * bo zdania idą przez __() — tłumaczenie musi zostać policzone po załadowaniu
+	 * katalogu, a nie w czasie kompilacji pliku.
+	 *
+	 * @return array<string,array{0:string,1:string}>
+	 */
+	private static function messages(): array {
+		return array(
+			'confirmed'                 => array( 'success', __( 'Zgłoszenie potwierdzone.', 'event-registration' ) ),
+			'cancelled'                 => array( 'success', __( 'Zgłoszenie anulowane, miejsce zwolnione.', 'event-registration' ) ),
+			'promoted'                  => array( 'success', __( 'Awansowano z listy rezerwowej — wysłano prośbę o potwierdzenie.', 'event-registration' ) ),
+			// Dwa kody awansu, bo awans robi dwie różne rzeczy. Zgłoszenie publiczne wraca
+			// jako oczekujące i dostaje mail z prośbą o potwierdzenie; wpis ręczny wraca
+			// POTWIERDZONY i nie dostaje nic, więc to samo zdanie byłoby o nim nieprawdą
+			// (patrz RegistrationsScreen::handle_promote). promoted_no_accommodation jest
+			// wspólny — o mailu nie mówi, więc jest prawdziwy dla obu pochodzeń.
+			'promoted_manual'           => array( 'success', __( 'Awansowano z listy rezerwowej — zgłoszenie wpisane ręcznie jest od razu potwierdzone, więc nie wysłano żadnego e-maila.', 'event-registration' ) ),
+			'promoted_no_accommodation' => array( 'warning', __( 'Awansowano z listy rezerwowej, ale wybrany nocleg był już pełny — zgłoszenie nie ma przyznanego noclegu.', 'event-registration' ) ),
+			'occupancy_mismatch'        => array( 'error', __( 'Nie można awansować: wybrany pokój ma dziś inną liczbę osób niż zapisano w zgłoszeniu. Popraw nocleg albo osobę towarzyszącą w edycji odpowiedzi.', 'event-registration' ) ),
+			'deleted'                   => array( 'success', __( 'Zgłoszenie trwale usunięte.', 'event-registration' ) ),
+			'note'                      => array( 'success', __( 'Notatka zapisana.', 'event-registration' ) ),
+			'edited'                    => array( 'success', __( 'Odpowiedzi zgłoszenia zaktualizowane.', 'event-registration' ) ),
+			'rejected'                  => array( 'error', __( 'Brak wolnych miejsc — nie można awansować.', 'event-registration' ) ),
+			'invalid_status'            => array( 'error', __( 'Akcja niedozwolona dla tego statusu.', 'event-registration' ) ),
+			'not_found'                 => array( 'error', __( 'Nie znaleziono zgłoszenia.', 'event-registration' ) ),
+			'capacity_full'             => array( 'error', __( 'Brak wolnych miejsc dla wybranego typu zgłoszenia.', 'event-registration' ) ),
+			'accommodation_full'        => array( 'error', __( 'Brak wolnych miejsc dla wybranego noclegu.', 'event-registration' ) ),
+			'accommodation_gone'        => array( 'error', __( 'Doba zapisana w tym zgłoszeniu nie istnieje już w konfiguracji wydarzenia, więc edycja nie została zapisana.', 'event-registration' ) ),
+			// Trzy różne przyczyny jeden kod: niepoprawny inwentarz noclegów, schemat,
+			// którego nie udało się złożyć, i żądanie, którego asembler nie zbudował.
+			// Zdanie nie może więc wskazywać palcem na noclegi — wskazuje konfigurację
+			// formularza, a noclegi nazywa tylko jako najczęstszą przyczynę.
+			'config_error'              => array( 'error', __( 'Konfiguracja formularza tego wydarzenia jest niepoprawna — popraw ją w ustawieniach wydarzenia (najczęściej chodzi o noclegi).', 'event-registration' ) ),
+			'export_no_event'           => array( 'error', __( 'Wybierz event, aby wyeksportować zgłoszenia.', 'event-registration' ) ),
+			// Komunikaty ręcznego dodawania milczą o mailu: o tym, czy cokolwiek poszło,
+			// decyduje przełącznik wysyłki na formularzu, a nie wynik zapisu. Zdanie
+			// o wysłanym (albo niewysłanym) potwierdzeniu byłoby prawdziwe tylko dla
+			// jednego ustawienia przełącznika.
+			'added'                     => array( 'success', __( 'Zgłoszenie dodane ręcznie i potwierdzone.', 'event-registration' ) ),
+			'added_waitlist'            => array( 'warning', __( 'Zgłoszenie dodane ręcznie na listę rezerwową — nie było wolnego miejsca, więc zajmie je dopiero po awansie.', 'event-registration' ) ),
+			'add_no_event'              => array( 'error', __( 'Nie znaleziono wydarzenia, do którego miało trafić zgłoszenie — zacznij od wyboru wydarzenia.', 'event-registration' ) ),
+			'add_notify_no_email'       => array( 'error', __( 'Zgłoszenie nie zostało zapisane: wysyłka potwierdzenia jest włączona, a formularz tego wydarzenia nie ma pola e-mail, więc nie ma na jaki adres wysłać. Odznacz wysyłkę albo dodaj do formularza pole e-mail.', 'event-registration' ) ),
+			// Awaria zapisu po naszej stronie, nie pomyłka organizatora: treść jak na
+			// formularzu publicznym (Shortcode::resultNotice), bez rady „skontaktuj się
+			// z organizatorem" — tu organizator właśnie to czyta.
+			'add_failed'                => array( 'error', __( 'Nie udało się zapisać zgłoszenia z powodu błędu po naszej stronie. Nic nie zostało zapisane — spróbuj ponownie za chwilę.', 'event-registration' ) ),
 		);
 	}
 }

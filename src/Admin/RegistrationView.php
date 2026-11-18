@@ -348,13 +348,15 @@ final class RegistrationView {
 	 * @param array<string,mixed>  $submitted Wartości z odrzuconego POST (prefill).
 	 * @param NightsConfig|null    $nights    Konfiguracja trybu „doby” rozstrzygnięta u wejścia
 	 *                                        handlera; null = tryb klasyczny.
+	 * @param string               $notice    Odmowa niezwiązana z żadnym polem (brak miejsc dla typu,
+	 *                                        awaria zapisu) jako zwykły tekst; '' = brak.
 	 */
-	public function render_add_errors( FormSchema $schema, int $event_id, array $errors, array $submitted, ?NightsConfig $nights ): void {
+	public function render_add_errors( FormSchema $schema, int $event_id, array $errors, array $submitted, ?NightsConfig $nights, string $notice = '' ): void {
 		wp_enqueue_script( 'evreg-public' );
 
 		echo '<div class="wrap">';
 		echo '<h1>' . esc_html__( 'Dodaj zgłoszenie ręcznie', 'event-registration' ) . '</h1>';
-		echo RegistrationEditForm::renderAdd( $schema, $event_id, $errors, $submitted, $nights ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- już escapowane w rendererze.
+		echo RegistrationEditForm::renderAdd( $schema, $event_id, $errors, $submitted, $nights, $notice ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- już escapowane w rendererze.
 		echo '</div>';
 	}
 

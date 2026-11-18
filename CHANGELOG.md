@@ -12,7 +12,10 @@ so keep entries user-facing and concise.
 ## [Unreleased]
 
 ### Added
-- Organizers can now add a registration by hand from the Registrations screen, for people who signed up by phone or e-mail and never filled in the form. The entry is confirmed straight away and never expires. No e-mail is sent by default; a tick box lets you send the attendee a confirmation. Seat limits still apply as usual: if the event or the chosen night is full, the entry goes onto the waiting list, and a waiting-list entry added by hand is confirmed without an e-mail when it later moves up. The attendee's e-mail address may be left blank.
+- Organizers can now add a registration by hand from the Registrations screen, for people who signed up by phone or e-mail and never filled in the form. The entry is confirmed straight away and never expires. No e-mail is sent by default; a tick box lets you send the attendee a confirmation. Seat limits still apply as usual: if the event or the chosen night is full, the entry goes onto the waiting list, and a waiting-list entry added by hand is confirmed without an e-mail when it later moves up. The attendee's e-mail address may be left blank. Whenever the entry is refused — no seats left for the chosen type, no beds left for the chosen night, or a save that failed — the form comes back with everything you typed still in it and says why, so a transcribed phone call is never lost.
+
+### Changed
+- The message shown when an event's form configuration cannot be read no longer claims the problem is in the accommodation settings, because it is also shown for other configuration faults.
 
 ## [0.2.4] - 2026-11-18
 
@@ -170,7 +173,10 @@ so keep entries user-facing and concise.
 ### Added
 - Initial internal release covering the full roadmap: event configuration (custom post type, REST API, React admin), public registration form with transactional seat reservation and double opt-in, transactional mail queue with templates and an admin queue screen, submissions panel with lifecycle actions, answer editing and CSV export, data-lifecycle/compliance tooling (gated uninstall, WordPress privacy export/erase), and self-hosted auto-update from GitHub Releases.
 
-[Unreleased]: https://github.com/kobysz/event-registration-wp-plugin/compare/v0.2.1...HEAD
+[Unreleased]: https://github.com/kobysz/event-registration-wp-plugin/compare/v0.2.4...HEAD
+[0.2.4]: https://github.com/kobysz/event-registration-wp-plugin/releases/tag/v0.2.4
+[0.2.3]: https://github.com/kobysz/event-registration-wp-plugin/releases/tag/v0.2.3
+[0.2.2]: https://github.com/kobysz/event-registration-wp-plugin/releases/tag/v0.2.2
 [0.2.1]: https://github.com/kobysz/event-registration-wp-plugin/releases/tag/v0.2.1
 [0.2.0]: https://github.com/kobysz/event-registration-wp-plugin/releases/tag/v0.2.0
 [0.1.17]: https://github.com/kobysz/event-registration-wp-plugin/releases/tag/v0.1.17

@@ -9,7 +9,7 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-11-18T14:23:14+00:00\n"
+"POT-Creation-Date: 2026-11-18T14:53:42+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.12.0\n"
 "X-Domain: event-registration\n"
@@ -43,7 +43,7 @@ msgstr ""
 #: src/Admin/MailQueueListTable.php:59
 #: src/Admin/MailQueueScreen.php:118
 #: src/Admin/RegistrationsListTable.php:87
-#: src/Admin/RegistrationView.php:387
+#: src/Admin/RegistrationView.php:389
 msgid "Wydarzenie"
 msgstr ""
 
@@ -138,11 +138,11 @@ msgstr ""
 
 #: src/Admin/MailQueueScreen.php:51
 #: src/Admin/MailQueueScreen.php:165
-#: src/Admin/RegistrationsScreen.php:89
-#: src/Admin/RegistrationsScreen.php:203
-#: src/Admin/RegistrationsScreen.php:323
-#: src/Admin/RegistrationsScreen.php:485
-#: src/Admin/RegistrationsScreen.php:785
+#: src/Admin/RegistrationsScreen.php:90
+#: src/Admin/RegistrationsScreen.php:204
+#: src/Admin/RegistrationsScreen.php:324
+#: src/Admin/RegistrationsScreen.php:486
+#: src/Admin/RegistrationsScreen.php:837
 msgid "Brak uprawnień."
 msgstr ""
 
@@ -186,21 +186,21 @@ msgstr ""
 msgid "Zapisz zmiany"
 msgstr ""
 
-#: src/Admin/RegistrationEditForm.php:73
+#: src/Admin/RegistrationEditForm.php:75
 msgid "Wyślij uczestnikowi e-mail z potwierdzeniem"
 msgstr ""
 
-#: src/Admin/RegistrationEditForm.php:74
+#: src/Admin/RegistrationEditForm.php:76
 msgid "Bez zaznaczenia nie zostanie wysłany żaden e-mail."
 msgstr ""
 
-#: src/Admin/RegistrationEditForm.php:76
-#: src/Admin/RegistrationsScreen.php:165
+#: src/Admin/RegistrationEditForm.php:78
+#: src/Admin/RegistrationsScreen.php:166
 msgid "Dodaj zgłoszenie"
 msgstr ""
 
-#: src/Admin/RegistrationEditForm.php:137
-#: src/Admin/RegistrationEditForm.php:504
+#: src/Admin/RegistrationEditForm.php:160
+#: src/Admin/RegistrationEditForm.php:527
 #: src/Admin/RegistrationsExporter.php:55
 #: src/Admin/RegistrationView.php:130
 #: src/Frontend/FormRenderer.php:234
@@ -209,217 +209,217 @@ msgid "Osoba towarzysząca"
 msgstr ""
 
 #. translators: %s: etykieta doby noclegowej.
-#: src/Admin/RegistrationEditForm.php:163
+#: src/Admin/RegistrationEditForm.php:186
 #, php-format
 msgid "Doba „%s” nie ma już wolnych miejsc dla tego zgłoszenia. Odznacz ją albo wybierz inne doby."
 msgstr ""
 
-#: src/Admin/RegistrationEditForm.php:180
+#: src/Admin/RegistrationEditForm.php:203
 #: src/Frontend/FormRenderer.php:689
 msgid "To pole jest wymagane."
 msgstr ""
 
-#: src/Admin/RegistrationEditForm.php:181
+#: src/Admin/RegistrationEditForm.php:204
 #: src/Frontend/FormRenderer.php:690
 msgid "Nieprawidłowy adres e-mail."
 msgstr ""
 
-#: src/Admin/RegistrationEditForm.php:182
+#: src/Admin/RegistrationEditForm.php:205
 #: src/Frontend/FormRenderer.php:691
 msgid "Nieprawidłowy numer telefonu."
 msgstr ""
 
-#: src/Admin/RegistrationEditForm.php:183
+#: src/Admin/RegistrationEditForm.php:206
 #: src/Frontend/FormRenderer.php:692
 msgid "Nieprawidłowa liczba."
 msgstr ""
 
-#: src/Admin/RegistrationEditForm.php:184
+#: src/Admin/RegistrationEditForm.php:207
 #: src/Frontend/FormRenderer.php:693
 msgid "Nieprawidłowa data."
 msgstr ""
 
-#: src/Admin/RegistrationEditForm.php:185
+#: src/Admin/RegistrationEditForm.php:208
 #: src/Frontend/FormRenderer.php:694
 msgid "Wybór spoza dostępnych opcji."
 msgstr ""
 
-#: src/Admin/RegistrationEditForm.php:186
+#: src/Admin/RegistrationEditForm.php:209
 #: src/Frontend/FormRenderer.php:695
 msgid "Wpis jest za długi."
 msgstr ""
 
-#: src/Admin/RegistrationEditForm.php:187
+#: src/Admin/RegistrationEditForm.php:210
 #: src/Frontend/FormRenderer.php:696
 msgid "Nieprawidłowy wybór noclegu."
 msgstr ""
 
-#: src/Admin/RegistrationEditForm.php:193
+#: src/Admin/RegistrationEditForm.php:216
 msgid "Wybrany nocleg nie ma już wolnych miejsc dla tego zgłoszenia. Wybierz inny albo „Bez noclegu\"."
 msgstr ""
 
-#: src/Admin/RegistrationEditForm.php:194
+#: src/Admin/RegistrationEditForm.php:217
 #: src/Frontend/FormRenderer.php:697
 msgid "Współlokator niedozwolony dla tego pokoju."
 msgstr ""
 
-#: src/Admin/RegistrationEditForm.php:195
+#: src/Admin/RegistrationEditForm.php:218
 #: src/Frontend/FormRenderer.php:698
 msgid "Podaj imię i nazwisko osoby towarzyszącej."
 msgstr ""
 
-#: src/Admin/RegistrationEditForm.php:196
+#: src/Admin/RegistrationEditForm.php:219
 #: src/Frontend/FormRenderer.php:699
 msgid "Ten pokój jest dwuosobowy. Zaznacz osobę towarzyszącą albo wybierz pokój jednoosobowy."
 msgstr ""
 
-#: src/Admin/RegistrationEditForm.php:197
+#: src/Admin/RegistrationEditForm.php:220
 #: src/Frontend/FormRenderer.php:700
 msgid "Ten pokój jest jednoosobowy. Odznacz osobę towarzyszącą albo wybierz pokój dwuosobowy."
 msgstr ""
 
-#: src/Admin/RegistrationEditForm.php:200
+#: src/Admin/RegistrationEditForm.php:223
 #: src/Frontend/FormRenderer.php:704
 msgid "Nieprawidłowa wartość."
 msgstr ""
 
-#: src/Admin/RegistrationEditForm.php:268
+#: src/Admin/RegistrationEditForm.php:291
 msgid "— brak —"
 msgstr ""
 
-#: src/Admin/RegistrationEditForm.php:329
+#: src/Admin/RegistrationEditForm.php:352
 #: src/Frontend/FormRenderer.php:519
 msgid "Bez noclegu"
 msgstr ""
 
-#: src/Admin/RegistrationEditForm.php:352
-#: src/Admin/RegistrationView.php:499
+#: src/Admin/RegistrationEditForm.php:375
+#: src/Admin/RegistrationView.php:501
 msgid "Współlokator"
 msgstr ""
 
 #. translators: %s: cena doby za jedno miejsce.
-#: src/Admin/RegistrationEditForm.php:398
+#: src/Admin/RegistrationEditForm.php:421
 #, php-format
 msgid "(%s za miejsce)"
 msgstr ""
 
-#: src/Admin/RegistrationEditForm.php:406
+#: src/Admin/RegistrationEditForm.php:429
 msgid "To wydarzenie nie ma skonfigurowanych dób."
 msgstr ""
 
-#: src/Admin/RegistrationEditForm.php:435
+#: src/Admin/RegistrationEditForm.php:458
 msgid "Nocleg nie jest przyznany — zaznaczone doby to życzenie zapisane w zgłoszeniu, nie zajęte miejsca."
 msgstr ""
 
-#: src/Admin/RegistrationEditForm.php:500
+#: src/Admin/RegistrationEditForm.php:523
 #: src/Frontend/FormRenderer.php:250
 msgid "Imię i nazwisko osoby towarzyszącej"
 msgstr ""
 
-#: src/Admin/RegistrationNotice.php:39
-msgid "Zgłoszenie potwierdzone."
-msgstr ""
-
-#: src/Admin/RegistrationNotice.php:40
-msgid "Zgłoszenie anulowane, miejsce zwolnione."
-msgstr ""
-
-#: src/Admin/RegistrationNotice.php:41
-msgid "Awansowano z listy rezerwowej — wysłano prośbę o potwierdzenie."
-msgstr ""
-
-#: src/Admin/RegistrationNotice.php:47
-msgid "Awansowano z listy rezerwowej — zgłoszenie wpisane ręcznie jest od razu potwierdzone, więc nie wysłano żadnego e-maila."
-msgstr ""
-
-#: src/Admin/RegistrationNotice.php:48
-msgid "Awansowano z listy rezerwowej, ale wybrany nocleg był już pełny — zgłoszenie nie ma przyznanego noclegu."
-msgstr ""
-
-#: src/Admin/RegistrationNotice.php:49
-msgid "Nie można awansować: wybrany pokój ma dziś inną liczbę osób niż zapisano w zgłoszeniu. Popraw nocleg albo osobę towarzyszącą w edycji odpowiedzi."
-msgstr ""
-
-#: src/Admin/RegistrationNotice.php:50
-msgid "Zgłoszenie trwale usunięte."
-msgstr ""
-
-#: src/Admin/RegistrationNotice.php:51
-msgid "Notatka zapisana."
-msgstr ""
-
-#: src/Admin/RegistrationNotice.php:52
-msgid "Odpowiedzi zgłoszenia zaktualizowane."
-msgstr ""
-
-#: src/Admin/RegistrationNotice.php:53
-msgid "Brak wolnych miejsc — nie można awansować."
-msgstr ""
-
-#: src/Admin/RegistrationNotice.php:54
-msgid "Akcja niedozwolona dla tego statusu."
-msgstr ""
-
-#: src/Admin/RegistrationNotice.php:55
-#: src/Admin/RegistrationView.php:83
-#: src/Admin/RegistrationView.php:176
-msgid "Nie znaleziono zgłoszenia."
-msgstr ""
-
-#: src/Admin/RegistrationNotice.php:56
-msgid "Brak wolnych miejsc dla wybranego typu zgłoszenia."
-msgstr ""
-
-#: src/Admin/RegistrationNotice.php:57
-msgid "Brak wolnych miejsc dla wybranego noclegu."
-msgstr ""
-
-#: src/Admin/RegistrationNotice.php:58
-msgid "Doba zapisana w tym zgłoszeniu nie istnieje już w konfiguracji wydarzenia, więc edycja nie została zapisana."
-msgstr ""
-
-#: src/Admin/RegistrationNotice.php:59
-msgid "Konfiguracja noclegów tego wydarzenia jest niepoprawna — popraw ją w ustawieniach wydarzenia."
-msgstr ""
-
-#: src/Admin/RegistrationNotice.php:60
-msgid "Wybierz event, aby wyeksportować zgłoszenia."
-msgstr ""
-
-#: src/Admin/RegistrationNotice.php:65
-msgid "Zgłoszenie dodane ręcznie i potwierdzone."
-msgstr ""
-
-#: src/Admin/RegistrationNotice.php:66
-msgid "Zgłoszenie dodane ręcznie na listę rezerwową — nie było wolnego miejsca, więc zajmie je dopiero po awansie."
-msgstr ""
-
-#: src/Admin/RegistrationNotice.php:67
-msgid "Nie znaleziono wydarzenia, do którego miało trafić zgłoszenie — zacznij od wyboru wydarzenia."
-msgstr ""
-
-#: src/Admin/RegistrationNotice.php:68
-msgid "Zgłoszenie nie zostało zapisane: wysyłka potwierdzenia jest włączona, a formularz tego wydarzenia nie ma pola e-mail, więc nie ma na jaki adres wysłać. Odznacz wysyłkę albo dodaj do formularza pole e-mail."
-msgstr ""
-
-#: src/Admin/RegistrationNotice.php:72
-msgid "Nie udało się zapisać zgłoszenia z powodu błędu po naszej stronie. Nic nie zostało zapisane — spróbuj ponownie za chwilę."
-msgstr ""
-
 #. translators: %s: klucz doby noclegowej usuniętej z konfiguracji.
-#: src/Admin/RegistrationNotice.php:98
+#: src/Admin/RegistrationNotice.php:63
 #, php-format
 msgid "Doba o kluczu „%s” jest zapisana w tym zgłoszeniu, ale nie ma jej już w konfiguracji wydarzenia — edycja nie została zapisana, więc nocleg, miejsce i cena zgłoszenia pozostają bez zmian. Przywróć tę dobę w ustawieniach noclegów wydarzenia, albo — jeśli nocleg ma przepaść — odznacz w tym formularzu wszystkie doby i zapisz ponownie."
 msgstr ""
 
 #. translators: %s: etykieta doby noclegowej.
-#: src/Admin/RegistrationNotice.php:104
+#: src/Admin/RegistrationNotice.php:69
 #, php-format
 msgid "Doba „%s” nie ma już tyle wolnych miejsc. Odznacz ją albo wybierz inne doby."
 msgstr ""
 
-#: src/Admin/RegistrationNotice.php:119
+#: src/Admin/RegistrationNotice.php:84
 msgid "Uwaga: ten sam adres e-mail ma już inne aktywne zgłoszenie na to wydarzenie."
+msgstr ""
+
+#: src/Admin/RegistrationNotice.php:124
+msgid "Zgłoszenie potwierdzone."
+msgstr ""
+
+#: src/Admin/RegistrationNotice.php:125
+msgid "Zgłoszenie anulowane, miejsce zwolnione."
+msgstr ""
+
+#: src/Admin/RegistrationNotice.php:126
+msgid "Awansowano z listy rezerwowej — wysłano prośbę o potwierdzenie."
+msgstr ""
+
+#: src/Admin/RegistrationNotice.php:132
+msgid "Awansowano z listy rezerwowej — zgłoszenie wpisane ręcznie jest od razu potwierdzone, więc nie wysłano żadnego e-maila."
+msgstr ""
+
+#: src/Admin/RegistrationNotice.php:133
+msgid "Awansowano z listy rezerwowej, ale wybrany nocleg był już pełny — zgłoszenie nie ma przyznanego noclegu."
+msgstr ""
+
+#: src/Admin/RegistrationNotice.php:134
+msgid "Nie można awansować: wybrany pokój ma dziś inną liczbę osób niż zapisano w zgłoszeniu. Popraw nocleg albo osobę towarzyszącą w edycji odpowiedzi."
+msgstr ""
+
+#: src/Admin/RegistrationNotice.php:135
+msgid "Zgłoszenie trwale usunięte."
+msgstr ""
+
+#: src/Admin/RegistrationNotice.php:136
+msgid "Notatka zapisana."
+msgstr ""
+
+#: src/Admin/RegistrationNotice.php:137
+msgid "Odpowiedzi zgłoszenia zaktualizowane."
+msgstr ""
+
+#: src/Admin/RegistrationNotice.php:138
+msgid "Brak wolnych miejsc — nie można awansować."
+msgstr ""
+
+#: src/Admin/RegistrationNotice.php:139
+msgid "Akcja niedozwolona dla tego statusu."
+msgstr ""
+
+#: src/Admin/RegistrationNotice.php:140
+#: src/Admin/RegistrationView.php:83
+#: src/Admin/RegistrationView.php:176
+msgid "Nie znaleziono zgłoszenia."
+msgstr ""
+
+#: src/Admin/RegistrationNotice.php:141
+msgid "Brak wolnych miejsc dla wybranego typu zgłoszenia."
+msgstr ""
+
+#: src/Admin/RegistrationNotice.php:142
+msgid "Brak wolnych miejsc dla wybranego noclegu."
+msgstr ""
+
+#: src/Admin/RegistrationNotice.php:143
+msgid "Doba zapisana w tym zgłoszeniu nie istnieje już w konfiguracji wydarzenia, więc edycja nie została zapisana."
+msgstr ""
+
+#: src/Admin/RegistrationNotice.php:148
+msgid "Konfiguracja formularza tego wydarzenia jest niepoprawna — popraw ją w ustawieniach wydarzenia (najczęściej chodzi o noclegi)."
+msgstr ""
+
+#: src/Admin/RegistrationNotice.php:149
+msgid "Wybierz event, aby wyeksportować zgłoszenia."
+msgstr ""
+
+#: src/Admin/RegistrationNotice.php:154
+msgid "Zgłoszenie dodane ręcznie i potwierdzone."
+msgstr ""
+
+#: src/Admin/RegistrationNotice.php:155
+msgid "Zgłoszenie dodane ręcznie na listę rezerwową — nie było wolnego miejsca, więc zajmie je dopiero po awansie."
+msgstr ""
+
+#: src/Admin/RegistrationNotice.php:156
+msgid "Nie znaleziono wydarzenia, do którego miało trafić zgłoszenie — zacznij od wyboru wydarzenia."
+msgstr ""
+
+#: src/Admin/RegistrationNotice.php:157
+msgid "Zgłoszenie nie zostało zapisane: wysyłka potwierdzenia jest włączona, a formularz tego wydarzenia nie ma pola e-mail, więc nie ma na jaki adres wysłać. Odznacz wysyłkę albo dodaj do formularza pole e-mail."
+msgstr ""
+
+#: src/Admin/RegistrationNotice.php:161
+msgid "Nie udało się zapisać zgłoszenia z powodu błędu po naszej stronie. Nic nie zostało zapisane — spróbuj ponownie za chwilę."
 msgstr ""
 
 #: src/Admin/RegistrationsExporter.php:46
@@ -503,7 +503,7 @@ msgstr ""
 
 #: src/Admin/RegistrationsListTable.php:88
 #: src/Admin/RegistrationView.php:125
-#: src/Admin/RegistrationView.php:551
+#: src/Admin/RegistrationView.php:553
 msgid "Kwota"
 msgstr ""
 
@@ -513,22 +513,22 @@ msgid "Zgłoszono"
 msgstr ""
 
 #: src/Admin/RegistrationsListTable.php:173
-#: src/Admin/RegistrationView.php:623
+#: src/Admin/RegistrationView.php:625
 msgid "Potwierdź"
 msgstr ""
 
 #: src/Admin/RegistrationsListTable.php:177
-#: src/Admin/RegistrationView.php:626
+#: src/Admin/RegistrationView.php:628
 msgid "Promuj"
 msgstr ""
 
 #: src/Admin/RegistrationsListTable.php:181
-#: src/Admin/RegistrationView.php:630
+#: src/Admin/RegistrationView.php:632
 msgid "Anuluj"
 msgstr ""
 
 #: src/Admin/RegistrationsListTable.php:185
-#: src/Admin/RegistrationView.php:633
+#: src/Admin/RegistrationView.php:635
 msgid "Usuń trwale"
 msgstr ""
 
@@ -614,13 +614,13 @@ msgstr ""
 msgid "%1$s z %2$s (wolne: %3$s)"
 msgstr ""
 
-#: src/Admin/RegistrationsScreen.php:76
 #: src/Admin/RegistrationsScreen.php:77
-#: src/Admin/RegistrationsScreen.php:126
+#: src/Admin/RegistrationsScreen.php:78
+#: src/Admin/RegistrationsScreen.php:127
 msgid "Zgłoszenia"
 msgstr ""
 
-#: src/Admin/RegistrationsScreen.php:188
+#: src/Admin/RegistrationsScreen.php:189
 msgid "Eksportuj CSV"
 msgstr ""
 
@@ -671,7 +671,7 @@ msgid "Konfiguracja noclegów tego wydarzenia jest niepoprawna (%s) — popraw j
 msgstr ""
 
 #: src/Admin/RegistrationView.php:298
-#: src/Admin/RegistrationView.php:356
+#: src/Admin/RegistrationView.php:358
 msgid "Dodaj zgłoszenie ręcznie"
 msgstr ""
 
@@ -681,83 +681,83 @@ msgstr ""
 msgid "Konfiguracja noclegów tego wydarzenia jest niepoprawna (%s) — popraw ją, zanim dodasz zgłoszenie."
 msgstr ""
 
-#: src/Admin/RegistrationView.php:376
+#: src/Admin/RegistrationView.php:378
 msgid "Nie ma jeszcze żadnego wydarzenia, do którego można dodać zgłoszenie."
 msgstr ""
 
-#: src/Admin/RegistrationView.php:380
+#: src/Admin/RegistrationView.php:382
 msgid "Wybierz wydarzenie, do którego dodajesz zgłoszenie."
 msgstr ""
 
 #. translators: %d: ID wydarzenia.
-#: src/Admin/RegistrationView.php:390
+#: src/Admin/RegistrationView.php:392
 #, php-format
 msgid "(bez tytułu, #%d)"
 msgstr ""
 
-#: src/Admin/RegistrationView.php:394
+#: src/Admin/RegistrationView.php:396
 msgid "Dalej"
 msgstr ""
 
-#: src/Admin/RegistrationView.php:440
+#: src/Admin/RegistrationView.php:442
 msgid "Odpowiedzi"
 msgstr ""
 
-#: src/Admin/RegistrationView.php:495
+#: src/Admin/RegistrationView.php:497
 #: src/Privacy/PrivacyProvider.php:176
 msgid "Nocleg"
 msgstr ""
 
-#: src/Admin/RegistrationView.php:497
+#: src/Admin/RegistrationView.php:499
 msgid "Pakiet"
 msgstr ""
 
-#: src/Admin/RegistrationView.php:498
+#: src/Admin/RegistrationView.php:500
 msgid "Pokój"
 msgstr ""
 
 #. translators: %s: lista etykiet dób.
-#: src/Admin/RegistrationView.php:534
+#: src/Admin/RegistrationView.php:536
 #, php-format
 msgid "%s (nocleg nieprzyznany)"
 msgstr ""
 
-#: src/Admin/RegistrationView.php:547
+#: src/Admin/RegistrationView.php:549
 msgid "Nocleg (doby)"
 msgstr ""
 
-#: src/Admin/RegistrationView.php:549
+#: src/Admin/RegistrationView.php:551
 msgid "Doba"
 msgstr ""
 
-#: src/Admin/RegistrationView.php:550
+#: src/Admin/RegistrationView.php:552
 msgid "Miejsca"
 msgstr ""
 
-#: src/Admin/RegistrationView.php:568
+#: src/Admin/RegistrationView.php:570
 msgid "Razem za noclegi"
 msgstr ""
 
 #. translators: 1: opis noclegu, 2: preferowany współlokator.
-#: src/Admin/RegistrationView.php:592
+#: src/Admin/RegistrationView.php:594
 #: src/Mail/PlaceholderFactory.php:141
 #, php-format
 msgid "%1$s (współlokator: %2$s)"
 msgstr ""
 
-#: src/Admin/RegistrationView.php:602
+#: src/Admin/RegistrationView.php:604
 msgid "Notatka organizatora"
 msgstr ""
 
-#: src/Admin/RegistrationView.php:609
+#: src/Admin/RegistrationView.php:611
 msgid "Zapisz notatkę"
 msgstr ""
 
-#: src/Admin/RegistrationView.php:640
+#: src/Admin/RegistrationView.php:642
 msgid "Akcje"
 msgstr ""
 
-#: src/Admin/RegistrationView.php:678
+#: src/Admin/RegistrationView.php:680
 msgid "Edytuj"
 msgstr ""
 

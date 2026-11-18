@@ -330,6 +330,21 @@ final class ReservationService {
 	}
 
 	/**
+	 * Termin potwierdzenia zgłoszenia oczekującego (UTC, format kolumny `expires_at`).
+	 *
+	 * Jedna kopia z tego samego powodu co statusFor(), obok której stoi: to zdanie liczy
+	 * moment, w którym cron wygaszający zabierze miejsce, a rozjazd między kopiami znaczyłby
+	 * dwa różne terminy dla dwóch trybów noclegu — albo, po zmianie PENDING_TTL w jednym
+	 * miejscu, termin inny niż ten, który wtedy obiecuje mail z linkiem potwierdzającym.
+	 *
+	 * Lista rezerwowa i wpis ręczny terminu NIE dostają (null) — decyzja należy do
+	 * wołającego, bo zna oba fakty; ta metoda liczy tylko sam termin.
+	 */
+	private function pendingExpiry(): string {
+		return gmdate( 'Y-m-d H:i:s', strtotime( self::PENDING_TTL, time() ) );
+	}
+
+	/**
 	 * Ogłasza wynik rezerwacji hookiem cyklu życia — tylko PO COMMIT, poza try/catch.
 	 *
 	 * WYMÓG WYWOŁANIA, jak sufiks *UnderLock przy odczytach: wołać dopiero po zamknięciu
@@ -465,7 +480,7 @@ final class ReservationService {
 			// tyle, że cron anuluje go po dwóch dniach. Lista rezerwowa zostaje przy swoim
 			// statusie — tam nic nie jest potwierdzone, a `expires_at` ma null już dziś.
 			$status     = $this->statusFor( $is_waitlist, $manual );
-			$expires_at = $is_waitlist || null !== $manual ? null : gmdate( 'Y-m-d H:i:s', strtotime( self::PENDING_TTL, time() ) );
+			$expires_at = $is_waitlist || null !== $manual ? null : $this->pendingExpiry();
 
 			$type = $types->get( $request->typeKey );
 			// Cena noclegu tylko gdy nocleg faktycznie przyznany — przy accommodation_full
@@ -632,7 +647,7 @@ final class ReservationService {
 
 			// Status i brak terminu wpisu ręcznego — ta sama reguła co w reserve() (patrz statusFor()).
 			$status     = $this->statusFor( $is_waitlist, $manual );
-			$expires_at = $is_waitlist || null !== $manual ? null : gmdate( 'Y-m-d H:i:s', strtotime( self::PENDING_TTL, time() ) );
+			$expires_at = $is_waitlist || null !== $manual ? null : $this->pendingExpiry();
 
 			$type = $types->get( $request->typeKey );
 			// Doby liczą się do ceny tylko wtedy, gdy faktycznie przyznane — zgłoszenie
@@ -845,7 +860,7 @@ final class ReservationService {
 			return;
 		}
 
-		$this->repository->markPending( $id, gmdate( 'Y-m-d H:i:s', strtotime( self::PENDING_TTL, time() ) ) );
+		$this->repository->markPending( $id, $this->pendingExpiry() );
 	}
 
 	/**

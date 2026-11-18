@@ -38,11 +38,11 @@ final class RegistrationEditForm {
 	public static function renderEdit( FormSchema $schema, array $answers, int $reg_id, ?array $errors = null, ?array $submitted = null, ?NightsConfig $nights = null ): string {
 		$source = null !== $submitted ? $submitted : $answers;
 
-		$head  = '<input type="hidden" name="action" value="evreg_edit_registration" />';
+		$head  = '<input type="hidden" name="action" value="' . esc_attr( RegistrationsScreen::ACTION_EDIT ) . '" />';
 		$head .= '<input type="hidden" name="registration" value="' . esc_attr( (string) $reg_id ) . '" />';
 		$head .= wp_nonce_field( 'evreg_edit_' . $reg_id, '_wpnonce', true, false );
 
-		return self::renderFrame( $schema, $source, $errors, $nights, $head, '', esc_html__( 'Zapisz zmiany', 'event-registration' ) );
+		return self::renderFrame( $schema, $source, $errors, $nights, $head, '', esc_html__( 'Zapisz zmiany', 'event-registration' ), '' );
 	}
 
 	/**
@@ -57,8 +57,10 @@ final class RegistrationEditForm {
 	 * @param array<string,string>|null $errors    Błędy walidacji: klucz pola → kod błędu.
 	 * @param array<string,mixed>|null  $submitted Wartości z odrzuconego POST (prefill przy błędzie).
 	 * @param NightsConfig|null         $nights    Konfiguracja trybu „doby” rozstrzygnięta u wejścia; null = klasyczny.
+	 * @param string                    $notice    Odmowa NIEZWIĄZANA z żadnym polem (brak miejsc dla
+	 *                                             typu, awaria zapisu) jako zwykły tekst — '' = brak.
 	 */
-	public static function renderAdd( FormSchema $schema, int $event_id, ?array $errors = null, ?array $submitted = null, ?NightsConfig $nights = null ): string {
+	public static function renderAdd( FormSchema $schema, int $event_id, ?array $errors = null, ?array $submitted = null, ?NightsConfig $nights = null, string $notice = '' ): string {
 		$source = null !== $submitted ? $submitted : array();
 
 		$head  = '<input type="hidden" name="action" value="' . esc_attr( RegistrationsScreen::ACTION_ADD ) . '" />';
@@ -73,7 +75,7 @@ final class RegistrationEditForm {
 			. esc_html__( 'Wyślij uczestnikowi e-mail z potwierdzeniem', 'event-registration' ) . '</label><br />'
 			. '<span class="description">' . esc_html__( 'Bez zaznaczenia nie zostanie wysłany żaden e-mail.', 'event-registration' ) . '</span></p>';
 
-		return self::renderFrame( $schema, $source, $errors, $nights, $head, $foot, esc_html__( 'Dodaj zgłoszenie', 'event-registration' ) );
+		return self::renderFrame( $schema, $source, $errors, $nights, $head, $foot, esc_html__( 'Dodaj zgłoszenie', 'event-registration' ), $notice );
 	}
 
 	/**
@@ -89,12 +91,15 @@ final class RegistrationEditForm {
 	 * @param string                    $head   Gotowy HTML: ukryte pola i nonce (już escapowany przez wołającego).
 	 * @param string                    $foot   Gotowy HTML kontrolek przed przyciskiem (już escapowany).
 	 * @param string                    $button Etykieta przycisku (już escapowana).
+	 * @param string                    $notice Odmowa niezwiązana z żadnym polem, jako zwykły tekst
+	 *                                          (escapuje ten renderer); '' = brak.
 	 */
-	private static function renderFrame( FormSchema $schema, array $source, ?array $errors, ?NightsConfig $nights, string $head, string $foot, string $button ): string {
+	private static function renderFrame( FormSchema $schema, array $source, ?array $errors, ?NightsConfig $nights, string $head, string $foot, string $button, string $notice ): string {
 		// Klasa evreg-form — reuse publicznego assets/public/form.js (evreg-public, wp_enqueue_script
 		// w RegistrationView) do przełączania widoczności pola imienia companiona.
 		$out  = '<form class="evreg-form" method="post" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '">';
 		$out .= $head;
+		$out .= self::renderNotice( $notice );
 		$out .= self::renderErrors( $schema, $errors, $nights );
 
 		$out .= '<table class="form-table"><tbody>';
@@ -114,6 +119,24 @@ final class RegistrationEditForm {
 		$out .= '</form>';
 
 		return $out;
+	}
+
+	/**
+	 * Renderuje odmowę niezwiązaną z żadnym polem — osobny slot, nie lista błędów pól.
+	 *
+	 * Istnieje, bo nie każda odmowa ma pole do oznaczenia: brak wolnych miejsc dla typu
+	 * i awaria zapisu dotyczą całego zgłoszenia. Kod takiej odmowy NIE może pójść do
+	 * renderErrors() — ta czyta klucze jako klucze pól i wypisałaby surowy kod jako
+	 * etykietę. Treść przychodzi gotowym zdaniem (jedno źródło: RegistrationNotice).
+	 *
+	 * @param string $notice Zdanie dla organizatora albo '' (wtedy nie ma czego renderować).
+	 */
+	private static function renderNotice( string $notice ): string {
+		if ( '' === $notice ) {
+			return '';
+		}
+
+		return '<div class="notice notice-error"><p>' . esc_html( $notice ) . '</p></div>';
 	}
 
 	/**

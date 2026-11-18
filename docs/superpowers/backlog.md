@@ -831,14 +831,24 @@ więc wygląd się nie zmienia. Sprawdzić testy asertujące `<p class="evreg-fi
 
 ---
 
-## B32 — Ekran „Dodaj zgłoszenie" w panelu administracyjnym
+## B32 — Ekran „Dodaj zgłoszenie" w panelu administracyjnym — ZROBIONE (2026-11-18)
+
+**Status:** dostarczone na gałęzi `feature/manual-registration`. Odrzucenie ze „Stanu" poniżej
+jest już NIEAKTUALNE — ekran powstał dokładnie w kształcie ze „Szkicu": submenu „Zgłoszenia" →
+`?action=add` (`RegistrationsScreen::ROUTE_ADD`), formularz z `RegistrationEditForm::renderAdd`,
+handler `admin-post` `ACTION_ADD` i wywołanie `ReservationService::reserve` ze znacznikiem
+`ManualEntry`, z pominięciem antyspamu i z tą samą bramką pojemności. Wpis ręczny wchodzi
+`confirmed`, bez `expires_at` (cron wygaszający go nie zabierze), z trwałą kolumną `manual`,
+którą honoruje awans z listy rezerwowej, i NIE wysyła maila, dopóki organizator nie zaznaczy
+przełącznika wysyłki. Zostało poza zakresem: straż nieznanego typu na ścieżce publicznej (B34),
+treść `capacity_full` przy odmowie z limitu globalnego (B35).
 
 **Priorytet:** niski.
 
-**Stan:** organizator wpisujący uczestników ręcznie robi to publicznym formularzem. Zwolnienie
-z limitu antyspamowego (gałąź `rate-limit-bypass`) usuwa główne tarcie, ale nie zmienia
-samego obejścia. Dedykowany ekran w panelu został w tej poprawce odrzucony jako
-nieproporcjonalny (podejście C w specyfikacji).
+**Stan (nieaktualny, zapis sprzed dostarczenia):** organizator wpisujący uczestników ręcznie
+robi to publicznym formularzem. Zwolnienie z limitu antyspamowego (gałąź `rate-limit-bypass`)
+usuwa główne tarcie, ale nie zmienia samego obejścia. Dedykowany ekran w panelu został w tej
+poprawce odrzucony jako nieproporcjonalny (podejście C w specyfikacji).
 
 **Szkic:** ekran obok edycji zgłoszenia, wołający `ReservationService::reserve` z pominięciem
 antyspamu i walidacji publicznej, z tą samą bramką pojemności.

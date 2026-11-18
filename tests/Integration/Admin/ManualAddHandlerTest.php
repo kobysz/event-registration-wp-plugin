@@ -171,9 +171,11 @@ final class ManualAddHandlerTest extends WP_UnitTestCase {
 	}
 
 	/**
-	 * Przestawia event w tryb „doby” z jedną otwartą dobą.
+	 * Przestawia event w tryb „doby” z jedną dobą.
+	 *
+	 * @param int $seats Liczba miejsc doby; 0 = doba bez ani jednego wolnego miejsca.
 	 */
-	private function saveNightsConfig(): void {
+	private function saveNightsConfig( int $seats = 4 ): void {
 		( new EventConfigRepository() )->save(
 			$this->event_id,
 			array(
@@ -199,7 +201,7 @@ final class ManualAddHandlerTest extends WP_UnitTestCase {
 							'key'   => 'n1819',
 							'label' => '18/19 XI',
 							'price' => 80.0,
-							'seats' => 4,
+							'seats' => $seats,
 						),
 					),
 					'companion_enabled' => false,
@@ -498,17 +500,59 @@ final class ManualAddHandlerTest extends WP_UnitTestCase {
 		$this->assertStringContainsString( 'listę rezerwową', $this->renderRedirectTarget( $redirect->location ) );
 	}
 
+	/**
+	 * Pełny typ przy wyłączonej liście rezerwowej wraca NA FORMULARZ, z wpisanymi wartościami.
+	 *
+	 * To wynik rutynowy — organizator zwykle poprawia go wybraniem innego typu w tym samym
+	 * formularzu — a nic nie zostało zapisane, więc PRG kazałby przepisać całą rozmowę
+	 * telefoniczną od nowa. Komunikat nie należy do żadnego pola (pole typu ma wartość
+	 * poprawną), więc idzie slotem komunikatu formularza, nie listą błędów pól.
+	 */
 	public function test_handle_add_reports_no_seats_when_the_type_is_full_without_waitlist(): void {
 		$this->saveConfig( 1, false );
 		$this->seed( 'pierwszy@example.com' );
 
-		$this->postAdd( array( '__type' => 'uczestnik', 'imie' => 'Drugi', 'email' => 'drugi@example.com' ) );
+		$this->postAdd( array( '__type' => 'uczestnik', 'imie' => 'Drugi', 'email' => 'drugi@example.com' ), true );
 
-		[ $redirect ] = $this->runHandler();
+		[ $redirect, $html ] = $this->runHandler();
 
-		$this->assertNotNull( $redirect );
-		$this->assertStringContainsString( 'evreg_msg=capacity_full', $redirect->location );
+		$this->assertNull( $redirect, 'Brak miejsc wraca na formularz, nie przez PRG.' );
 		$this->assertSame( 1, $this->registrationCount(), 'Odrzucone zgłoszenie nie powstaje.' );
+		$this->assertStringContainsString( 'notice-error', $html );
+		$this->assertStringContainsString( 'Brak wolnych miejsc dla wybranego typu zgłoszenia.', $html );
+		$this->assertStringContainsString( 'value="drugi@example.com"', $html, 'Wpisane wartości muszą wrócić.' );
+		$this->assertStringContainsString( 'value="Drugi"', $html );
+		$this->assertMatchesRegularExpression( '/name="evreg_notify"[^>]*checked/', $html, 'Stan przełącznika musi wrócić.' );
+		$this->assertStringNotContainsString( '<li>capacity_full', $html, 'Kod wyniku nie może wyjść jako etykieta pola.' );
+	}
+
+	/**
+	 * Wyczerpana doba w trybie „doby” wraca na formularz z błędem przy polu noclegu.
+	 *
+	 * Bliźniak testu klasycznego wyżej, przez CAŁY handler: inline re-render z kodem
+	 * `night_full:<klucz>` jest jedyną ścieżką tego ekranu, którą da się zobaczyć tylko
+	 * w trybie dobowym, a wynik niesie klucz doby — organizator ma zobaczyć jej etykietę,
+	 * nie identyfikator.
+	 */
+	public function test_handle_add_with_a_full_night_rerenders_at_the_accommodation_field(): void {
+		$this->saveNightsConfig( 0 );
+
+		$this->postAdd(
+			array(
+				'__type' => 'uczestnik',
+				'imie'   => 'Jan',
+				'email'  => 'jan@example.com',
+				'nocleg' => array( 'nights' => array( 'n1819' ) ),
+			)
+		);
+
+		[ $redirect, $html ] = $this->runHandler();
+
+		$this->assertNull( $redirect, 'Wyczerpana doba wraca na formularz, nie przez PRG.' );
+		$this->assertSame( 0, $this->registrationCount(), 'Bez łóżka zgłoszenie nie jest zapisywane po cichu.' );
+		$this->assertStringContainsString( 'notice-error', $html );
+		$this->assertStringContainsString( 'Doba „18/19 XI”', $html, 'Organizator widzi etykietę doby, nie jej klucz.' );
+		$this->assertStringContainsString( 'value="jan@example.com"', $html, 'Wpisane wartości muszą wrócić.' );
 	}
 
 	public function test_handle_add_with_full_accommodation_rerenders_at_the_accommodation_field(): void {
@@ -651,6 +695,10 @@ final class ManualAddHandlerTest extends WP_UnitTestCase {
 	 * jest wtedy wycofana, więc nic nie powstaje, ale bez degradacji organizator dostaje
 	 * białą stronę i nie wie, czy zgłoszenie jest w bazie. Awarię wstrzykujemy w ZAPIS,
 	 * nie w wybór: INSERT wierszy dób podmieniamy na DELETE, który nie trafia w nic.
+	 *
+	 * Komunikat wraca INLINE: nic nie powstało, więc re-render jest tak samo bezpieczny
+	 * jak po błędzie walidacji, a PRG zabrałby organizatorowi całą przepisaną rozmowę za
+	 * awarię, której nie spowodował. Log zostaje jedynym śladem przyczyny dla operatora.
 	 */
 	public function test_handle_add_degrades_a_failed_night_write_into_a_notice(): void {
 		$this->saveNightsConfig();
@@ -676,7 +724,8 @@ final class ManualAddHandlerTest extends WP_UnitTestCase {
 				'imie'   => 'Jan',
 				'email'  => 'jan@example.com',
 				'nocleg' => array( 'nights' => array( 'n1819' ) ),
-			)
+			),
+			true
 		);
 
 		try {
@@ -689,18 +738,17 @@ final class ManualAddHandlerTest extends WP_UnitTestCase {
 			}
 		}
 
-		$this->assertNotNull( $redirect, 'Awaria zapisu musi skończyć się komunikatem (PRG), nie fatalem.' );
-		$this->assertStringContainsString( 'evreg_msg=add_failed', $redirect->location );
-		$this->assertSame( '', $html );
+		$this->assertNull( $redirect, 'Awaria zapisu wraca na formularz, nie przez PRG.' );
 		$this->assertSame( 0, $this->registrationCount(), 'Transakcja wycofana — nic nie zostało zapisane.' );
 
 		$logged = (string) file_get_contents( (string) $log );
 		unlink( (string) $log );
 		$this->assertStringContainsString( 'evreg manual add failed: Zapisano 0 z 1', $logged, 'Operator musi mieć w logu przyczynę.' );
 
-		$notice = $this->renderRedirectTarget( $redirect->location );
-
-		$this->assertStringContainsString( 'notice-error', $notice );
-		$this->assertStringContainsString( 'Nic nie zostało zapisane', $notice );
+		$this->assertStringContainsString( 'notice-error', $html, 'Awaria musi skończyć się komunikatem, nie fatalem.' );
+		$this->assertStringContainsString( 'Nic nie zostało zapisane', $html );
+		$this->assertStringContainsString( 'value="jan@example.com"', $html, 'Przepisana rozmowa nie może przepaść z powodu awarii.' );
+		$this->assertMatchesRegularExpression( '/name="evreg_notify"[^>]*checked/', $html, 'Stan przełącznika musi wrócić.' );
+		$this->assertStringNotContainsString( '<li>add_failed', $html, 'Kod wyniku nie może wyjść jako etykieta pola.' );
 	}
 }

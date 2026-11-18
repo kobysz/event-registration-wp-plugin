@@ -20,6 +20,7 @@ use EvReg\Frontend\NightsResolver;
 use EvReg\Frontend\SubmissionAssembler;
 use EvReg\Persistence\EventConfigRepository;
 use EvReg\Persistence\RegistrationRepository;
+use EvReg\Services\ReservationResult;
 use EvReg\Services\ReservationService;
 
 defined( 'ABSPATH' ) || exit;
@@ -469,9 +470,13 @@ final class RegistrationsScreen {
 	 * schemat → tryb noclegu → walidacja → typ → przełącznik wysyłki → spójność pary
 	 * pokój/osoba towarzysząca → rezerwacja.
 	 *
-	 * Każdy błąd, który organizator może poprawić na formularzu, wraca INLINE (bez PRG) —
-	 * PRG zgubiłby wszystko, co wpisał, a tu nie ma zapisanego zgłoszenia, z którego
-	 * ekran odtworzyłby odpowiedzi.
+	 * Każda odmowa po przejściu straży wraca INLINE (bez PRG) — PRG zgubiłby wszystko, co
+	 * organizator wpisał, a tu nie ma zapisanego zgłoszenia, z którego ekran odtworzyłby
+	 * odpowiedzi. Dotyczy to zarówno błędów do poprawienia na formularzu, jak i odmów,
+	 * których poprawić nie da się (awaria zapisu): nic nie powstało, więc nie ma różnicy
+	 * w bezpieczeństwie re-renderu, a jest w cenie dla organizatora. PRG zostaje dla straży
+	 * sprzed walidacji (brak wydarzenia, konfiguracja, formularz bez pola e-mail), gdzie nie
+	 * ma formularza, na który dałoby się wrócić — patrz finish_add().
 	 *
 	 * @throws \RuntimeException Gdy rezerwacja na ścieżce KLASYCZNEJ rzuci wyjątek zapisu;
 	 *                           ścieżka dobowa degraduje go do komunikatu (patrz niżej).
@@ -607,9 +612,11 @@ final class RegistrationsScreen {
 			// z żądaną — awaria integralności zapisu, nie błąd wyboru. Transakcja jest już
 			// wycofana, więc NIC nie powstało, ale organizator dowie się o tym tylko wtedy,
 			// gdy mu to powiemy: bez tej gałęzi dostaje fatala, czyli białą stronę bez
-			// żadnej informacji, czy zgłoszenie zostało zapisane. Degradacja i treść jak na
-			// ścieżce publicznej (SubmitHandler + Shortcode::resultNotice), żeby ta sama
-			// awaria nie opowiadała dwóch różnych historii; log zostaje dla operatora.
+			// żadnej informacji, czy zgłoszenie zostało zapisane. Degradacja, treść i powrót
+			// z wpisanymi wartościami jak na ścieżce publicznej (SubmitHandler zwraca
+			// SubmitResult::failure( rawAnswers() ), żeby zgłaszający nie wpisywał wszystkiego
+			// od nowa), więc ta sama awaria nie opowiada dwóch różnych historii; log zostaje
+			// dla operatora.
 			//
 			// O TRYB pytamy rozstrzygnięcie z wejścia, nie żądanie (jak SubmitHandler):
 			// `request->nights === null` znaczy „wyboru dób nie podano", a nie „to event
@@ -622,10 +629,35 @@ final class RegistrationsScreen {
 			// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
 			error_log( 'evreg manual add failed: ' . $e->getMessage() );
 
-			self::redirect( 'add_failed' );
+			// Nic nie powstało (transakcja wycofana), więc re-render jest tu tak samo
+			// bezpieczny jak po błędzie walidacji — a PRG zabrałby organizatorowi całą
+			// przepisaną rozmowę za awarię, której nie spowodował.
+			self::rerender_add_notice( $schema, $event_id, 'add_failed', $assembled->rawAnswers(), $nights, $notify );
 			return;
 		}
 
+		self::finish_add( $result, $schema, $event_id, $assembled->rawAnswers(), $nights, $notify, $duplicate );
+	}
+
+	/**
+	 * Zamienia wynik rezerwacji wpisu ręcznego na ekran: PRG po zapisie, inline po odmowie.
+	 *
+	 * Granica jest jedna i wynika z tego, CZY coś powstało. Zapisane zgłoszenie ma swój
+	 * detal, więc idzie przez PRG. Każda odmowa (nocleg pełny, typ pełny, awaria zapisu)
+	 * nie zapisała ani wiersza, więc wraca INLINE z tym, co organizator wpisał — ten ekran
+	 * istnieje do przepisywania rozmów telefonicznych, a PRG kazałby je przepisać od nowa.
+	 *
+	 * Wartości idą z `rawAnswers()` wołającego — powód w {@see self::rerender_add_field()}.
+	 *
+	 * @param ReservationResult   $result    Wynik rezerwacji.
+	 * @param FormSchema          $schema    Złożony schemat formularza.
+	 * @param int                 $event_id  ID wydarzenia.
+	 * @param array<string,mixed> $answers   Surowe odpowiedzi do prefillu przy odmowie.
+	 * @param NightsConfig|null   $nights    Konfiguracja trybu „doby” albo null (klasyczny).
+	 * @param bool                $notify    Stan przełącznika wysyłki potwierdzenia.
+	 * @param bool                $duplicate Czy ten adres ma już inne aktywne zgłoszenie.
+	 */
+	private static function finish_add( ReservationResult $result, FormSchema $schema, int $event_id, array $answers, ?NightsConfig $nights, bool $notify, bool $duplicate ): void {
 		switch ( $result->code ) {
 			case 'reserved':
 			case 'waitlisted':
@@ -649,13 +681,17 @@ final class RegistrationsScreen {
 					$event_id,
 					$schema->accommodationFieldKey(),
 					'' === $result->blockingNight ? 'accommodation_full' : 'night_full:' . $result->blockingNight,
-					$assembled->rawAnswers(),
+					$answers,
 					$nights,
 					$notify
 				);
 				break;
 			case 'rejected':
-				self::redirect( 'capacity_full' );
+				// Typ pełny przy wyłączonej liście rezerwowej to wynik RUTYNOWY, a lekarstwem
+				// jest zwykle inny typ wybrany na tym samym formularzu. Nie jest to błąd pola
+				// (pole typu ma wartość poprawną, tylko miejsc nie ma), więc idzie slotem
+				// komunikatu formularza, nie listą błędów pól.
+				self::rerender_add_notice( $schema, $event_id, 'capacity_full', $answers, $nights, $notify );
 				break;
 			default: // duplicate — nieosiągalne dla wpisu ręcznego (serwis pomija guard duplikatu).
 				self::redirect( $result->code );
@@ -676,13 +712,33 @@ final class RegistrationsScreen {
 	 * @param array<string,mixed>  $answers  Odpowiedzi do prefillu.
 	 * @param NightsConfig|null    $nights   Konfiguracja trybu „doby” albo null (klasyczny).
 	 * @param bool                 $notify   Stan przełącznika wysyłki potwierdzenia.
+	 * @param string               $notice   Odmowa niezwiązana z żadnym polem, gotowym zdaniem; '' = brak.
 	 */
-	private static function rerender_add( FormSchema $schema, int $event_id, array $errors, array $answers, ?NightsConfig $nights, bool $notify ): void {
+	private static function rerender_add( FormSchema $schema, int $event_id, array $errors, array $answers, ?NightsConfig $nights, bool $notify, string $notice = '' ): void {
 		if ( $notify ) {
 			$answers['evreg_notify'] = '1';
 		}
 
-		self::view()->render_add_errors( $schema, $event_id, $errors, $answers, $nights );
+		self::view()->render_add_errors( $schema, $event_id, $errors, $answers, $nights, $notice );
+	}
+
+	/**
+	 * Re-renderuje ekran dodawania z komunikatem o odmowie, która nie należy do żadnego pola.
+	 *
+	 * Kod wyniku NIE może pójść do listy błędów pól (`rerender_add_field`): tamta czyta
+	 * klucze jako klucze pól i wypisałaby surowy kod jako etykietę. Zdanie bierzemy
+	 * z {@see RegistrationNotice::text()}, czyli z tej samej mapy co komunikaty po PRG —
+	 * ten sam wynik nie może mówić dwóch różnych rzeczy zależnie od drogi.
+	 *
+	 * @param FormSchema          $schema   Złożony schemat formularza.
+	 * @param int                 $event_id ID wydarzenia.
+	 * @param string              $code     Kod wyniku ({@see RegistrationNotice}).
+	 * @param array<string,mixed> $answers  Surowe odpowiedzi do prefillu.
+	 * @param NightsConfig|null   $nights   Konfiguracja trybu „doby” albo null (klasyczny).
+	 * @param bool                $notify   Stan przełącznika wysyłki potwierdzenia.
+	 */
+	private static function rerender_add_notice( FormSchema $schema, int $event_id, string $code, array $answers, ?NightsConfig $nights, bool $notify ): void {
+		self::rerender_add( $schema, $event_id, array(), $answers, $nights, $notify, RegistrationNotice::text( $code ) );
 	}
 
 	/**

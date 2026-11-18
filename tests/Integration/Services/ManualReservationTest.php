@@ -4,6 +4,7 @@ declare( strict_types=1 );
 
 namespace EvReg\Tests\Integration\Services;
 
+use EvReg\Domain\Accommodation\AccommodationSelection;
 use EvReg\Domain\Accommodation\NightSelection;
 use EvReg\Domain\Accommodation\NightsConfig;
 use EvReg\Domain\Registration\ManualEntry;
@@ -152,6 +153,29 @@ final class ManualReservationTest extends WP_UnitTestCase {
 	}
 
 	/**
+	 * Inwentarz klasyczny: jeden pakiet, jeden pokój, jeden slot po 180 zł.
+	 *
+	 * @return array<string,mixed>
+	 */
+	private function classicInventory(): array {
+		return array(
+			'accommodation' => array(
+				'packages'   => array( array( 'key' => 'n18', 'label' => 'Noc 18/19' ) ),
+				'rooms'      => array( array( 'key' => 'pojedynczy', 'label' => 'Jednoosobowy' ) ),
+				'inventory'  => array(
+					array(
+						'package'  => 'n18',
+						'room'     => 'pojedynczy',
+						'capacity' => 4,
+						'price'    => 180.0,
+					),
+				),
+				'allow_none' => true,
+			),
+		);
+	}
+
+	/**
 	 * Buduje żądanie rezerwacji w trybie klasycznym (bez noclegu).
 	 *
 	 * @param string $email Adres e-mail.
@@ -165,6 +189,27 @@ final class ManualReservationTest extends WP_UnitTestCase {
 				'__type' => 'uczestnik',
 				'email'  => $email,
 			)
+		);
+	}
+
+	/**
+	 * Buduje żądanie rezerwacji w trybie klasycznym Z wyborem noclegu.
+	 *
+	 * @param string $email Adres e-mail.
+	 */
+	private function classicAccommodationRequest( string $email ): ReservationRequest {
+		$selection = new AccommodationSelection( 'n18', 'pojedynczy' );
+
+		return new ReservationRequest(
+			$email,
+			'Jan Kowalski',
+			'uczestnik',
+			array(
+				'__type' => 'uczestnik',
+				'email'  => $email,
+				'nocleg' => $selection,
+			),
+			$selection
 		);
 	}
 
@@ -330,6 +375,39 @@ final class ManualReservationTest extends WP_UnitTestCase {
 		$this->assertNull( $row['confirmed_at'] );
 		$this->assertSame( '0', (string) $row['manual'] );
 		$this->assertSame( array( 'optin' ), $this->queuedParticipantTemplates() );
+	}
+
+	/**
+	 * Wpis ręczny z noclegiem KLASYCZNYM dostaje booking z właściwą liczbą miejsc i ceną.
+	 *
+	 * Bliźniak testu dobowego niżej. Gałęzie trybów są świadomie osobne, więc „klasyczna
+	 * robi to samo” jest założeniem, nie faktem: wiersz bookingu niesie miejsca i cenę,
+	 * z których liczy się zajętość slotu i rachunek, a przyznanie noclegu jest tu
+	 * warunkiem wyceny (patrz B7) — gdyby bramka albo zapis wypadły, zgłoszenie weszłoby
+	 * bez łóżka, ale z rachunkiem za nie (albo odwrotnie).
+	 */
+	public function test_manual_entry_books_classic_accommodation_with_seats_and_price(): void {
+		$this->configureClassic( $this->classicInventory() );
+
+		$result = $this->service->reserve( $this->event_id, $this->classicAccommodationRequest( 'nocleg@example.com' ), new ManualEntry() );
+
+		$this->assertSame( 'reserved', $result->code );
+		$this->assertTrue( $result->accommodationGranted );
+
+		$row = $this->row( $result->registrationId );
+		$this->assertSame( 'confirmed', $row['status'] );
+		$this->assertNull( $row['expires_at'] );
+		$this->assertSame( '1', (string) $row['manual'] );
+		// 100 (typ) + 180 (slot) — wycena klasyczna nietknięta.
+		$this->assertSame( '280.00', (string) $row['price_total'] );
+
+		$booking = $this->repository->findAccommodationBooking( (int) $result->registrationId );
+		$this->assertNotNull( $booking, 'Przyznany nocleg musi mieć wiersz bookingu.' );
+		$this->assertSame( 'n18', (string) $booking['package_key'] );
+		$this->assertSame( 'pojedynczy', (string) $booking['room_type_key'] );
+		// Pokój bez ustawionej liczby osób i bez towarzyszącej = jedno miejsce (RoomOccupancy::seats).
+		$this->assertSame( '1', (string) $booking['seats'] );
+		$this->assertSame( '180.00', (string) $booking['price'] );
 	}
 
 	public function test_manual_entry_in_nights_mode_is_confirmed_with_night_rows(): void {
