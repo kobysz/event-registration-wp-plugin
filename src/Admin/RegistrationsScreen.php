@@ -38,6 +38,7 @@ final class RegistrationsScreen {
 	public const ACTION_DELETE  = 'evreg_reg_delete';
 	public const ACTION_NOTE    = 'evreg_reg_note';
 	public const ACTION_EDIT    = 'evreg_edit_registration';
+	public const ACTION_ADD     = 'evreg_add_registration';
 	public const ACTION_EXPORT  = 'evreg_export';
 
 	/**

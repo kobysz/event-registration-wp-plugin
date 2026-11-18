@@ -35,17 +35,67 @@ final class RegistrationEditForm {
 	 *                                             ({@see \EvReg\Frontend\NightsResolver}); null = tryb
 	 *                                             klasyczny. Renderer sam NightsConfig::fromArray nie woła.
 	 */
-	public static function render( FormSchema $schema, array $answers, int $reg_id, ?array $errors = null, ?array $submitted = null, ?NightsConfig $nights = null ): string {
+	public static function renderEdit( FormSchema $schema, array $answers, int $reg_id, ?array $errors = null, ?array $submitted = null, ?NightsConfig $nights = null ): string {
 		$source = null !== $submitted ? $submitted : $answers;
-		$nonce  = wp_nonce_field( 'evreg_edit_' . $reg_id, '_wpnonce', true, false );
 
+		$head  = '<input type="hidden" name="action" value="evreg_edit_registration" />';
+		$head .= '<input type="hidden" name="registration" value="' . esc_attr( (string) $reg_id ) . '" />';
+		$head .= wp_nonce_field( 'evreg_edit_' . $reg_id, '_wpnonce', true, false );
+
+		return self::renderFrame( $schema, $source, $errors, $nights, $head, '', esc_html__( 'Zapisz zmiany', 'event-registration' ) );
+	}
+
+	/**
+	 * Renderuje pusty formularz ręcznego dodania zgłoszenia (POST → admin-post.php).
+	 *
+	 * Te same wiersze co edycja, inna rama: nonce zakresu eventu, ukryte ID wydarzenia,
+	 * przełącznik wysyłki potwierdzenia (domyślnie wyłączony) i własny przycisk. Przy błędzie
+	 * walidacji wartości wracają z odrzuconego POST-a (`$submitted`), w tym stan przełącznika.
+	 *
+	 * @param FormSchema                $schema    Złożony schemat formularza eventu.
+	 * @param int                       $event_id  ID eventu, do którego dodajemy zgłoszenie.
+	 * @param array<string,string>|null $errors    Błędy walidacji: klucz pola → kod błędu.
+	 * @param array<string,mixed>|null  $submitted Wartości z odrzuconego POST (prefill przy błędzie).
+	 * @param NightsConfig|null         $nights    Konfiguracja trybu „doby” rozstrzygnięta u wejścia; null = klasyczny.
+	 */
+	public static function renderAdd( FormSchema $schema, int $event_id, ?array $errors = null, ?array $submitted = null, ?NightsConfig $nights = null ): string {
+		$source = null !== $submitted ? $submitted : array();
+
+		$head  = '<input type="hidden" name="action" value="' . esc_attr( RegistrationsScreen::ACTION_ADD ) . '" />';
+		$head .= '<input type="hidden" name="event_id" value="' . esc_attr( (string) $event_id ) . '" />';
+		$head .= wp_nonce_field( 'evreg_add_' . $event_id, '_wpnonce', true, false );
+
+		// Domyślnie wyłączony: wpis ręczny bywa przepisaniem telefonu, a mail nie powinien
+		// wyjść bez decyzji organizatora. Etykieta mówi tylko o uczestniku — przy wyłączonym
+		// przełączniku nie idzie nic do nikogo, więc nie obiecujemy kopii dla organizatorów.
+		$notify_on = ! empty( $source['evreg_notify'] );
+		$foot      = '<p><label><input type="checkbox" name="evreg_notify" value="1"' . ( $notify_on ? ' checked' : '' ) . ' /> '
+			. esc_html__( 'Wyślij uczestnikowi e-mail z potwierdzeniem', 'event-registration' ) . '</label><br />'
+			. '<span class="description">' . esc_html__( 'Bez zaznaczenia nie zostanie wysłany żaden e-mail.', 'event-registration' ) . '</span></p>';
+
+		return self::renderFrame( $schema, $source, $errors, $nights, $head, $foot, esc_html__( 'Dodaj zgłoszenie', 'event-registration' ) );
+	}
+
+	/**
+	 * Wspólna rama formularza: otwarcie `<form>`, błędy, tabela wierszy, stopka i przycisk.
+	 *
+	 * Jedyna kopia pętli wierszy — edycja i dodawanie różnią się wyłącznie tym, co wchodzi
+	 * w `$head` (action, ukryte pola, nonce), `$foot` (kontrolki przed przyciskiem) i etykietą.
+	 *
+	 * @param FormSchema                $schema Złożony schemat formularza.
+	 * @param array<string,mixed>       $source Wartości do odtworzenia w kontrolkach.
+	 * @param array<string,string>|null $errors Błędy walidacji.
+	 * @param NightsConfig|null         $nights Konfiguracja trybu „doby” albo null.
+	 * @param string                    $head   Gotowy HTML: ukryte pola i nonce (już escapowany przez wołającego).
+	 * @param string                    $foot   Gotowy HTML kontrolek przed przyciskiem (już escapowany).
+	 * @param string                    $button Etykieta przycisku (już escapowana).
+	 */
+	private static function renderFrame( FormSchema $schema, array $source, ?array $errors, ?NightsConfig $nights, string $head, string $foot, string $button ): string {
 		// Klasa evreg-form — reuse publicznego assets/public/form.js (evreg-public, wp_enqueue_script
-		// w RegistrationView::render_edit) do przełączania widoczności pola imienia companiona.
+		// w RegistrationView) do przełączania widoczności pola imienia companiona.
 		$out  = '<form class="evreg-form" method="post" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '">';
-		$out .= '<input type="hidden" name="action" value="evreg_edit_registration" />';
-		$out .= '<input type="hidden" name="registration" value="' . esc_attr( (string) $reg_id ) . '" />';
-		$out .= $nonce;
-		$out .= self::renderErrors( $schema, $errors );
+		$out .= $head;
+		$out .= self::renderErrors( $schema, $errors, $nights );
 
 		$out .= '<table class="form-table"><tbody>';
 		foreach ( $schema->allFields() as $field ) {
@@ -59,7 +109,8 @@ final class RegistrationEditForm {
 			}
 		}
 		$out .= '</tbody></table>';
-		$out .= '<p><button type="submit" class="button button-primary">' . esc_html__( 'Zapisz zmiany', 'event-registration' ) . '</button></p>';
+		$out .= $foot;
+		$out .= '<p><button type="submit" class="button button-primary">' . $button . '</button></p>';
 		$out .= '</form>';
 
 		return $out;
@@ -70,8 +121,9 @@ final class RegistrationEditForm {
 	 *
 	 * @param FormSchema                $schema Złożony schemat formularza (źródło etykiet pól).
 	 * @param array<string,string>|null $errors Błędy walidacji: klucz pola → kod błędu.
+	 * @param NightsConfig|null         $nights Konfiguracja trybu „doby” (etykieta doby w `night_full:<klucz>`).
 	 */
-	private static function renderErrors( FormSchema $schema, ?array $errors ): string {
+	private static function renderErrors( FormSchema $schema, ?array $errors, ?NightsConfig $nights = null ): string {
 		if ( empty( $errors ) ) {
 			return '';
 		}
@@ -86,11 +138,32 @@ final class RegistrationEditForm {
 
 		$items = '';
 		foreach ( $errors as $field_key => $code ) {
-			$label  = $labels[ $field_key ] ?? $field_key;
-			$items .= '<li>' . esc_html( $label ) . ': ' . esc_html( self::errorMessage( (string) $code ) ) . '</li>';
+			$label   = $labels[ $field_key ] ?? $field_key;
+			$message = self::fieldErrorMessage( (string) $code, $nights );
+			$items  .= '<li>' . esc_html( $label ) . ': ' . esc_html( $message ) . '</li>';
 		}
 
 		return '<div class="notice notice-error"><ul>' . $items . '</ul></div>';
+	}
+
+	/**
+	 * Komunikat błędu pola: kod `night_full:<doba>` dostaje etykietę doby, resztę rozstrzyga errorMessage().
+	 *
+	 * Lustro {@see \EvReg\Frontend\FormRenderer::fieldErrorMessage()}. Bez konfiguracji
+	 * dobowej nie ma skąd wziąć etykiety — kod spada na komunikat ogólny.
+	 *
+	 * @param string            $code   Kod błędu.
+	 * @param NightsConfig|null $nights Konfiguracja trybu „doby” albo null.
+	 */
+	private static function fieldErrorMessage( string $code, ?NightsConfig $nights ): string {
+		if ( null !== $nights && str_starts_with( $code, 'night_full:' ) ) {
+			$label = $nights->nightLabel( substr( $code, strlen( 'night_full:' ) ) );
+
+			/* translators: %s: etykieta doby noclegowej. */
+			return sprintf( __( 'Doba „%s” nie ma już wolnych miejsc dla tego zgłoszenia. Odznacz ją albo wybierz inne doby.', 'event-registration' ), $label );
+		}
+
+		return self::errorMessage( $code );
 	}
 
 	/**

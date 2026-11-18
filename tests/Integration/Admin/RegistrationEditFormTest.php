@@ -89,7 +89,7 @@ final class RegistrationEditFormTest extends WP_UnitTestCase {
 			'__type' => 'std',
 		);
 
-		$html = RegistrationEditForm::render( $this->schema(), $answers, 42 );
+		$html = RegistrationEditForm::renderEdit( $this->schema(), $answers, 42 );
 
 		$this->assertStringContainsString( 'action="' . admin_url( 'admin-post.php' ) . '"', $html );
 		$this->assertStringContainsString( 'name="action" value="evreg_edit_registration"', $html );
@@ -108,7 +108,7 @@ final class RegistrationEditFormTest extends WP_UnitTestCase {
 		$submitted = array( 'email' => 'zła wartość', 'name' => 'New Name' );
 		$errors    = array( 'email' => 'invalid_email' );
 
-		$html = RegistrationEditForm::render( $this->schema(), $answers, 42, $errors, $submitted );
+		$html = RegistrationEditForm::renderEdit( $this->schema(), $answers, 42, $errors, $submitted );
 
 		// Etykieta pola, którego dotyczy błąd, jest widoczna przy komunikacie.
 		$this->assertStringContainsString( 'E-mail', $html );
@@ -122,7 +122,7 @@ final class RegistrationEditFormTest extends WP_UnitTestCase {
 	}
 
 	public function test_unknown_error_code_falls_back_to_generic_translated_message(): void {
-		$html = RegistrationEditForm::render( $this->schema(), array(), 42, array( 'email' => 'some_future_code' ) );
+		$html = RegistrationEditForm::renderEdit( $this->schema(), array(), 42, array( 'email' => 'some_future_code' ) );
 
 		$this->assertStringContainsString( 'Nieprawidłowa wartość.', $html );
 		$this->assertStringNotContainsString( 'some_future_code', $html );
@@ -146,7 +146,7 @@ final class RegistrationEditFormTest extends WP_UnitTestCase {
 			)
 		);
 
-		$html = RegistrationEditForm::render( $schema, array( 'email' => 'a@b.pl' ), 1 );
+		$html = RegistrationEditForm::renderEdit( $schema, array( 'email' => 'a@b.pl' ), 1 );
 
 		$this->assertStringNotContainsString( 'Sekcja nagłówek', $html );
 		$this->assertStringNotContainsString( 'Opis akapitu', $html );
@@ -159,7 +159,7 @@ final class RegistrationEditFormTest extends WP_UnitTestCase {
 			'diety'    => array( 'wege' ),
 		);
 
-		$html = RegistrationEditForm::render( $this->schemaWithChoicesAndAccommodation(), $answers, 7 );
+		$html = RegistrationEditForm::renderEdit( $this->schemaWithChoicesAndAccommodation(), $answers, 7 );
 
 		$this->assertStringContainsString( 'name="evreg_field[koszulka]"', $html );
 		$this->assertMatchesRegularExpression( '/<option value="m"[^>]*selected[^>]*>M<\/option>/', $html );
@@ -178,7 +178,7 @@ final class RegistrationEditFormTest extends WP_UnitTestCase {
 			),
 		);
 
-		$html = RegistrationEditForm::render( $this->schemaWithChoicesAndAccommodation(), $answers, 7 );
+		$html = RegistrationEditForm::renderEdit( $this->schemaWithChoicesAndAccommodation(), $answers, 7 );
 
 		// Admin renderuje nocleg jako <select>, więc wybór widać po selected na opcji.
 		$this->assertMatchesRegularExpression( '/<option value="n1\|std"[^>]*selected/', $html );
@@ -197,7 +197,7 @@ final class RegistrationEditFormTest extends WP_UnitTestCase {
 			),
 		);
 
-		$html = RegistrationEditForm::render( $this->schemaWithChoicesAndAccommodation(), $answers, 7 );
+		$html = RegistrationEditForm::renderEdit( $this->schemaWithChoicesAndAccommodation(), $answers, 7 );
 
 		$this->assertStringContainsString( 'value="n1|std"', $html );
 		$this->assertMatchesRegularExpression( '/value="n1\|std"[^>]*selected/', $html );
@@ -232,20 +232,20 @@ final class RegistrationEditFormTest extends WP_UnitTestCase {
 			)
 		);
 
-		$html = RegistrationEditForm::render( $schema, array(), 7 );
+		$html = RegistrationEditForm::renderEdit( $schema, array(), 7 );
 
 		$this->assertStringContainsString( 'name="evreg_field[nocleg][slot]"', $html );
 		$this->assertStringNotContainsString( '[nocleg][roommate]', $html );
 	}
 
 	public function test_no_errors_renders_no_notice(): void {
-		$html = RegistrationEditForm::render( $this->schema(), array( 'email' => 'a@b.pl' ), 1 );
+		$html = RegistrationEditForm::renderEdit( $this->schema(), array( 'email' => 'a@b.pl' ), 1 );
 
 		$this->assertStringNotContainsString( 'notice-error', $html );
 	}
 
 	public function test_companion_controls_absent_when_companion_disabled(): void {
-		$html = RegistrationEditForm::render( $this->schemaWithChoicesAndAccommodation(), array(), 7 );
+		$html = RegistrationEditForm::renderEdit( $this->schemaWithChoicesAndAccommodation(), array(), 7 );
 
 		$this->assertStringNotContainsString( 'name="evreg_companion"', $html );
 	}
@@ -256,7 +256,7 @@ final class RegistrationEditFormTest extends WP_UnitTestCase {
 			'evreg_companion_name' => 'Jan T.',
 		);
 
-		$html = RegistrationEditForm::render(
+		$html = RegistrationEditForm::renderEdit(
 			$this->schemaWithChoicesAndAccommodation( array( 'companion_enabled' => true ) ),
 			$answers,
 			7
@@ -269,7 +269,7 @@ final class RegistrationEditFormTest extends WP_UnitTestCase {
 	}
 
 	public function test_companion_name_required_error_shown_translated(): void {
-		$html = RegistrationEditForm::render(
+		$html = RegistrationEditForm::renderEdit(
 			$this->schemaWithChoicesAndAccommodation( array( 'companion_enabled' => true ) ),
 			array(),
 			7,

@@ -129,6 +129,10 @@ final class RegistrationView {
 		if ( ! empty( $row['companion'] ) ) {
 			$this->detail_row( __( 'Osoba towarzysząca', 'event-registration' ), (string) ( $row['companion_name'] ?? '' ) );
 		}
+		// Kolumna wraca z bazy jako string ('0'/'1') — rzutowanie, nie empty() na surowym ciągu.
+		if ( (bool) (int) ( $row['manual'] ?? 0 ) ) {
+			$this->detail_row( __( 'Pochodzenie', 'event-registration' ), __( 'Wpis ręczny (dodany przez organizatora)', 'event-registration' ) );
+		}
 		echo '</tbody></table>';
 
 		// Czy event jest w trybie „doby”, rozstrzyga się NIEZALEŻNIE od tego, czy konfiguracja
@@ -254,7 +258,7 @@ final class RegistrationView {
 			$this->render_night_rows( $this->registrations->bookingNightsFor( array( $id ) )[ $id ] ?? array() );
 		}
 
-		echo RegistrationEditForm::render( $schema, $answers, $id, null, null, $nights ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- już escapowane w rendererze.
+		echo RegistrationEditForm::renderEdit( $schema, $answers, $id, null, null, $nights ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- już escapowane w rendererze.
 		echo '</div>';
 	}
 
@@ -276,8 +280,117 @@ final class RegistrationView {
 	public function render_edit_errors( FormSchema $schema, int $id, array $errors, array $submitted, ?NightsConfig $nights ): void {
 		echo '<div class="wrap">';
 		echo '<h1>' . esc_html__( 'Edytuj zgłoszenie', 'event-registration' ) . '</h1>';
-		echo RegistrationEditForm::render( $schema, array(), $id, $errors, $submitted, $nights ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- już escapowane w rendererze.
+		echo RegistrationEditForm::renderEdit( $schema, array(), $id, $errors, $submitted, $nights ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- już escapowane w rendererze.
 		echo '</div>';
+	}
+
+	/**
+	 * Renderuje ekran ręcznego dodania zgłoszenia: wybór wydarzenia albo pusty formularz.
+	 *
+	 * Bez wydarzenia (`0`) nie ma schematu, więc jedyne, co da się pokazać, to wybór — to
+	 * ten sam ekran w stanie „jeszcze nie wybrano”, nie osobna strona. NIE sprawdza uprawnień
+	 * sama — wołający MUSI mieć sprawdzone `current_user_can( Capabilities::CAP )`.
+	 *
+	 * @param int $event_id ID wydarzenia albo 0 (wybór wydarzenia).
+	 */
+	public function render_add( int $event_id ): void {
+		echo '<div class="wrap">';
+		echo '<h1>' . esc_html__( 'Dodaj zgłoszenie ręcznie', 'event-registration' ) . '</h1>';
+
+		if ( $event_id <= 0 ) {
+			$this->render_event_picker();
+			echo '</div>';
+			return;
+		}
+
+		$schema = $this->loader->load( $event_id );
+
+		if ( null === $schema ) {
+			echo '<div class="notice notice-error"><p>' . esc_html__( 'Nie udało się załadować formularza tego wydarzenia.', 'event-registration' ) . '</p></div></div>';
+			return;
+		}
+
+		// Tryb „doby” rozstrzygany RAZ, u wejścia, jak w render_edit(): inaczej formularz
+		// wyrenderowałby kontrolkę klasyczną dla eventu dobowego.
+		try {
+			$nights = $this->loader->nights( $event_id );
+		} catch ( SchemaException $e ) {
+			printf(
+				'<div class="notice notice-error"><p>%s</p></div></div>',
+				esc_html(
+					sprintf(
+						/* translators: %s: komunikat błędu konfiguracji. */
+						__( 'Konfiguracja noclegów tego wydarzenia jest niepoprawna (%s) — popraw ją, zanim dodasz zgłoszenie.', 'event-registration' ),
+						$e->getMessage()
+					)
+				)
+			);
+			return;
+		}
+
+		RegistrationNotice::render( $nights );
+
+		wp_enqueue_script( 'evreg-public' );
+
+		echo RegistrationEditForm::renderAdd( $schema, $event_id, null, null, $nights ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- już escapowane w rendererze.
+		echo '</div>';
+	}
+
+	/**
+	 * Renderuje ekran dodawania od nowa, z błędami i wartościami z odrzuconego POST.
+	 *
+	 * Wołane przez handler dodawania INLINE, zamiast PRG, żeby organizator zachował to, co
+	 * wpisał. Nie czyta nic z bazy — schemat, błędy i wartości przychodzą z handlera.
+	 *
+	 * @param FormSchema           $schema    Złożony schemat formularza eventu.
+	 * @param int                  $event_id  ID wydarzenia.
+	 * @param array<string,string> $errors    Błędy walidacji: klucz pola → kod błędu.
+	 * @param array<string,mixed>  $submitted Wartości z odrzuconego POST (prefill).
+	 * @param NightsConfig|null    $nights    Konfiguracja trybu „doby” rozstrzygnięta u wejścia
+	 *                                        handlera; null = tryb klasyczny.
+	 */
+	public function render_add_errors( FormSchema $schema, int $event_id, array $errors, array $submitted, ?NightsConfig $nights ): void {
+		wp_enqueue_script( 'evreg-public' );
+
+		echo '<div class="wrap">';
+		echo '<h1>' . esc_html__( 'Dodaj zgłoszenie ręcznie', 'event-registration' ) . '</h1>';
+		echo RegistrationEditForm::renderAdd( $schema, $event_id, $errors, $submitted, $nights ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- już escapowane w rendererze.
+		echo '</div>';
+	}
+
+	/**
+	 * Renderuje wybór wydarzenia (GET z powrotem na ten sam ekran, już z `event_id`).
+	 */
+	private function render_event_picker(): void {
+		$events = get_posts(
+			array(
+				'post_type'   => EventPostType::POST_TYPE,
+				'post_status' => array( 'publish', 'draft', 'pending', 'private', 'future' ),
+				'numberposts' => -1,
+				'orderby'     => 'title',
+				'order'       => 'ASC',
+			)
+		);
+
+		if ( array() === $events ) {
+			echo '<div class="notice notice-warning"><p>' . esc_html__( 'Nie ma jeszcze żadnego wydarzenia, do którego można dodać zgłoszenie.', 'event-registration' ) . '</p></div>';
+			return;
+		}
+
+		echo '<p>' . esc_html__( 'Wybierz wydarzenie, do którego dodajesz zgłoszenie.', 'event-registration' ) . '</p>';
+		echo '<form method="get" action="' . esc_url( admin_url( 'edit.php' ) ) . '">';
+		printf( '<input type="hidden" name="post_type" value="%s" />', esc_attr( EventPostType::POST_TYPE ) );
+		printf( '<input type="hidden" name="page" value="%s" />', esc_attr( RegistrationsScreen::SLUG ) );
+		echo '<input type="hidden" name="action" value="add" />';
+		echo '<p><label for="evreg-add-event">' . esc_html__( 'Wydarzenie', 'event-registration' ) . '</label> ';
+		echo '<select id="evreg-add-event" name="event_id">';
+		foreach ( $events as $event ) {
+			$title = '' !== $event->post_title ? $event->post_title : sprintf( /* translators: %d: ID wydarzenia. */ __( '(bez tytułu, #%d)', 'event-registration' ), $event->ID );
+			printf( '<option value="%d">%s</option>', (int) $event->ID, esc_html( $title ) );
+		}
+		echo '</select></p>';
+		echo '<p><button type="submit" class="button button-primary">' . esc_html__( 'Dalej', 'event-registration' ) . '</button></p>';
+		echo '</form>';
 	}
 
 	/**
