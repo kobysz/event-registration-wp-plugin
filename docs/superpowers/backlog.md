@@ -828,3 +828,30 @@ opakowania i traci klasę. Ten sam kształt i ta sama klasa poprawki co przypis 
 
 **Szkic:** zmienić wrapper opisu na `<div>`; `.form-text` Bootstrapa nie ustawia `display`,
 więc wygląd się nie zmienia. Sprawdzić testy asertujące `<p class="evreg-field-desc`.
+
+---
+
+## B32 — Ekran „Dodaj zgłoszenie" w panelu administracyjnym
+
+**Priorytet:** niski.
+
+**Stan:** organizator wpisujący uczestników ręcznie robi to publicznym formularzem. Zwolnienie
+z limitu antyspamowego (gałąź `rate-limit-bypass`) usuwa główne tarcie, ale nie zmienia
+samego obejścia. Dedykowany ekran w panelu został w tej poprawce odrzucony jako
+nieproporcjonalny (podejście C w specyfikacji).
+
+**Szkic:** ekran obok edycji zgłoszenia, wołający `ReservationService::reserve` z pominięciem
+antyspamu i walidacji publicznej, z tą samą bramką pojemności.
+
+---
+
+## B33 — `rateKey()` nie obsługuje zaufanego proxy
+
+**Priorytet:** niski.
+
+**Stan:** `SubmitHandler::rateKey()` czyta `REMOTE_ADDR` bez obsługi zaufanego proxy. Za
+Cloudflare albo nginx proxy bez `mod_remoteip` cały ruch dzieli jeden kubełek, więc limit staje
+się globalny dla strony, a nie per urządzenie.
+
+**Diagnoza:** liczba wierszy `%evreg_rate_%` w `options` na produkcji — jeden wiersz mimo wielu
+odwiedzających = wspólny kubełek.

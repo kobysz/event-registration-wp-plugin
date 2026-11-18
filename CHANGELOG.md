@@ -11,6 +11,9 @@ so keep entries user-facing and concise.
 
 ## [Unreleased]
 
+### Changed
+- Event organizers are no longer caught by the registration form's anti-spam limit: anyone allowed to manage events can submit the form as often as they need, for example to enter attendees by hand. For everyone else the limit is raised from 10 to 30 submissions per hour from one device, and a site can adjust it. A visitor who does reach it now sees a message saying the block lifts after an hour, instead of the generic spam notice.
+
 ## [0.2.3] - 2026-11-18
 
 ### Added
