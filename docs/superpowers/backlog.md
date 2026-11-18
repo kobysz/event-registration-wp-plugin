@@ -855,3 +855,43 @@ się globalny dla strony, a nie per urządzenie.
 
 **Diagnoza:** liczba wierszy `%evreg_rate_%` w `options` na produkcji — jeden wiersz mimo wielu
 odwiedzających = wspólny kubełek.
+
+---
+
+## B34 — Brak straży nieznanego typu w `reserve()` / `reserveNights()` na ścieżce publicznej
+
+**Priorytet:** niski.
+
+**Stan:** `__type` nie jest domyślnie wymagane, więc puste pole typu na formularzu publicznym
+daje zgłoszenie bez typu: darmowe, liczone tylko do limitu globalnego. Pozostałe cztery ścieżki
+transakcyjne (edycja i awans, także w wariantach dobowych) tę straż mają. Ekran
+dodawania zgłoszenia ręcznie stawia ją we własnym handlerze, a nie w `reserve()`, więc dziura na
+ścieżce publicznej została w tej gałęzi świadomie nietknięta.
+
+**Szkic:** przenieść straż do `reserve()`/`reserveNights()` (kod `invalidStatus`/nowy), po
+sprawdzeniu, że żaden zastany event nie opiera się na pustym typie; wtedy handler dodawania może
+ją oddać.
+
+---
+
+## B35 — Wynik `rejected` używa komunikatu `capacity_full`, który zawsze wskazuje limit typu
+
+**Priorytet:** niski.
+
+**Stan:** komunikat współdzielony z handlerem edycji nazywa limit typu zgłoszenia, także gdy
+odmowa wynikła z limitu globalnego eventu. Zastane, nie wniesione przez ekran dodawania.
+
+**Szkic:** rozróżnić przyczynę odmowy w wyniku (typ vs global) i dać dwa komunikaty.
+
+---
+
+## B36 — `RegistrationNotice` rzuca ostrzeżenie PHP na tablicowy parametr zapytania
+
+**Priorytet:** niski.
+
+**Stan:** `RegistrationNotice` czyta wartości `$_GET` gołym rzutowaniem `(string)`; parametr
+tablicowy, np. `?evreg_dup[]=1`, daje ostrzeżenie PHP „Array to string conversion". Wzorzec
+zastany w całym pliku, nie wniesiony przez ekran dodawania.
+
+**Szkic:** jeden helper czytający skalar (`is_scalar` → `sanitize_text_field( wp_unslash() )`,
+inaczej pusty) używany przez wszystkie miejsca w pliku.

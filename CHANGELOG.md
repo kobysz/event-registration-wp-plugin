@@ -9,6 +9,11 @@ The section for each released version is published verbatim as the GitHub
 Release body and shown under "View details" in the WordPress plugins screen,
 so keep entries user-facing and concise.
 
+## [Unreleased]
+
+### Added
+- Organizers can now add a registration by hand from the Registrations screen, for people who signed up by phone or e-mail and never filled in the form. The entry is confirmed straight away and never expires. No e-mail is sent by default; a tick box lets you send the attendee a confirmation. Seat limits still apply as usual: if the event or the chosen night is full, the entry goes onto the waiting list, and a waiting-list entry added by hand is confirmed without an e-mail when it later moves up. The attendee's e-mail address may be left blank.
+
 ## [0.2.4] - 2026-11-18
 
 ### Changed
