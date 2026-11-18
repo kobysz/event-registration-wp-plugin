@@ -10,6 +10,8 @@ declare( strict_types=1 );
 namespace EvReg\Admin;
 
 use EvReg\Domain\Accommodation\AccommodationConfig;
+use EvReg\Domain\Accommodation\NightsConfig;
+use EvReg\Domain\Registration\ManualEntry;
 use EvReg\Domain\Registration\RegistrationTypeCollection;
 use EvReg\Domain\Schema\FormSchema;
 use EvReg\Domain\Schema\SchemaException;
@@ -42,6 +44,15 @@ final class RegistrationsScreen {
 	public const ACTION_EXPORT  = 'evreg_export';
 
 	/**
+	 * Wartość `action` w adresie GET, która routuje na ekran ręcznego dodawania.
+	 *
+	 * Osobna od ACTION_ADD: tamta nazywa akcję `admin-post` (zapis), ta — widok. Stała
+	 * istnieje, żeby wybór wydarzenia ({@see RegistrationView}), przycisk na liście
+	 * i gałąź routera nie mogły się rozejść.
+	 */
+	public const ROUTE_ADD = 'add';
+
+	/**
 	 * Podpina submenu i handlery akcji.
 	 */
 	public static function register(): void {
@@ -52,6 +63,7 @@ final class RegistrationsScreen {
 		add_action( 'admin_post_' . self::ACTION_DELETE, array( self::class, 'handle_delete' ) );
 		add_action( 'admin_post_' . self::ACTION_NOTE, array( self::class, 'handle_note' ) );
 		add_action( 'admin_post_' . self::ACTION_EDIT, array( self::class, 'handle_edit' ) );
+		add_action( 'admin_post_' . self::ACTION_ADD, array( self::class, 'handle_add' ) );
 		add_action( 'admin_post_' . self::ACTION_EXPORT, array( self::class, 'handle_export' ) );
 	}
 
@@ -70,7 +82,7 @@ final class RegistrationsScreen {
 	}
 
 	/**
-	 * Renderuje listę albo — wg `action` — ekran szczegółów albo edycji jednego zgłoszenia.
+	 * Renderuje listę albo — wg `action` — szczegóły, edycję albo ręczne dodanie zgłoszenia.
 	 */
 	public static function render(): void {
 		if ( ! current_user_can( Capabilities::CAP ) ) {
@@ -92,6 +104,14 @@ final class RegistrationsScreen {
 			return;
 		}
 
+		// Ekran dodawania bez wydarzenia (0) renderuje wybór wydarzenia, nie formularz —
+		// to ten sam ekran w stanie „jeszcze nie wybrano”.
+		if ( self::ROUTE_ADD === $action ) {
+			// phpcs:ignore WordPress.Security.NonceVerification.Recommended
+			self::view()->render_add( (int) ( $_GET['event_id'] ?? 0 ) );
+			return;
+		}
+
 		self::render_list();
 	}
 
@@ -108,6 +128,7 @@ final class RegistrationsScreen {
 		RegistrationNotice::render();
 		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- odczyt bieżącego filtra listy, widok read-only.
 		RegistrationsOverview::render( isset( $_GET['event_id'] ) ? (int) $_GET['event_id'] : 0 );
+		self::render_add_button();
 		self::render_export_button();
 
 		echo '<form method="get">';
@@ -116,6 +137,33 @@ final class RegistrationsScreen {
 		$table->display();
 		echo '</form>';
 		echo '</div>';
+	}
+
+	/**
+	 * Renderuje link „Dodaj zgłoszenie" niosący bieżący filtr wydarzenia.
+	 *
+	 * Bez nonce: to zwykłe przejście na widok (zapis ma własny nonce w formularzu). Bez
+	 * filtra wydarzenia link prowadzi na ekran z wyborem wydarzenia, więc organizator,
+	 * który listę ma nieprzefiltrowaną, i tak nie trafia w ślepą uliczkę.
+	 */
+	private static function render_add_button(): void {
+		$args = array(
+			'post_type' => EventPostType::POST_TYPE,
+			'page'      => self::SLUG,
+			'action'    => self::ROUTE_ADD,
+		);
+
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- odczyt bieżącego filtra listy do linku widoku.
+		$event_id = isset( $_GET['event_id'] ) ? (int) $_GET['event_id'] : 0;
+		if ( $event_id > 0 ) {
+			$args['event_id'] = $event_id;
+		}
+
+		printf(
+			'<p><a class="button" href="%s">%s</a></p>',
+			esc_url( add_query_arg( $args, admin_url( 'edit.php' ) ) ),
+			esc_html__( 'Dodaj zgłoszenie', 'event-registration' )
+		);
 	}
 
 	/**
@@ -211,14 +259,29 @@ final class RegistrationsScreen {
 	 * Handler promocji z waitlisty. `promoteFromWaitlist` czyta konfigurację noclegów
 	 * zapisaną przy eventcie i rzuca, gdy jest niepoprawna — degradujemy do komunikatu
 	 * zamiast fatala (handler nie ma czego re-renderować, więc PRG jak przy innych kodach).
+	 *
+	 * Wpis ręczny dostaje WŁASNY kod wyniku: jego awans kończy się potwierdzeniem i nie
+	 * wysyła nic (patrz `ReservationService::announcePromotionAfterCommit`), więc zdanie
+	 * o wysłanej prośbie o potwierdzenie byłoby nieprawdą. Serwis zwraca dla obu pochodzeń
+	 * ten sam kod `promoted` — rozróżnia je dopiero ta powierzchnia, po trwałym znaczniku
+	 * z wiersza. Kod `promoted_no_accommodation` zostaje wspólny: o mailu nie mówi.
 	 */
 	public static function handle_promote(): void {
 		$id = self::guard( self::ACTION_PROMOTE );
+
+		// Znacznik czytamy PRZED awansem: po nim wiersza może już nie być w stanie, o który
+		// pytamy, a sam odczyt niczego nie blokuje (awans bierze własny lock i transakcję).
+		$row    = ( new RegistrationRepository() )->findById( $id );
+		$manual = null !== $row && ! empty( $row['manual'] );
 
 		try {
 			$code = self::service()->promoteFromWaitlist( $id )->code;
 		} catch ( SchemaException ) {
 			$code = 'config_error';
+		}
+
+		if ( $manual && 'promoted' === $code ) {
+			$code = 'promoted_manual';
 		}
 
 		self::redirect( $code );
@@ -395,6 +458,227 @@ final class RegistrationsScreen {
 			default: // invalid_status / not_found.
 				self::redirect( $result->code );
 		}
+	}
+
+	/**
+	 * Handler ręcznego dodania zgłoszenia przez organizatora (wpis z rozmowy telefonicznej).
+	 *
+	 * Nonce własny (formularz z {@see RegistrationEditForm::renderAdd}), o zakresie
+	 * WYDARZENIA, nie zgłoszenia — dodawanego zgłoszenia jeszcze nie ma, więc nie ma czym
+	 * nonce zakresować. Kolejność straży jest wiążąca: nonce → uprawnienie → wydarzenie →
+	 * schemat → tryb noclegu → walidacja → typ → przełącznik wysyłki → spójność pary
+	 * pokój/osoba towarzysząca → rezerwacja.
+	 *
+	 * Każdy błąd, który organizator może poprawić na formularzu, wraca INLINE (bez PRG) —
+	 * PRG zgubiłby wszystko, co wpisał, a tu nie ma zapisanego zgłoszenia, z którego
+	 * ekran odtworzyłby odpowiedzi.
+	 */
+	public static function handle_add(): void {
+		$event_id = isset( $_POST['event_id'] ) ? (int) $_POST['event_id'] : 0; // phpcs:ignore WordPress.Security.NonceVerification.Missing -- nonce zweryfikowany niżej.
+
+		check_admin_referer( 'evreg_add_' . $event_id );
+
+		if ( ! current_user_can( Capabilities::CAP ) ) {
+			wp_die( esc_html__( 'Brak uprawnień.', 'event-registration' ) );
+		}
+
+		// Nonce zakresu wydarzenia dowodzi, że formularz wyszedł z tego ekranu dla TEJ
+		// liczby — nie tego, że liczba wskazuje na wydarzenie. Post innego typu (albo
+		// usunięty) dałby niżej schemat null i komunikat o konfiguracji, choć problemem
+		// jest samo wydarzenie.
+		if ( $event_id <= 0 || EventPostType::POST_TYPE !== get_post_type( $event_id ) ) {
+			self::redirect( 'add_no_event' );
+			return;
+		}
+
+		$loader = new EventFormLoader( new EventConfigRepository() );
+		$schema = $loader->load( $event_id );
+
+		if ( null === $schema ) {
+			self::redirect( 'config_error' );
+			return;
+		}
+
+		// Tryb „doby” rozstrzygamy RAZ, u wejścia, jak handle_edit i SubmitHandler:
+		// niepoprawna konfiguracja nie może dotrzeć do asemblera, walidatora ani serwisu.
+		try {
+			$nights = $loader->nights( $event_id );
+		} catch ( SchemaException ) {
+			self::redirect( 'config_error' );
+			return;
+		}
+
+		$raw    = wp_unslash( $_POST ); // phpcs:ignore WordPress.Security.NonceVerification.Missing -- nonce zweryfikowany wyżej.
+		$posted = is_array( $raw ) ? $raw : array();
+		$notify = ! empty( $posted['evreg_notify'] );
+
+		$assembler = new SubmissionAssembler();
+
+		// E-mail zwolniony z `required`: organizator przepisuje rozmowę telefoniczną, a
+		// rozmówca — często osoba starsza — adresu zwykle nie ma. Poprawność PODANEGO
+		// adresu jest dalej sprawdzana, zwolnienie dotyczy wyłącznie obowiązku podania.
+		$assembled = $assembler->assemble( $schema, $posted, $nights, true );
+
+		if ( ! $assembled->isValid() ) {
+			self::rerender_add( $schema, $event_id, $assembled->errors(), $assembled->values(), $nights, $notify );
+			return;
+		}
+
+		$request = $assembled->request();
+
+		if ( null === $request ) {
+			self::redirect( 'config_error' );
+			return;
+		}
+
+		// Typ zgłoszenia niesie limit miejsc i cenę, więc wiersz bez niego nie ma
+		// ani jednego, ani drugiej. Walidacja go nie złapie, gdy autor formularza nie
+		// oznaczył pola typu jako wymaganego, a serwis przyjąłby taki wpis milcząco.
+		$config = ( new EventConfigRepository() )->get( $event_id );
+		$types  = RegistrationTypeCollection::fromArray( is_array( $config['types'] ) ? $config['types'] : array() );
+
+		if ( '' === $request->typeKey || ! $types->has( $request->typeKey ) ) {
+			self::rerender_add_field(
+				$schema,
+				$event_id,
+				FormSchema::TYPE_FIELD_KEY,
+				'' === $request->typeKey ? 'required' : 'not_in_options',
+				$assembled->rawAnswers(),
+				$nights,
+				$notify
+			);
+			return;
+		}
+
+		// Przełącznik wysyłki obiecuje maila, a pusty adres znaczy obietnicę, której nic
+		// nie spełni. Odmawiamy zapisu, zamiast zapisać po cichu bez maila: organizator
+		// zaznaczył wysyłkę, bo liczy na to, że uczestnik potwierdzenie dostanie.
+		if ( $notify && '' === $request->email ) {
+			$email_key = $assembler->emailFieldKey( $schema );
+
+			if ( '' === $email_key ) {
+				// Formularz tego wydarzenia nie ma pola e-mail, więc adresu nie ma gdzie
+				// podać — to nie jest błąd pola i nie ma czego re-renderować z błędem.
+				self::redirect( 'add_notify_no_email' );
+				return;
+			}
+
+			self::rerender_add_field( $schema, $event_id, $email_key, 'required', $assembled->rawAnswers(), $nights, $notify );
+			return;
+		}
+
+		// Reguła spójności pary pokój/osoba towarzysząca obowiązuje tu BEZWARUNKOWO, inaczej
+		// niż w handle_edit: tam warunek chroni zgłoszenia zastane w pokoju oznaczonym jako
+		// dwuosobowy PO fakcie, a nowy wpis nie ma czego zastać — każde pole jest świeżym
+		// wyborem organizatora, więc sprzeczność jest jego pomyłką do poprawienia teraz.
+		//
+		// Tryb „doby” nie wchodzi: reguła dotyczy POKOJU, którego ten tryb nie ma, a
+		// AccommodationConfig::fromArray rzuca na zalegającym inwentarzu klasycznym.
+		if ( null === $nights ) {
+			$mismatch = self::companionRoomMismatch(
+				$schema,
+				null === $request->selection ? null : $request->selection->roomKey,
+				$request->companion
+			);
+
+			if ( null !== $mismatch ) {
+				self::rerender_add_field( $schema, $event_id, $schema->accommodationFieldKey(), $mismatch, $assembled->rawAnswers(), $nights, $notify );
+				return;
+			}
+		}
+
+		// Czytamy PRZED zapisem: po nim aktywnym zgłoszeniem na ten adres jest już to,
+		// które właśnie powstało, więc KAŻDY wpis wyglądałby na duplikat. Sam duplikat
+		// nie blokuje — rodzina na jednej skrzynce to normalny przypadek, a organizator
+		// ma tylko wiedzieć, że drugie zgłoszenie na ten adres nie jest pomyłką.
+		$duplicate = '' !== $request->email
+			&& ( new RegistrationRepository() )->activeRegistrationExists( $event_id, $request->email );
+
+		try {
+			$result = self::service()->reserve( $event_id, $request, new ManualEntry( $notify ) );
+		} catch ( SchemaException ) {
+			self::redirect( 'config_error' );
+			return;
+		}
+
+		switch ( $result->code ) {
+			case 'reserved':
+			case 'waitlisted':
+				$extra = array(
+					'action' => 'view',
+					'id'     => (int) $result->registrationId,
+				);
+
+				if ( $duplicate ) {
+					$extra['evreg_dup'] = '1';
+				}
+
+				self::redirect( 'reserved' === $result->code ? 'added' : 'added_waitlist', $extra );
+				break;
+			case 'accommodation_full':
+				// Nocleg zajęty: zgłoszenia NIE zapisano (serwis wycofał transakcję), więc
+				// wracamy inline z błędem przy polu noclegu. W trybie „doby” wynik niesie
+				// klucz blokującej doby — renderer zamienia go na zdanie z jej etykietą.
+				self::rerender_add_field(
+					$schema,
+					$event_id,
+					$schema->accommodationFieldKey(),
+					'' === $result->blockingNight ? 'accommodation_full' : 'night_full:' . $result->blockingNight,
+					$assembled->rawAnswers(),
+					$nights,
+					$notify
+				);
+				break;
+			case 'rejected':
+				self::redirect( 'capacity_full' );
+				break;
+			default: // duplicate — nieosiągalne dla wpisu ręcznego (serwis pomija guard duplikatu).
+				self::redirect( $result->code );
+		}
+	}
+
+	/**
+	 * Re-renderuje ekran dodawania (bez PRG) z błędami i z tym, co organizator wpisał.
+	 *
+	 * Jedyne wyjście inline w handle_add(), bo stan przełącznika wysyłki trzeba odtworzyć
+	 * na KAŻDEJ odrzuconej ścieżce. `evreg_notify` nie jest polem schematu, więc nie ma go
+	 * ani w `values()`, ani w `rawAnswers()`; bez dołożenia wracałby odznaczony, a następny
+	 * zapis poszedłby po cichu bez maila, o który organizator właśnie prosił.
+	 *
+	 * @param FormSchema           $schema   Złożony schemat formularza.
+	 * @param int                  $event_id ID wydarzenia.
+	 * @param array<string,string> $errors   Błędy walidacji: klucz pola → kod błędu.
+	 * @param array<string,mixed>  $answers  Odpowiedzi do prefillu.
+	 * @param NightsConfig|null    $nights   Konfiguracja trybu „doby” albo null (klasyczny).
+	 * @param bool                 $notify   Stan przełącznika wysyłki potwierdzenia.
+	 */
+	private static function rerender_add( FormSchema $schema, int $event_id, array $errors, array $answers, ?NightsConfig $nights, bool $notify ): void {
+		if ( $notify ) {
+			$answers['evreg_notify'] = '1';
+		}
+
+		self::view()->render_add_errors( $schema, $event_id, $errors, $answers, $nights );
+	}
+
+	/**
+	 * Re-renderuje ekran dodawania z jednym błędem przy wskazanym polu.
+	 *
+	 * Wartości MUSZĄ przychodzić z `rawAnswers()` wołającego, nie z `values()`: na gałęzi
+	 * poprawnej walidacji `values()` niesie nocleg jako obiekt AccommodationSelection
+	 * i nie ma kluczy `evreg_companion*`, więc re-render z nich pokazałby „Bez noclegu"
+	 * jako zaznaczone i po cichu zgubił osobę towarzyszącą.
+	 *
+	 * @param FormSchema          $schema   Złożony schemat formularza.
+	 * @param int                 $event_id ID wydarzenia.
+	 * @param string|null         $key      Klucz pola, przy którym stoi błąd; null = schemat
+	 *                                      tego pola nie ma (wtedy nie ma czego oznaczyć).
+	 * @param string              $code     Kod błędu.
+	 * @param array<string,mixed> $answers  Surowe odpowiedzi do prefillu.
+	 * @param NightsConfig|null   $nights   Konfiguracja trybu „doby” albo null (klasyczny).
+	 * @param bool                $notify   Stan przełącznika wysyłki potwierdzenia.
+	 */
+	private static function rerender_add_field( FormSchema $schema, int $event_id, ?string $key, string $code, array $answers, ?NightsConfig $nights, bool $notify ): void {
+		self::rerender_add( $schema, $event_id, null === $key ? array() : array( $key => $code ), $answers, $nights, $notify );
 	}
 
 	/**

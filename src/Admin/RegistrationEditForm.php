@@ -185,6 +185,12 @@ final class RegistrationEditForm {
 			'not_in_options'          => __( 'Wybór spoza dostępnych opcji.', 'event-registration' ),
 			'too_long'                => __( 'Wpis jest za długi.', 'event-registration' ),
 			'invalid_accommodation'   => __( 'Nieprawidłowy wybór noclegu.', 'event-registration' ),
+			// Kod odmowy rezerwacji, nie walidacji pola: wybór BYŁ poprawny, tylko miejsce
+			// zniknęło. FormRenderer ma go od początku; tu brakowało, bo ekran edycji mówi
+			// o tym przez PRG i RegistrationNotice, a ekran dodawania re-renderuje inline.
+			// Treść jak publiczna, w trybie bezosobowym — organizator czyta o kimś innym
+			// (ten sam zabieg co w fieldErrorMessage() dla night_full).
+			'accommodation_full'      => __( 'Wybrany nocleg nie ma już wolnych miejsc dla tego zgłoszenia. Wybierz inny albo „Bez noclegu".', 'event-registration' ),
 			'roommate_not_allowed'    => __( 'Współlokator niedozwolony dla tego pokoju.', 'event-registration' ),
 			'companion_name_required' => __( 'Podaj imię i nazwisko osoby towarzyszącej.', 'event-registration' ),
 			'companion_required'      => __( 'Ten pokój jest dwuosobowy. Zaznacz osobę towarzyszącą albo wybierz pokój jednoosobowy.', 'event-registration' ),

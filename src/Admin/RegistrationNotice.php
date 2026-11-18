@@ -39,6 +39,12 @@ final class RegistrationNotice {
 			'confirmed'                 => array( 'success', __( 'Zgłoszenie potwierdzone.', 'event-registration' ) ),
 			'cancelled'                 => array( 'success', __( 'Zgłoszenie anulowane, miejsce zwolnione.', 'event-registration' ) ),
 			'promoted'                  => array( 'success', __( 'Awansowano z listy rezerwowej — wysłano prośbę o potwierdzenie.', 'event-registration' ) ),
+			// Dwa kody awansu, bo awans robi dwie różne rzeczy. Zgłoszenie publiczne wraca
+			// jako oczekujące i dostaje mail z prośbą o potwierdzenie; wpis ręczny wraca
+			// POTWIERDZONY i nie dostaje nic, więc to samo zdanie byłoby o nim nieprawdą
+			// (patrz RegistrationsScreen::handle_promote). promoted_no_accommodation jest
+			// wspólny — o mailu nie mówi, więc jest prawdziwy dla obu pochodzeń.
+			'promoted_manual'           => array( 'success', __( 'Awansowano z listy rezerwowej — zgłoszenie wpisane ręcznie jest od razu potwierdzone, więc nie wysłano żadnego e-maila.', 'event-registration' ) ),
 			'promoted_no_accommodation' => array( 'warning', __( 'Awansowano z listy rezerwowej, ale wybrany nocleg był już pełny — zgłoszenie nie ma przyznanego noclegu.', 'event-registration' ) ),
 			'occupancy_mismatch'        => array( 'error', __( 'Nie można awansować: wybrany pokój ma dziś inną liczbę osób niż zapisano w zgłoszeniu. Popraw nocleg albo osobę towarzyszącą w edycji odpowiedzi.', 'event-registration' ) ),
 			'deleted'                   => array( 'success', __( 'Zgłoszenie trwale usunięte.', 'event-registration' ) ),
@@ -52,6 +58,14 @@ final class RegistrationNotice {
 			'accommodation_gone'        => array( 'error', __( 'Doba zapisana w tym zgłoszeniu nie istnieje już w konfiguracji wydarzenia, więc edycja nie została zapisana.', 'event-registration' ) ),
 			'config_error'              => array( 'error', __( 'Konfiguracja noclegów tego wydarzenia jest niepoprawna — popraw ją w ustawieniach wydarzenia.', 'event-registration' ) ),
 			'export_no_event'           => array( 'error', __( 'Wybierz event, aby wyeksportować zgłoszenia.', 'event-registration' ) ),
+			// Komunikaty ręcznego dodawania milczą o mailu: o tym, czy cokolwiek poszło,
+			// decyduje przełącznik wysyłki na formularzu, a nie wynik zapisu. Zdanie
+			// o wysłanym (albo niewysłanym) potwierdzeniu byłoby prawdziwe tylko dla
+			// jednego ustawienia przełącznika.
+			'added'                     => array( 'success', __( 'Zgłoszenie dodane ręcznie i potwierdzone.', 'event-registration' ) ),
+			'added_waitlist'            => array( 'warning', __( 'Zgłoszenie dodane ręcznie na listę rezerwową — nie było wolnego miejsca, więc zajmie je dopiero po awansie.', 'event-registration' ) ),
+			'add_no_event'              => array( 'error', __( 'Nie znaleziono wydarzenia, do którego miało trafić zgłoszenie — zacznij od wyboru wydarzenia.', 'event-registration' ) ),
+			'add_notify_no_email'       => array( 'error', __( 'Zgłoszenie nie zostało zapisane: wysyłka potwierdzenia jest włączona, a formularz tego wydarzenia nie ma pola e-mail, więc nie ma na jaki adres wysłać. Odznacz wysyłkę albo dodaj do formularza pole e-mail.', 'event-registration' ) ),
 		);
 
 		if ( ! isset( $messages[ $code ] ) ) {
@@ -86,6 +100,19 @@ final class RegistrationNotice {
 					__( 'Doba „%s” nie ma już tyle wolnych miejsc. Odznacz ją albo wybierz inne doby.', 'event-registration' ),
 					$nights->nightLabel( $night )
 				);
+			}
+		}
+
+		// Drugie aktywne zgłoszenie na ten sam adres to INFORMACJA, nie odmowa: zgłoszenie
+		// jest zapisane, a organizator ma powody użyć adresu drugi raz (rodzina na jednej
+		// skrzynce). Flaga, nie osobne kody, bo dotyczy obu wyników dodania, a zdanie
+		// o duplikacie jest jedno.
+		if ( in_array( $code, array( 'added', 'added_waitlist' ), true ) ) {
+			// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- odczyt flagi wyniku z PRG, widok read-only.
+			$duplicate = isset( $_GET['evreg_dup'] ) && '1' === sanitize_text_field( wp_unslash( (string) $_GET['evreg_dup'] ) );
+
+			if ( $duplicate ) {
+				$text .= ' ' . __( 'Uwaga: ten sam adres e-mail ma już inne aktywne zgłoszenie na to wydarzenie.', 'event-registration' );
 			}
 		}
 

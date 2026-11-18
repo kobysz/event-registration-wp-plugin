@@ -381,7 +381,9 @@ final class RegistrationView {
 		echo '<form method="get" action="' . esc_url( admin_url( 'edit.php' ) ) . '">';
 		printf( '<input type="hidden" name="post_type" value="%s" />', esc_attr( EventPostType::POST_TYPE ) );
 		printf( '<input type="hidden" name="page" value="%s" />', esc_attr( RegistrationsScreen::SLUG ) );
-		echo '<input type="hidden" name="action" value="add" />';
+		// Wartość `action` bierzemy ze stałej routera, nie z literału: wybór wydarzenia
+		// i gałąź routująca na ten ekran muszą zostać jedną rzeczą.
+		echo '<input type="hidden" name="action" value="' . esc_attr( RegistrationsScreen::ROUTE_ADD ) . '" />';
 		echo '<p><label for="evreg-add-event">' . esc_html__( 'Wydarzenie', 'event-registration' ) . '</label> ';
 		echo '<select id="evreg-add-event" name="event_id">';
 		foreach ( $events as $event ) {
