@@ -4,6 +4,7 @@ declare( strict_types=1 );
 
 namespace EvReg\Tests\Integration\Frontend;
 
+use EvReg\Domain\Schema\FormSchema;
 use EvReg\Frontend\EventFormLoader;
 use EvReg\Frontend\SubmissionAssembler;
 use EvReg\Persistence\EventConfigRepository;
@@ -86,5 +87,63 @@ final class SubmissionAssemblerTest extends WP_UnitTestCase {
 		$this->assertFalse( $assembled->isValid() );
 		$this->assertNull( $assembled->request() );
 		$this->assertEqualsCanonicalizing( $fields, $assembled->values() );
+	}
+
+	public function test_blank_required_email_is_an_error_unless_email_optional(): void {
+		$schema = ( new EventFormLoader( new EventConfigRepository() ) )->load( $this->event_id );
+		$this->assertNotNull( $schema );
+
+		$post = array(
+			'evreg_field' => array(
+				'email'  => '',
+				'name'   => 'Jan',
+				'__type' => 'std',
+			),
+		);
+
+		$strict = $this->assembler->assemble( $schema, $post );
+		$this->assertFalse( $strict->isValid() );
+		$this->assertArrayHasKey( 'email', $strict->errors() );
+
+		$relaxed = $this->assembler->assemble( $schema, $post, null, true );
+		$this->assertTrue( $relaxed->isValid() );
+		$this->assertSame( '', $relaxed->request()->email );
+	}
+
+	public function test_email_field_key_picks_first_email_field_even_when_blank(): void {
+		$schema = FormSchema::fromArray(
+			array(
+				'version'  => 1,
+				'sections' => array(
+					array(
+						'key'    => 'dane',
+						'title'  => 'Dane',
+						'fields' => array(
+							array( 'key' => 'mail_a', 'type' => 'email', 'label' => 'A' ),
+							array( 'key' => 'mail_b', 'type' => 'email', 'label' => 'B' ),
+						),
+					),
+				),
+			)
+		);
+
+		$this->assertSame( 'mail_a', $this->assembler->emailFieldKey( $schema ) );
+	}
+
+	public function test_email_field_key_is_empty_without_email_field(): void {
+		$schema = FormSchema::fromArray(
+			array(
+				'version'  => 1,
+				'sections' => array(
+					array(
+						'key'    => 'dane',
+						'title'  => 'Dane',
+						'fields' => array( array( 'key' => 'name', 'type' => 'text', 'label' => 'Imię' ) ),
+					),
+				),
+			)
+		);
+
+		$this->assertSame( '', $this->assembler->emailFieldKey( $schema ) );
 	}
 }

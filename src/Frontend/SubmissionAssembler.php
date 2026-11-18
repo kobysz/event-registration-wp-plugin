@@ -42,11 +42,16 @@ final class SubmissionAssembler {
 	 * @param NightsConfig|null   $nights Konfiguracja trybu „doby” rozstrzygnięta u wejścia
 	 *                                    (NightsResolver); null = tryb klasyczny. Asembler sam
 	 *                                    NightsConfig::fromArray nie woła.
+	 * @param bool                $emailOptional Czy pole e-mail zwolnić z `required` (wpis ręczny
+	 *                                           organizatora — rozmówca przez telefon często nie ma adresu).
+	 *                                           Poprawność podanego adresu nadal jest sprawdzana.
 	 */
-	public function assemble( FormSchema $schema, array $post, ?NightsConfig $nights = null ): AssembledSubmission {
+	public function assemble( FormSchema $schema, array $post, ?NightsConfig $nights = null, bool $emailOptional = false ): AssembledSubmission {
 		$answers   = $this->extractAnswers( $schema, $post, $nights );
 		$validator = new Validator( new VisibilityResolver( new ConditionEngine() ), new FieldValidatorRegistry() );
-		$result    = $validator->validate( $schema, $answers );
+		$email_key = $emailOptional ? $this->emailFieldKey( $schema ) : '';
+		$optional  = '' === $email_key ? array() : array( $email_key );
+		$result    = $validator->validate( $schema, $answers, $optional );
 
 		$accommodationField = $this->accommodationField( $schema );
 		$companion          = false;
@@ -203,6 +208,25 @@ final class SubmissionAssembler {
 		}
 
 		return $answers;
+	}
+
+	/**
+	 * Klucz pierwszego pola typu e-mail w kolejności schematu, NIEZALEŻNIE od wartości.
+	 *
+	 * Celowo inna reguła niż prywatne `extractEmail()` (pierwsze NIEPUSTE pole e-mail z wartości):
+	 * ta metoda służy właśnie przypadkowi pustego pola, więc nie może na wartość patrzeć.
+	 * Nie unifikować. Zwraca '' gdy schemat nie ma pola e-mail.
+	 *
+	 * @param FormSchema $schema Schemat formularza.
+	 */
+	public function emailFieldKey( FormSchema $schema ): string {
+		foreach ( $schema->allFields() as $field ) {
+			if ( FieldType::Email === $field->type ) {
+				return $field->key;
+			}
+		}
+
+		return '';
 	}
 
 	/**

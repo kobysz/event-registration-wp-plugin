@@ -34,8 +34,12 @@ final class Validator {
 	 *
 	 * @param FormSchema          $schema  Schemat formularza.
 	 * @param array<string,mixed> $answers Udzielone odpowiedzi, indeksowane kluczem pola.
+	 * @param array<int,string>   $optionalKeys Klucze pól zwolnionych ze sprawdzenia `required`
+	 *                                          (np. e-mail przy wpisie ręcznym). Zwolnienie dotyczy
+	 *                                          WYŁĄCZNIE `required` — wartość podana w takim polu
+	 *                                          nadal przechodzi walidator jego typu.
 	 */
-	public function validate( FormSchema $schema, array $answers ): ValidationResult {
+	public function validate( FormSchema $schema, array $answers, array $optionalKeys = array() ): ValidationResult {
 		$errors = array();
 		$values = array();
 
@@ -56,7 +60,7 @@ final class Validator {
 				continue;
 			}
 
-			if ( $field->required && $this->isBlank( $outcome->value ) ) {
+			if ( $field->required && ! in_array( $field->key, $optionalKeys, true ) && $this->isBlank( $outcome->value ) ) {
 				$errors[ $field->key ] = 'required';
 				continue;
 			}
