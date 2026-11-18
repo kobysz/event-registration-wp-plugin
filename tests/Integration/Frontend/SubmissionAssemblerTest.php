@@ -107,7 +107,30 @@ final class SubmissionAssemblerTest extends WP_UnitTestCase {
 
 		$relaxed = $this->assembler->assemble( $schema, $post, null, true );
 		$this->assertTrue( $relaxed->isValid() );
+		$this->assertNotNull( $relaxed->request() );
 		$this->assertSame( '', $relaxed->request()->email );
+	}
+
+	public function test_malformed_email_is_still_an_error_when_email_optional(): void {
+		$schema = ( new EventFormLoader( new EventConfigRepository() ) )->load( $this->event_id );
+		$this->assertNotNull( $schema );
+
+		$assembled = $this->assembler->assemble(
+			$schema,
+			array(
+				'evreg_field' => array(
+					'email'  => 'nie-adres',
+					'name'   => 'Jan',
+					'__type' => 'std',
+				),
+			),
+			null,
+			true
+		);
+
+		$this->assertFalse( $assembled->isValid() );
+		$this->assertArrayHasKey( 'email', $assembled->errors() );
+		$this->assertNotSame( 'required', $assembled->errors()['email'] );
 	}
 
 	public function test_email_field_key_picks_first_email_field_even_when_blank(): void {

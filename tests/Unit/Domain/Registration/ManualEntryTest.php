@@ -13,6 +13,14 @@ final class ManualEntryTest extends TestCase {
 		$this->assertFalse( ( new ManualEntry() )->notify );
 	}
 
+	public function test_notify_is_immutable(): void {
+		$entry = new ManualEntry( true );
+
+		$this->expectException( \Error::class );
+		// @phpstan-ignore-next-line Celowo łamiemy readonly, by sprawdzić niemutowalność.
+		$entry->notify = false;
+	}
+
 	public function test_carries_notify_flag(): void {
 		$this->assertTrue( ( new ManualEntry( true ) )->notify );
 	}

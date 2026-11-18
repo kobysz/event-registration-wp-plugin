@@ -20,6 +20,6 @@ final class ManualEntry {
 	 *
 	 * @param bool $notify Czy uczestnik ma dostać maile cyklu życia (domyślnie nie).
 	 */
-	public function __construct( public bool $notify = false ) {
+	public function __construct( public readonly bool $notify = false ) {
 	}
 }
