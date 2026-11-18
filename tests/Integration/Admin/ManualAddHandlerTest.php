@@ -171,6 +171,44 @@ final class ManualAddHandlerTest extends WP_UnitTestCase {
 	}
 
 	/**
+	 * Przestawia event w tryb „doby” z jedną otwartą dobą.
+	 */
+	private function saveNightsConfig(): void {
+		( new EventConfigRepository() )->save(
+			$this->event_id,
+			array(
+				'schema'        => array(
+					'version'  => 1,
+					'sections' => array(
+						array(
+							'key'    => 'dane',
+							'title'  => 'Dane',
+							'fields' => array(
+								array( 'key' => '__type', 'type' => 'radio', 'label' => 'Typ' ),
+								array( 'key' => 'imie', 'type' => 'text', 'label' => 'Imię', 'required' => true ),
+								array( 'key' => 'email', 'type' => 'email', 'label' => 'E-mail', 'required' => true ),
+								array( 'key' => 'nocleg', 'type' => 'accommodation', 'label' => 'Nocleg' ),
+							),
+						),
+					),
+				),
+				'accommodation' => array(
+					'mode'              => 'nights',
+					'nights'            => array(
+						array(
+							'key'   => 'n1819',
+							'label' => '18/19 XI',
+							'price' => 80.0,
+							'seats' => 4,
+						),
+					),
+					'companion_enabled' => false,
+				),
+			)
+		);
+	}
+
+	/**
 	 * Wypełnia POST formularza dodawania.
 	 *
 	 * @param array<string,mixed> $fields Wartości pól schematu (evreg_field[...]).
@@ -604,5 +642,65 @@ final class ManualAddHandlerTest extends WP_UnitTestCase {
 		$this->assertSame( 'pending', (string) $this->repository->findById( $id )['status'] );
 
 		$this->assertStringContainsString( 'wysłano prośbę o potwierdzenie', $this->renderRedirectTarget( $redirect->location ) );
+	}
+
+	/**
+	 * Awaria zapisu wierszy dób nie może skończyć się fatalem.
+	 *
+	 * Serwis rzuca \RuntimeException, gdy zapisze inną liczbę dób niż żądaną — transakcja
+	 * jest wtedy wycofana, więc nic nie powstaje, ale bez degradacji organizator dostaje
+	 * białą stronę i nie wie, czy zgłoszenie jest w bazie. Awarię wstrzykujemy w ZAPIS,
+	 * nie w wybór: INSERT wierszy dób podmieniamy na DELETE, który nie trafia w nic.
+	 */
+	public function test_handle_add_degrades_a_failed_night_write_into_a_notice(): void {
+		$this->saveNightsConfig();
+
+		$breaker = static function ( $sql ) {
+			if ( is_string( $sql ) && str_contains( $sql, 'INSERT INTO' ) && str_contains( $sql, 'booking_nights' ) ) {
+				return 'DELETE FROM ' . Migrations::table( 'booking_nights' ) . ' WHERE registration_id = 0 AND 1 = 0';
+			}
+
+			return $sql;
+		};
+
+		// Log awarii jest dla operatora JEDYNYM śladem przyczyny, więc sprawdzamy go
+		// zamiast puszczać na stderr testów.
+		$log      = tempnam( sys_get_temp_dir(), 'evreg-add-failure' );
+		$previous = ini_set( 'error_log', (string) $log );
+
+		add_filter( 'query', $breaker );
+
+		$this->postAdd(
+			array(
+				'__type' => 'uczestnik',
+				'imie'   => 'Jan',
+				'email'  => 'jan@example.com',
+				'nocleg' => array( 'nights' => array( 'n1819' ) ),
+			)
+		);
+
+		try {
+			[ $redirect, $html ] = $this->runHandler();
+		} finally {
+			remove_filter( 'query', $breaker );
+
+			if ( false !== $previous ) {
+				ini_set( 'error_log', $previous );
+			}
+		}
+
+		$this->assertNotNull( $redirect, 'Awaria zapisu musi skończyć się komunikatem (PRG), nie fatalem.' );
+		$this->assertStringContainsString( 'evreg_msg=add_failed', $redirect->location );
+		$this->assertSame( '', $html );
+		$this->assertSame( 0, $this->registrationCount(), 'Transakcja wycofana — nic nie zostało zapisane.' );
+
+		$logged = (string) file_get_contents( (string) $log );
+		unlink( (string) $log );
+		$this->assertStringContainsString( 'evreg manual add failed: Zapisano 0 z 1', $logged, 'Operator musi mieć w logu przyczynę.' );
+
+		$notice = $this->renderRedirectTarget( $redirect->location );
+
+		$this->assertStringContainsString( 'notice-error', $notice );
+		$this->assertStringContainsString( 'Nic nie zostało zapisane', $notice );
 	}
 }

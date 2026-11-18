@@ -472,6 +472,9 @@ final class RegistrationsScreen {
 	 * Każdy błąd, który organizator może poprawić na formularzu, wraca INLINE (bez PRG) —
 	 * PRG zgubiłby wszystko, co wpisał, a tu nie ma zapisanego zgłoszenia, z którego
 	 * ekran odtworzyłby odpowiedzi.
+	 *
+	 * @throws \RuntimeException Gdy rezerwacja na ścieżce KLASYCZNEJ rzuci wyjątek zapisu;
+	 *                           ścieżka dobowa degraduje go do komunikatu (patrz niżej).
 	 */
 	public static function handle_add(): void {
 		$event_id = isset( $_POST['event_id'] ) ? (int) $_POST['event_id'] : 0; // phpcs:ignore WordPress.Security.NonceVerification.Missing -- nonce zweryfikowany niżej.
@@ -598,6 +601,28 @@ final class RegistrationsScreen {
 			$result = self::service()->reserve( $event_id, $request, new ManualEntry( $notify ) );
 		} catch ( SchemaException ) {
 			self::redirect( 'config_error' );
+			return;
+		} catch ( \RuntimeException $e ) {
+			// Tryb „doby”: serwis rzuca, gdy liczba zapisanych wierszy dób nie zgadza się
+			// z żądaną — awaria integralności zapisu, nie błąd wyboru. Transakcja jest już
+			// wycofana, więc NIC nie powstało, ale organizator dowie się o tym tylko wtedy,
+			// gdy mu to powiemy: bez tej gałęzi dostaje fatala, czyli białą stronę bez
+			// żadnej informacji, czy zgłoszenie zostało zapisane. Degradacja i treść jak na
+			// ścieżce publicznej (SubmitHandler + Shortcode::resultNotice), żeby ta sama
+			// awaria nie opowiadała dwóch różnych historii; log zostaje dla operatora.
+			//
+			// O TRYB pytamy rozstrzygnięcie z wejścia, nie żądanie (jak SubmitHandler):
+			// `request->nights === null` znaczy „wyboru dób nie podano", a nie „to event
+			// klasyczny". Ścieżka klasyczna takiego rzutu nie ma, więc jej wyjątki — czyli
+			// coś nieprzewidzianego — lecą dalej, głośno, zamiast chować się za komunikatem.
+			if ( null === $nights ) {
+				throw $e;
+			}
+
+			// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
+			error_log( 'evreg manual add failed: ' . $e->getMessage() );
+
+			self::redirect( 'add_failed' );
 			return;
 		}
 

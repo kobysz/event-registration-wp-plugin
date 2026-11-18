@@ -66,6 +66,10 @@ final class RegistrationNotice {
 			'added_waitlist'            => array( 'warning', __( 'Zgłoszenie dodane ręcznie na listę rezerwową — nie było wolnego miejsca, więc zajmie je dopiero po awansie.', 'event-registration' ) ),
 			'add_no_event'              => array( 'error', __( 'Nie znaleziono wydarzenia, do którego miało trafić zgłoszenie — zacznij od wyboru wydarzenia.', 'event-registration' ) ),
 			'add_notify_no_email'       => array( 'error', __( 'Zgłoszenie nie zostało zapisane: wysyłka potwierdzenia jest włączona, a formularz tego wydarzenia nie ma pola e-mail, więc nie ma na jaki adres wysłać. Odznacz wysyłkę albo dodaj do formularza pole e-mail.', 'event-registration' ) ),
+			// Awaria zapisu po naszej stronie, nie pomyłka organizatora: treść jak na
+			// formularzu publicznym (Shortcode::resultNotice), bez rady „skontaktuj się
+			// z organizatorem" — tu organizator właśnie to czyta.
+			'add_failed'                => array( 'error', __( 'Nie udało się zapisać zgłoszenia z powodu błędu po naszej stronie. Nic nie zostało zapisane — spróbuj ponownie za chwilę.', 'event-registration' ) ),
 		);
 
 		if ( ! isset( $messages[ $code ] ) ) {
