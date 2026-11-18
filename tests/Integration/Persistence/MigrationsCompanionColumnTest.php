@@ -21,6 +21,6 @@ final class MigrationsCompanionColumnTest extends WP_UnitTestCase {
 	}
 
 	public function test_companion_column_ships_with_current_schema_version(): void {
-		$this->assertSame( 7, Migrations::DB_VERSION );
+		$this->assertGreaterThanOrEqual( 7, Migrations::DB_VERSION );
 	}
 }

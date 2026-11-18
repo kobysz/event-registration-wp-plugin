@@ -16,7 +16,7 @@ defined( 'ABSPATH' ) || exit;
  */
 final class Migrations {
 
-	public const DB_VERSION = 7;
+	public const DB_VERSION = 8;
 
 	public const VERSION_OPTION = 'evreg_db_version';
 
@@ -86,6 +86,7 @@ final class Migrations {
 				companion tinyint(1) NOT NULL DEFAULT 0,
 				companion_name varchar(191) NOT NULL DEFAULT '',
 				lang varchar(12) NOT NULL DEFAULT '',
+				manual tinyint(1) NOT NULL DEFAULT 0,
 				token char(32) NOT NULL,
 				data longtext NOT NULL,
 				price_total decimal(10,2) NOT NULL DEFAULT 0,

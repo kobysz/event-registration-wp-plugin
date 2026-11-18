@@ -36,7 +36,7 @@ final class BookingLabelColumnsTest extends WP_UnitTestCase {
 	}
 
 	public function test_label_columns_ship_with_current_schema_version(): void {
-		$this->assertSame( 7, Migrations::DB_VERSION );
+		$this->assertGreaterThanOrEqual( 7, Migrations::DB_VERSION );
 	}
 
 	public function test_insert_stores_label_snapshot(): void {

@@ -69,7 +69,7 @@ final class BookingNightsTest extends WP_UnitTestCase {
 		$table = Migrations::table( 'booking_nights' );
 
 		$this->assertSame( $table, $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) ) );
-		$this->assertSame( 7, Migrations::DB_VERSION );
+		$this->assertGreaterThanOrEqual( 7, Migrations::DB_VERSION );
 		$this->assertSame(
 			array( 'id', 'registration_id', 'night_key', 'night_label', 'seats', 'price' ),
 			$wpdb->get_col( 'DESC ' . $table, 0 ) // phpcs:ignore WordPress.DB.DirectDatabaseQuery

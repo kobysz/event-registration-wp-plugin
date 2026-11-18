@@ -214,8 +214,9 @@ final class RegistrationRepository {
 				'lang'           => (string) ( $row['lang'] ?? '' ),
 				'companion'      => (int) ( $row['companion'] ?? 0 ),
 				'companion_name' => (string) ( $row['companion_name'] ?? '' ),
+				'manual'         => (int) ( $row['manual'] ?? 0 ),
 			),
-			array( '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%f', '%s', '%s', '%s', '%s', '%d', '%s' )
+			array( '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%f', '%s', '%s', '%s', '%s', '%d', '%s', '%d' )
 		);
 
 		return (int) $wpdb->insert_id;
