@@ -799,3 +799,32 @@ walidować karty dób przy zapisie w REST, żeby pusty klucz nie trafiał do met
 **Szkic:** dalsze cięcie lista/handlery to osobna decyzja, nie dokończenie B20 —
 podejmować, gdy ekran znów zacznie rosnąć, nie prewencyjnie. Patrz też uwaga o cyklu
 `RegistrationView` ↔ `RegistrationsScreen` w B26.
+
+---
+
+## B30 — Przetłumaczony help text pola traci rich text
+
+**Priorytet:** niski.
+
+**Stan:** bazowy `description` jest w `RICH_TEXT_KEYS` i renderuje się przez `wp_kses_post`,
+ale jego tłumaczenie (bucket `descriptions` overlayu) przechodzi przez `sanitize_text_field`,
+więc przetłumaczony help text traci link, który polski zachowuje. Gałąź `companion-note`
+naprawiła dokładnie tę asymetrię dla przypisu towarzyszącej i zostawiła sąsiednią.
+
+**Szkic:** symetryczne rozszerzenie w `I18nController::sanitize`
+(`3 === count( $path ) && 'descriptions' === $path[1]`). Bezpieczne, bo segment wybierany
+przez autora jest tu liściem (klucz pola), a nie elementem ścieżki rozstrzygającym wyjątek.
+
+---
+
+## B31 — Opis pola w `<p>` łamie się na akapitach
+
+**Priorytet:** niski.
+
+**Stan:** opisy pól są opakowane w `<p>` w `FormRenderer.php` (~linia 185), a ich allowlista
+(`wp_kses_post`) dopuszcza HTML blokowy, więc help text z dwoma akapitami wychodzi z własnego
+opakowania i traci klasę. Ten sam kształt i ta sama klasa poprawki co przypis towarzyszącej
+(`<div class="… form-text">`), zastosowana tam tylko do przypisu.
+
+**Szkic:** zmienić wrapper opisu na `<div>`; `.form-text` Bootstrapa nie ustawia `display`,
+więc wygląd się nie zmienia. Sprawdzić testy asertujące `<p class="evreg-field-desc`.
