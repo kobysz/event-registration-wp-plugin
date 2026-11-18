@@ -9,6 +9,7 @@ declare( strict_types=1 );
 
 namespace EvReg\Frontend;
 
+use EvReg\Admin\Capabilities;
 use EvReg\Domain\Accommodation\AccommodationConfig;
 use EvReg\Domain\Schema\FormSchema;
 use EvReg\Domain\Schema\SchemaException;
@@ -25,9 +26,11 @@ final class SubmitHandler {
 	private const MIN_FILL_SECONDS = 3;
 
 	/**
-	 * Próg dozwolonych prób submisji na IP w oknie czasowym.
+	 * Domyślny próg dozwolonych prób submisji na IP w oknie czasowym.
+	 *
+	 * Wartość efektywną zwraca `rateLimit()` (filtr `evreg_rate_limit`).
 	 */
-	public const RATE_LIMIT = 10;
+	public const RATE_LIMIT = 30;
 
 	private const RATE_WINDOW = HOUR_IN_SECONDS;
 
@@ -81,11 +84,16 @@ final class SubmitHandler {
 			return;
 		}
 
-		if ( self::isRateLimited() ) {
-			self::$results[ $event_id ] = SubmitResult::spam();
-			return;
+		// Zwolniony z limitu nie jest ani blokowany, ani liczony: licznik jest per IP, więc
+		// jego próby (np. rejestrowanie kilku osób z jednej przeglądarki, wspólny adres za NAT-em)
+		// zużywałyby próg pozostałych osób z tego samego adresu.
+		if ( ! self::bypassesRateLimit() ) {
+			if ( self::isRateLimited() ) {
+				self::$results[ $event_id ] = SubmitResult::rateLimited();
+				return;
+			}
+			self::recordAttempt();
 		}
-		self::recordAttempt();
 
 		$post   = wp_unslash( $_POST ); // phpcs:ignore WordPress.Security.NonceVerification.Missing
 		$result = $this->process( $event_id, is_array( $post ) ? $post : array() );
@@ -119,7 +127,30 @@ final class SubmitHandler {
 	 * Czy bieżące IP osiągnęło próg dozwolonych prób submisji w oknie czasowym.
 	 */
 	public static function isRateLimited(): bool {
-		return (int) get_transient( self::rateKey() ) >= self::RATE_LIMIT;
+		return (int) get_transient( self::rateKey() ) >= self::rateLimit();
+	}
+
+	/**
+	 * Efektywny próg prób submisji na IP w oknie czasowym (filtr `evreg_rate_limit`).
+	 *
+	 * Wynik nigdy nie jest mniejszy niż 1: filtr zwracający 0 (lub nieliczbową wartość)
+	 * zablokowałby wszystkich już przy pierwszej próbie.
+	 */
+	public static function rateLimit(): int {
+		$limit = apply_filters( 'evreg_rate_limit', self::RATE_LIMIT );
+
+		return max( 1, is_numeric( $limit ) ? (int) $limit : 1 );
+	}
+
+	/**
+	 * Czy bieżący użytkownik jest zwolniony z limitu prób (zarządza eventami).
+	 *
+	 * Zwolnienie wynika wyłącznie z zalogowanego użytkownika z capability `Capabilities::CAP`
+	 * — nie ma żadnego nośnika z POST, ciasteczka ani nagłówka, który anonim mógłby podrobić.
+	 * Filtr `evreg_bypass_rate_limit` ma ostatnie słowo w obie strony.
+	 */
+	public static function bypassesRateLimit(): bool {
+		return (bool) apply_filters( 'evreg_bypass_rate_limit', current_user_can( Capabilities::CAP ) );
 	}
 
 	/**

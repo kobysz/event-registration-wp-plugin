@@ -4,6 +4,7 @@ declare( strict_types=1 );
 
 namespace EvReg\Tests\Integration\Frontend;
 
+use EvReg\Admin\Capabilities;
 use EvReg\Frontend\EventFormLoader;
 use EvReg\Frontend\SubmitHandler;
 use EvReg\Persistence\EventConfigRepository;
@@ -173,5 +174,88 @@ final class SubmitHandlerTest extends WP_UnitTestCase {
 		$duplicate = $this->handler->process( $event_id, $submit() );
 
 		$this->assertSame( 'duplicate', $duplicate->code() );
+	}
+
+	/**
+	 * Ustawia surowy POST jak z przeglądarki: z nonce'em, honeypotem i znacznikiem czasu.
+	 *
+	 * @param array<string,mixed> $fields Pola formularza.
+	 * @param string|null         $nonce  Nonce; domyślnie poprawny dla eventu.
+	 */
+	private function rawPost( array $fields, ?string $nonce = null ): void {
+		$_POST = array(
+			'evreg_submit' => '1',
+			'evreg_event'  => (string) $this->event_id,
+			'evreg-nonce'  => $nonce ?? wp_create_nonce( 'evreg_submit_' . $this->event_id ),
+			'evreg_hp'     => '',
+			'evreg_ts'     => (string) ( time() - 10 ),
+			'evreg_field'  => $fields,
+		);
+	}
+
+	private function fillCounter( string $ip ): void {
+		$_SERVER['REMOTE_ADDR'] = $ip;
+		delete_transient( 'evreg_rate_' . md5( $ip ) );
+		for ( $i = 0; $i < SubmitHandler::rateLimit(); $i++ ) {
+			SubmitHandler::recordAttempt();
+		}
+	}
+
+	private function asEventManager(): void {
+		Capabilities::grant();
+		wp_set_current_user( self::factory()->user->create( array( 'role' => 'administrator' ) ) );
+	}
+
+	protected function tearDown(): void {
+		$_POST = array();
+		wp_set_current_user( 0 );
+		parent::tearDown();
+	}
+
+	public function test_handle_over_limit_reports_rate_limited(): void {
+		wp_set_current_user( 0 );
+		$this->fillCounter( '203.0.113.21' );
+		$this->rawPost( array( '__type' => 'uczestnik', 'imie' => 'Jan', 'email' => 'jan@example.com' ) );
+
+		$this->handler->handle();
+
+		$this->assertSame( 'rate_limited', SubmitHandler::resultFor( $this->event_id )->code() );
+	}
+
+	public function test_handle_over_limit_lets_event_manager_through(): void {
+		$this->asEventManager();
+		$this->fillCounter( '203.0.113.22' );
+		$this->rawPost( array() );
+
+		$this->handler->handle();
+
+		$this->assertSame( 'invalid', SubmitHandler::resultFor( $this->event_id )->code() );
+	}
+
+	public function test_exempt_submission_does_not_increment_counter(): void {
+		$this->asEventManager();
+		$_SERVER['REMOTE_ADDR'] = '203.0.113.23';
+		delete_transient( 'evreg_rate_' . md5( '203.0.113.23' ) );
+		$this->rawPost( array() );
+
+		$this->handler->handle();
+
+		$this->assertEmpty( get_transient( 'evreg_rate_' . md5( '203.0.113.23' ) ) );
+	}
+
+	public function test_bad_nonce_still_blocks_event_manager(): void {
+		$this->asEventManager();
+		$_SERVER['REMOTE_ADDR'] = '203.0.113.24';
+		$this->rawPost( array(), 'bzdura' );
+
+		$this->handler->handle();
+
+		$this->assertSame( 'spam', SubmitHandler::resultFor( $this->event_id )->code() );
+	}
+
+	public function test_antispam_rejections_stay_spam_not_rate_limited(): void {
+		wp_set_current_user( 0 );
+		$this->assertSame( 'spam', $this->handler->process( $this->event_id, $this->post( array( 'evreg_hp' => 'bot' ) ) )->code() );
+		$this->assertSame( 'spam', $this->handler->process( $this->event_id, $this->post( array( 'evreg_ts' => (string) time() ) ) )->code() );
 	}
 }

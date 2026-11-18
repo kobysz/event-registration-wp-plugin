@@ -59,6 +59,13 @@ final class SubmitResult {
 	}
 
 	/**
+	 * Tworzy wynik zablokowania przez limit prób submisji z jednego adresu.
+	 */
+	public static function rateLimited(): self {
+		return new self( 'rate_limited', false );
+	}
+
+	/**
 	 * Tworzy wynik odrzucenia jako duplikat.
 	 */
 	public static function duplicate(): self {

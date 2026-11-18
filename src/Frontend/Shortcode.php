@@ -187,6 +187,7 @@ final class Shortcode {
 			'duplicate'    => __( 'Jesteś już zapisany na to wydarzenie.', 'event-registration' ),
 			'rejected'     => __( 'Brak wolnych miejsc.', 'event-registration' ),
 			'spam'         => __( 'Nie udało się wysłać zgłoszenia. Spróbuj ponownie.', 'event-registration' ),
+			'rate_limited' => __( 'Z tego urządzenia wysłano zbyt wiele prób. Odczekaj godzinę i spróbuj ponownie lub skontaktuj się z organizatorem.', 'event-registration' ),
 			'config_error' => __( 'Formularz jest nieprawidłowo skonfigurowany.', 'event-registration' ),
 			'invalid'      => __( 'Popraw zaznaczone pola.', 'event-registration' ),
 			'error'        => __( 'Nie udało się zapisać zgłoszenia z powodu błędu po naszej stronie. Nic nie zostało zapisane — spróbuj ponownie za chwilę lub skontaktuj się z organizatorem.', 'event-registration' ),
