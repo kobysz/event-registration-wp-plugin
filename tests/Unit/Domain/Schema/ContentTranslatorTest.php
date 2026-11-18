@@ -229,4 +229,32 @@ final class ContentTranslatorTest extends TestCase {
 		$this->assertSame( 2, $out['nights'][0]['companion_cap'] );
 		$this->assertCount( 2, $out['nights'] ); // osierocone tłumaczenie jest inertne
 	}
+
+	public function test_companion_note_overlay_replaces_base(): void {
+		$acc     = array_merge( $this->accommodation(), array( 'companion_note' => 'Przypis PL' ) );
+		$overlay = array( 'en' => array( 'accommodation' => array( 'companion' => array( 'note' => 'Note EN' ) ) ) );
+
+		$out = ( new ContentTranslator() )->translateAccommodation( $acc, $overlay, 'en' );
+
+		$this->assertSame( 'Note EN', $out['companion_note'] );
+	}
+
+	public function test_empty_companion_note_translation_falls_back_to_base(): void {
+		$acc     = array_merge( $this->accommodation(), array( 'companion_note' => 'Przypis PL' ) );
+		$overlay = array( 'en' => array( 'accommodation' => array( 'companion' => array( 'note' => '' ) ) ) );
+
+		$out = ( new ContentTranslator() )->translateAccommodation( $acc, $overlay, 'en' );
+
+		$this->assertSame( 'Przypis PL', $out['companion_note'] );
+	}
+
+	public function test_orphaned_companion_note_translation_stays_inert(): void {
+		$overlay = array( 'en' => array( 'accommodation' => array( 'companion' => array( 'note' => 'Note EN' ) ) ) );
+
+		$blank   = ( new ContentTranslator() )->translateAccommodation( array_merge( $this->accommodation(), array( 'companion_note' => '' ) ), $overlay, 'en' );
+		$missing = ( new ContentTranslator() )->translateAccommodation( $this->accommodation(), $overlay, 'en' );
+
+		$this->assertSame( '', $blank['companion_note'] );
+		$this->assertSame( '', $missing['companion_note'] ?? '' );
+	}
 }

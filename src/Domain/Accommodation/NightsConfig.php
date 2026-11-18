@@ -26,13 +26,15 @@ final class NightsConfig {
 	 * @param bool    $allowNone            Czy można zrezygnować z noclegu.
 	 * @param bool    $companionEnabled     Czy zgłoszenie może mieć osobę towarzyszącą.
 	 * @param bool    $companionCountsEvent Czy osoba towarzysząca wlicza się do limitu wydarzenia.
+	 * @param string  $companionNote        Przypis pod polem osoby towarzyszącej (pusty = brak).
 	 */
 	private function __construct(
 		private readonly bool $nightsMode,
 		private readonly array $nights,
 		private readonly bool $allowNone,
 		private readonly bool $companionEnabled,
-		private readonly bool $companionCountsEvent
+		private readonly bool $companionCountsEvent,
+		private readonly string $companionNote
 	) {
 	}
 
@@ -67,7 +69,8 @@ final class NightsConfig {
 			$nights,
 			(bool) ( $config['allow_none'] ?? true ),
 			(bool) ( $config['companion_enabled'] ?? false ),
-			(bool) ( $config['companion_counts_event'] ?? false )
+			(bool) ( $config['companion_counts_event'] ?? false ),
+			(string) ( $config['companion_note'] ?? '' )
 		);
 	}
 
@@ -132,5 +135,12 @@ final class NightsConfig {
 	 */
 	public function companionCountsEvent(): bool {
 		return $this->companionCountsEvent;
+	}
+
+	/**
+	 * Przypis pod polem osoby towarzyszącej (pusty = brak).
+	 */
+	public function companionNote(): string {
+		return $this->companionNote;
 	}
 }

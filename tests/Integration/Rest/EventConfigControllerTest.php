@@ -239,4 +239,22 @@ final class EventConfigControllerTest extends WP_UnitTestCase {
 		$this->assertSame( true, $get_data['accommodation']['companion_enabled'] );
 		$this->assertSame( false, $get_data['accommodation']['companion_counts_event'] );
 	}
+
+	public function test_companion_note_keeps_a_link_and_drops_a_script(): void {
+		wp_set_current_user( $this->admin_id );
+
+		$body = $this->valid_body();
+		$body['accommodation']['companion_note'] = '<a href="https://example.com">x</a><script>alert(1)</script>';
+
+		$request = new WP_REST_Request( 'PUT', "/evreg/v1/events/{$this->event_id}/config" );
+		$request->set_body_params( $body );
+		rest_do_request( $request );
+
+		$get      = new WP_REST_Request( 'GET', "/evreg/v1/events/{$this->event_id}/config" );
+		$get_data = rest_do_request( $get )->get_data();
+		$stored   = $get_data['accommodation']['companion_note'];
+
+		$this->assertStringContainsString( '<a href="https://example.com">', $stored );
+		$this->assertStringNotContainsString( '<script', $stored );
+	}
 }

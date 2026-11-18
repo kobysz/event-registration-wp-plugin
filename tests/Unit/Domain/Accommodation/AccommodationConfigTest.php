@@ -110,4 +110,13 @@ final class AccommodationConfigTest extends TestCase {
 		$this->assertFalse( $d->companionEnabled() );
 		$this->assertFalse( $d->companionCountsEvent() );
 	}
+
+	public function test_companion_note_defaults_to_empty_string(): void {
+		$this->assertSame( '', AccommodationConfig::fromArray( array() )->companionNote() );
+	}
+
+	public function test_companion_note_comes_from_config(): void {
+		$c = AccommodationConfig::fromArray( array( 'companion_note' => 'Przypis.' ) );
+		$this->assertSame( 'Przypis.', $c->companionNote() );
+	}
 }

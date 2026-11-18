@@ -73,4 +73,13 @@ final class NightsConfigTest extends TestCase {
 		$this->assertFalse( $config->isNights() );
 		$this->assertSame( array(), $config->nights() );
 	}
+
+	public function test_companion_note_defaults_to_empty_string(): void {
+		$this->assertSame( '', NightsConfig::fromArray( array( 'mode' => 'nights' ) )->companionNote() );
+	}
+
+	public function test_companion_note_comes_from_config(): void {
+		$c = NightsConfig::fromArray( array( 'mode' => 'nights', 'companion_note' => 'Przypis.' ) );
+		$this->assertSame( 'Przypis.', $c->companionNote() );
+	}
 }

@@ -25,6 +25,7 @@ final class AccommodationConfig {
 	 * @param bool            $allowNone             Czy zgłaszający się może zrezygnować z zakwaterowania.
 	 * @param bool            $companionEnabled      Czy zgłoszenie może zawierać osobę towarzyszącą.
 	 * @param bool            $companionCountsEvent  Czy osoba towarzysząca wlicza się do globalnego limitu wydarzenia.
+	 * @param string          $companionNote         Przypis pod polem osoby towarzyszącej (pusty = brak).
 	 */
 	private function __construct(
 		private readonly array $packages,
@@ -32,7 +33,8 @@ final class AccommodationConfig {
 		private readonly array $items,
 		private readonly bool $allowNone,
 		private readonly bool $companionEnabled = false,
-		private readonly bool $companionCountsEvent = false
+		private readonly bool $companionCountsEvent = false,
+		private readonly string $companionNote = ''
 	) {
 	}
 
@@ -104,7 +106,8 @@ final class AccommodationConfig {
 			$items,
 			(bool) ( $config['allow_none'] ?? true ),
 			(bool) ( $config['companion_enabled'] ?? false ),
-			(bool) ( $config['companion_counts_event'] ?? false )
+			(bool) ( $config['companion_counts_event'] ?? false ),
+			(string) ( $config['companion_note'] ?? '' )
 		);
 	}
 
@@ -261,6 +264,13 @@ final class AccommodationConfig {
 	 */
 	public function companionCountsEvent(): bool {
 		return $this->companionCountsEvent;
+	}
+
+	/**
+	 * Przypis pod polem osoby towarzyszącej (pusty = brak).
+	 */
+	public function companionNote(): string {
+		return $this->companionNote;
 	}
 
 	/**

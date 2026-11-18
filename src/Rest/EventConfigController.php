@@ -223,12 +223,12 @@ final class EventConfigController {
 
 	/**
 	 * Klucze z treścią formatowaną — sanitize_text_field wycina tam tagi i zjada
-	 * znaki nowej linii, więc opisy (pola i opcji) przepuszczamy przez
+	 * znaki nowej linii, więc opisy (pola i opcji) oraz przypis osoby towarzyszącej przepuszczamy przez
 	 * wp_kses_post(): link i pogrubienie zostają, skrypty i atrybuty zdarzeń nie.
 	 * Autorem treści jest admin z capem edycji wydarzeń — ten sam poziom zaufania
 	 * co dla treści wpisu.
 	 */
-	private const RICH_TEXT_KEYS = array( 'description' );
+	private const RICH_TEXT_KEYS = array( 'description', 'companion_note' );
 
 	/**
 	 * Rekurencyjnie sanityzuje łańcuchowe liście konfiguracji, zachowując

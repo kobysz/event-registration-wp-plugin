@@ -110,6 +110,15 @@ final class ContentTranslator {
 			$accommodation['nights'][ $ni ]['label'] = self::pick( $nights, $key, (string) ( $night['label'] ?? '' ) );
 		}
 
+		// Przypis osoby towarzyszącej: skalar, więc brak iteracji, która czyniłaby osierocony wpis
+		// inertnym. Overlay tylko przy niepustej bazie — pusta baza = wyłączony we wszystkich
+		// językach; pick() wskrzesiłby usunięty przypis w języku obcym.
+		$companion = isset( $over['companion'] ) && is_array( $over['companion'] ) ? $over['companion'] : array();
+		$base_note = (string) ( $accommodation['companion_note'] ?? '' );
+		if ( '' !== $base_note ) {
+			$accommodation['companion_note'] = self::pick( $companion, 'note', $base_note );
+		}
+
 		return $accommodation;
 	}
 
