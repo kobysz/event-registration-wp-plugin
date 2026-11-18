@@ -9,7 +9,7 @@ The section for each released version is published verbatim as the GitHub
 Release body and shown under "View details" in the WordPress plugins screen,
 so keep entries user-facing and concise.
 
-## [Unreleased]
+## [0.2.4] - 2026-11-18
 
 ### Changed
 - Event organizers are no longer caught by the registration form's anti-spam limit: anyone allowed to manage events can submit the form as often as they need, for example to enter attendees by hand.
