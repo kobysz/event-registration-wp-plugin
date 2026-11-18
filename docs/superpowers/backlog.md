@@ -905,3 +905,48 @@ zastany w całym pliku, nie wniesiony przez ekran dodawania.
 
 **Szkic:** jeden helper czytający skalar (`is_scalar` → `sanitize_text_field( wp_unslash() )`,
 inaczej pusty) używany przez wszystkie miejsca w pliku.
+
+---
+
+## B37 — Formularz przerenderowany w adminie nie ładuje `form.js`
+
+**Priorytet:** średni (jedyny otwarty wpis widoczny dla człowieka przy normalnej pracy).
+
+**Stan:** każdy render inline w panelu woła `wp_enqueue_script( 'evreg-public' )`, ale sam render
+dzieje się na `admin-post.php`, które nie emituje `wp_head` ani `wp_footer`. Skrypt więc nigdy
+nie trafia na stronę: na przerenderowanym formularzu **nie działa przełącznik osoby
+towarzyszącej ani warunkowa widoczność pól**, a strona nie ma obudowy panelu. Zastane na
+ścieżce błędu walidacji przy edycji zgłoszenia; gałąź `feature/manual-registration` poszerzyła
+ekspozycję, kierując tam dwa kolejne wyniki ekranu dodawania (brak miejsc, awaria zapisu dób).
+
+Danych to nie psuje — serwer jest i pozostaje arbitrem walidacji (`Validator` +
+`VisibilityResolver`), więc pole ukryte warunkiem i tak nie wejdzie do zapisu. Psuje wygodę:
+organizator poprawiający odrzucone zgłoszenie widzi pola, które na formularzu publicznym byłyby
+schowane, i checkbox towarzyszącej, który nie odsłania pola imienia.
+
+**Szkic:** wypisać znacznik `<script>` wprost w renderze admina zamiast polegać na kolejce
+WordPressa (ścieżka `admin-post.php` nie ma gdzie jej wypuścić), albo przenieść render błędu
+na pełnoprawny ekran panelu, który emituje `wp_head`/`wp_footer`. Pierwsze jest tańsze, drugie
+naprawia też brak obudowy panelu. Uwaga przy robocie: `form.js` jest współdzielony z frontem i
+zakłada obecność kontrolek `evreg_*` — renderer admina je ma, ale warto to przypiąć testem e2e,
+bo dziś nic tej pary nie pilnuje.
+
+---
+
+## B38 — Katalog `en_US.po` nie jest regenerowany, anglojęzyczny gość widzi polski
+
+**Priorytet:** średni (jedyna otwarta pozycja widoczna dla zwykłego odwiedzającego stronę).
+
+**Stan:** `languages/event-registration-en_US.po` nie był regenerowany od czasów B5/B6. Źródłem
+stringów jest polski (msgid = polski literał), więc brakujące wpisy degradują się do polskiego —
+na stronie z Polylang odwiedzający z angielskim locale widzi nowsze teksty formularza po polsku.
+`languages/event-registration.pot` JEST regenerowany na bieżąco (`npm run i18n:pot`), więc
+rozjazd dotyczy wyłącznie samego tłumaczenia, nie katalogu źródłowego.
+
+Dryf jest starszy niż którakolwiek z ostatnich gałęzi i każda go odnotowuje, po czym omija,
+bo nigdy nie mieści się w zakresie — dlatego dostaje własny numer zamiast kolejnego dopisku.
+
+**Szkic:** zmergować `.pot` do `en_US.po` (`msgmerge`), przetłumaczyć nowe msgid, skompilować
+`npm run i18n:mo`. Przy okazji rozstrzygnąć, czy katalog angielski ma być utrzymywany dalej —
+jeśli żadna obsługiwana strona nie serwuje angielskiego, uczciwiej go usunąć niż trzymać
+wiecznie nieaktualny. Decyzja należy do właściciela produktu, nie do wykonawcy.
