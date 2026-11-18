@@ -933,9 +933,14 @@ bo dziś nic tej pary nie pilnuje.
 
 ---
 
-## B38 — Katalog `en_US.po` nie jest regenerowany, anglojęzyczny gość widzi polski
+## B38 — Katalog `en_US.po` nie jest regenerowany, anglojęzyczny gość widzi polski — ZROBIONE (2026-11-18)
 
-**Priorytet:** średni (jedyna otwarta pozycja widoczna dla zwykłego odwiedzającego stronę).
+**Status:** ROZSTRZYGNIĘTE PRZEZ USUNIĘCIE. Właściciel produktu potwierdził, że angielski nie jest
+utrzymywany, więc `languages/event-registration-en_US.po` i `.mo` zostały skasowane zamiast
+doprowadzane do porządku. Wtyczka nie wysyła dziś żadnego katalogu tłumaczeń; `languages/` niesie
+wyłącznie `.pot`. Każde locale degraduje się do polskiego źródła, czyli do tego, co anglojęzyczny
+gość i tak w większości widział. `I18nTest` przepisany: pilnuje degradacji do źródła zamiast
+angielskich tłumaczeń. `npm run i18n:mo` zostaje na wypadek powrotu katalogu.
 
 **Stan:** `languages/event-registration-en_US.po` nie był regenerowany od czasów B5/B6. Źródłem
 stringów jest polski (msgid = polski literał), więc brakujące wpisy degradują się do polskiego —

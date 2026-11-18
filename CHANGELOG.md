@@ -9,6 +9,11 @@ The section for each released version is published verbatim as the GitHub
 Release body and shown under "View details" in the WordPress plugins screen,
 so keep entries user-facing and concise.
 
+## [Unreleased]
+
+### Removed
+- The English translation files have been dropped. They had not been kept up to date for months, so a visitor on an English-language site already saw a mixture of English and Polish. Everything is now shown in Polish, consistently. Nothing changes on a Polish site.
+
 ## [0.2.5] - 2026-11-18
 
 ### Added

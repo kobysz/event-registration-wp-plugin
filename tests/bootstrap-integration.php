@@ -17,7 +17,9 @@ tests_add_filter(
 		// Testy asertują polskie stringi źródłowe. Od kiedy shipujemy katalog
 		// en_US, WP na domyślnym locale en_US tłumaczyłby je na angielski.
 		// Wymuszamy pl_PL (brak pl_PL.mo → zwracany jest polski msgid = źródło).
-		// I18nTest sam przełącza się na en_US przez switch_to_locale.
+		// Po usunięciu katalogu en_US (B38) wtyczka nie wysyła ŻADNEGO katalogu, więc
+		// filtr jest dziś nadmiarowy — zostaje jako zabezpieczenie na wypadek, gdyby
+		// jakikolwiek katalog wrócił i zaczął tłumaczyć asercje polskich literałów.
 		add_filter( 'locale', static fn (): string => 'pl_PL' );
 	}
 );
