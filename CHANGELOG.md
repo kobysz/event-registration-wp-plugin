@@ -11,6 +11,8 @@ so keep entries user-facing and concise.
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-11-18
+
 ### Fixed
 - A registration form whose required field sits in a section or a field hidden by a visibility condition can be submitted again. Clicking the submit button did nothing at all — no message, no error, nothing saved — because the browser refuses to send a form that insists on an answer to a field nobody can see. A hidden field no longer insists on one, and the companion's name is asked for only while the companion box is both ticked and on screen.
 - Switching an event's accommodation mode can no longer slip through while a registration with accommodation is being taken. The check for existing accommodation and the saving of the settings now happen together, under the same per-event lock the registration form takes, so a registration that lands at that exact moment either comes first and the mode change is refused, or waits and is counted. Before, such a registration could be accepted between the two steps and end up booked under a mode the refusal exists to prevent.
@@ -18,6 +20,9 @@ so keep entries user-facing and concise.
 - The submission detail and edit screens now show the booked nights of an event whose accommodation field has been taken off the form. Which accommodation mode an event uses is a property of the event, so it is now read from the event's accommodation settings everywhere rather than from the form: an event that still has nights booked is no longer treated as if it used packages and rooms once the field is gone. The detail screen lists those nights, and the edit screen shows them beside the form, read-only, since there is no field left to render them in. The CSV and privacy exports already reported them.
 - Editing a submission no longer destroys its accommodation when the accommodation field is hidden by a visibility condition. Changing the answer that condition depends on — typically the registration type — took the field out of the form mid-edit, and the booking (or the booked nights), its seats and its price quietly disappeared under "Submission answers updated". A waitlisted submission, which holds its accommodation only in its answers, lost it there the same way, so a later promotion had nothing left to grant. An edit that does not put the accommodation field in play now leaves the accommodation exactly as it was, while unticking it with the field visible still drops it on purpose.
 
+
+### Changed
+- Editing a submission is now refused, rather than saved with contradictory data, when the companion box is changed while the accommodation field is hidden by a visibility condition and the room already booked does not match the new choice. Before, such an edit saved a single room holding two people, or billed one person for two beds, under "Submission answers updated". The refusal explains that the room and the companion choice do not match. Settle it in two saves: first restore the answer that brings the accommodation field back and choose the room there, then change the other answer.
 ## [0.2.1] - 2026-11-17
 
 ### Fixed
