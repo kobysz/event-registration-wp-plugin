@@ -818,6 +818,62 @@ final class ReservationService {
 	}
 
 	/**
+	 * Kończy awans zapisem statusu — w TEJ SAMEJ, otwartej transakcji.
+	 *
+	 * WYMÓG WYWOŁANIA, jak przy stampConfirmedUnderTransaction(): po zapisie bookingu/dób
+	 * i ceny, przed COMMIT. Jedna kopia dla obu gałęzi trybów noclegu z tego samego powodu
+	 * co statusFor(): rozjazd znaczyłby wpis ręczny, który w jednym trybie wraca do obiegu
+	 * potwierdzony, a w drugim czeka na link, którego nikt nie dostanie — i po dwóch dniach
+	 * ginie od crona wygaszającego.
+	 *
+	 * Wpis ręczny wraca z listy rezerwowej POTWIERDZONY i bez terminu, bo awans nie może
+	 * odwracać sensu trybu ręcznego: organizator wpisał człowieka z telefonu, więc nikt nie
+	 * kliknie linku opt-in, a 48-godzinny termin oddałby wiersz cronowi anulującemu.
+	 * Znacznik czytamy z KOLUMNY wiersza, nie z argumentu — akcja admina nic nie wie o tym,
+	 * jak zgłoszenie powstało, i właśnie po to kolumna jest trwała.
+	 *
+	 * Terminu NIE trzeba zerować: wiersz z listy rezerwowej nie ma expires_at (nie zajmuje
+	 * miejsca, więc reserve() nie wpisuje mu terminu), a markConfirmed() tej kolumny nie tyka.
+	 *
+	 * @param int  $id     ID zgłoszenia.
+	 * @param bool $manual Czy zgłoszenie jest wpisem ręcznym (kolumna `manual`).
+	 */
+	private function finishPromotionUnderTransaction( int $id, bool $manual ): void {
+		if ( $manual ) {
+			$this->repository->markConfirmed( $id );
+
+			return;
+		}
+
+		$this->repository->markPending( $id, gmdate( 'Y-m-d H:i:s', strtotime( self::PENDING_TTL, time() ) ) );
+	}
+
+	/**
+	 * Ogłasza awans hookiem cyklu życia — tylko PO COMMIT, poza try/catch.
+	 *
+	 * WYMÓG WYWOŁANIA jak w announceAfterCommit(): dopiero po zamknięciu try/catch udanej
+	 * transakcji, żeby rzut z nasłuchu nie trafił do (no-op) ROLLBACK i nie wypłynął jako
+	 * fałszywa porażka awansu mimo trwale zatwierdzonego wiersza.
+	 *
+	 * Awansowany wpis ręczny nie ogłasza NICZEGO: evreg_registration_reserved kolejkuje
+	 * mail opt-in z linkiem potwierdzającym, a ten wiersz jest już potwierdzony, więc link
+	 * prowadziłby w nikąd — a adres wpisu telefonicznego bywa pusty. Organizator, który
+	 * klika „Promuj”, patrzy na ekran i wyniku nie musi dowiadywać się mailem.
+	 *
+	 * @param bool   $manual   Czy zgłoszenie jest wpisem ręcznym (kolumna `manual`).
+	 * @param int    $id       ID zgłoszenia.
+	 * @param int    $event_id ID eventu.
+	 * @param string $token    Token zgłoszenia (link potwierdzający opt-in).
+	 */
+	private function announcePromotionAfterCommit( bool $manual, int $id, int $event_id, string $token ): void {
+		if ( $manual ) {
+			return;
+		}
+
+		do_action( 'evreg_registration_reserved', $id, $event_id, $token );
+	}
+
+	/**
 	 * Awansuje zgłoszenie z listy rezerwowej na pending, jeśli jest miejsce.
 	 *
 	 * Powtarza inwariant lock→count z reserve(): lockEvent PRZED occupancy. Przy wolnym
@@ -842,6 +898,11 @@ final class ReservationService {
 	 * mimo wolnego miejsca na wydarzeniu. Odmowa (occupancyMismatch) zostaje wyłącznie dla
 	 * wyboru odtworzonego z ZAPISANEGO bookingu — patrz komentarz przy tej bramce. Wycena
 	 * idzie po BIEŻĄCYM cenniku — ta sama reguła, co w trybie „doby”.
+	 *
+	 * Wiersz ze znacznikiem `manual` kończy awans potwierdzeniem bez terminu i bez hooka
+	 * (patrz finishPromotionUnderTransaction() i announcePromotionAfterCommit()). Pojemność,
+	 * zajętość, nocleg i cała arytmetyka miejsc są dla obu rodzajów wiersza identyczne —
+	 * znacznik rozstrzyga WYŁĄCZNIE finalny zapis statusu i ogłoszenie.
 	 *
 	 * @param int $id ID zgłoszenia.
 	 *
@@ -905,6 +966,7 @@ final class ReservationService {
 		}
 
 		$companion    = (bool) ( $row['companion'] ?? false );
+		$manual       = (bool) ( $row['manual'] ?? false );
 		$wish_dropped = false;
 
 		// Pokój mógł zmienić liczbę osób po zawaitlistowaniu. Przyznanie go takiemu
@@ -966,9 +1028,9 @@ final class ReservationService {
 					);
 				} else {
 					// Brak grantu na promocji (np. companion żąda 2 miejsc, zostało 1) —
-					// skasuj nieaktualny booking sprzed listy rezerwowej. Bez tego markPending()
-					// poniżej przeniesie zgłoszenie w status zajmujący miejsce z widmowym
-					// bookingiem i slot zostanie przesprzedany.
+					// skasuj nieaktualny booking sprzed listy rezerwowej. Bez tego zapis
+					// statusu poniżej przeniesie zgłoszenie w status zajmujący miejsce
+					// z widmowym bookingiem i slot zostanie przesprzedany.
 					$this->repository->deleteAccommodationBooking( $id );
 					$accommodation_lost = true;
 				}
@@ -979,8 +1041,7 @@ final class ReservationService {
 			$price = $this->pricing->total( $type, $accommodation, $decision->accommodationGranted ? $selection : null, $companion );
 			$this->repository->updatePrice( $id, $price );
 
-			$expires_at = gmdate( 'Y-m-d H:i:s', strtotime( self::PENDING_TTL, time() ) );
-			$this->repository->markPending( $id, $expires_at );
+			$this->finishPromotionUnderTransaction( $id, $manual );
 
 			$this->repository->commit();
 		} catch ( \Throwable $e ) {
@@ -988,7 +1049,9 @@ final class ReservationService {
 			throw $e;
 		}
 
-		do_action( 'evreg_registration_reserved', $id, $event_id, (string) $row['token'] );
+		// Hook POZA try/catch, po COMMIT — i tylko dla wiersza publicznego (patrz
+		// announcePromotionAfterCommit()).
+		$this->announcePromotionAfterCommit( $manual, $id, $event_id, (string) $row['token'] );
 
 		return $accommodation_lost
 			? AdminActionResult::promotedWithoutAccommodation()
@@ -1000,7 +1063,12 @@ final class ReservationService {
 	 *
 	 * Kolejność jak w promoteFromWaitlist() i reserveNights(): START → lockEvent → zajętość
 	 * zgłoszeń → limit wydarzenia i typu → bramka dób na zajętości dób z wykluczeniem samego
-	 * zgłoszenia → zapis dób → cena → markPending → COMMIT → hook POZA try/catch.
+	 * zgłoszenia → zapis dób → cena → zapis statusu → COMMIT → hook POZA try/catch.
+	 *
+	 * Wiersz ze znacznikiem `manual` kończy awans dokładnie jak na ścieżce klasycznej:
+	 * potwierdzeniem bez terminu i bez hooka (patrz finishPromotionUnderTransaction()).
+	 * Wpis ręczny awansowany dobową ścieżką, który dalej wygasa, to właśnie błąd, któremu
+	 * ta gałąź zapobiega — bramka dób, zajętość i cena zostają dla obu rodzajów wiersza.
 	 *
 	 * Życzenie dób czyta z odpowiedzi (JSON), bo zgłoszenie z listy rezerwowej NIE ma wierszy
 	 * dób — nie zajmuje miejsc. Ścieżka klasyczna czyta swoje życzenie tak samo
@@ -1044,6 +1112,7 @@ final class ReservationService {
 		}
 
 		$companion = (bool) ( $row['companion'] ?? false );
+		$manual    = (bool) ( $row['manual'] ?? false );
 		$seats     = $companion ? 2 : 1;
 		$empty     = NightSelection::fromKeys( array(), $nights_config );
 		$wish      = $this->nightWish( $config, (string) $row['data'] );
@@ -1092,7 +1161,7 @@ final class ReservationService {
 				$this->writeNightRows( $id, $rows, count( $selection->keys() ) );
 			} else {
 				// Bez przyznania noclegu zgłoszenie nie może wejść w status zajmujący miejsce
-				// z wierszami dób sprzed awansu: markPending() poniżej uczyniłby je realną
+				// z wierszami dób sprzed awansu: zapis statusu poniżej uczyniłby je realną
 				// zajętością i doba zostałaby przesprzedana. Ścieżka klasyczna kasuje w tym
 				// miejscu widmowy booking z dokładnie tego powodu.
 				$this->repository->deleteBookingNights( $id );
@@ -1103,7 +1172,7 @@ final class ReservationService {
 				$this->pricing->totalForNights( $type, $nights_config, $granted ? $selection : $empty, $seats )
 			);
 
-			$this->repository->markPending( $id, gmdate( 'Y-m-d H:i:s', strtotime( self::PENDING_TTL, time() ) ) );
+			$this->finishPromotionUnderTransaction( $id, $manual );
 
 			$this->repository->commit();
 		} catch ( \Throwable $e ) {
@@ -1111,8 +1180,9 @@ final class ReservationService {
 			throw $e;
 		}
 
-		// Hook POZA try/catch, po COMMIT — nasłuch nigdy nie działa w transakcji (patrz reserve()).
-		do_action( 'evreg_registration_reserved', $id, $event_id, (string) $row['token'] );
+		// Hook POZA try/catch, po COMMIT — nasłuch nigdy nie działa w transakcji (patrz
+		// reserve()) — i tylko dla wiersza publicznego (patrz announcePromotionAfterCommit()).
+		$this->announcePromotionAfterCommit( $manual, $id, $event_id, (string) $row['token'] );
 
 		return $accommodation_lost
 			? AdminActionResult::promotedWithoutAccommodation()
