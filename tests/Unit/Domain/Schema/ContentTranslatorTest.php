@@ -254,7 +254,10 @@ final class ContentTranslatorTest extends TestCase {
 		$blank   = ( new ContentTranslator() )->translateAccommodation( array_merge( $this->accommodation(), array( 'companion_note' => '' ) ), $overlay, 'en' );
 		$missing = ( new ContentTranslator() )->translateAccommodation( $this->accommodation(), $overlay, 'en' );
 
+		$spaces  = ( new ContentTranslator() )->translateAccommodation( array_merge( $this->accommodation(), array( 'companion_note' => '   ' ) ), $overlay, 'en' );
+
 		$this->assertSame( '', $blank['companion_note'] );
+		$this->assertSame( '   ', $spaces['companion_note'] );
 		$this->assertSame( '', $missing['companion_note'] ?? '' );
 	}
 }

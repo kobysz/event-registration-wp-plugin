@@ -115,7 +115,7 @@ final class ContentTranslator {
 		// językach; pick() wskrzesiłby usunięty przypis w języku obcym.
 		$companion = isset( $over['companion'] ) && is_array( $over['companion'] ) ? $over['companion'] : array();
 		$base_note = (string) ( $accommodation['companion_note'] ?? '' );
-		if ( '' !== $base_note ) {
+		if ( '' !== trim( $base_note ) ) {
 			$accommodation['companion_note'] = self::pick( $companion, 'note', $base_note );
 		}
 

@@ -205,9 +205,9 @@ final class FormRenderer {
 	 */
 	private function renderCompanion( Field $field, ?SubmitResult $result ): string {
 		// Jedno rozgałęzienie po trybie: „doby” czyta flagę z NightsConfig, bez AccommodationConfig.
-		$enabled = null !== $this->nights
-			? $this->nights->companionEnabled()
-			: AccommodationConfig::fromArray( $field->config )->companionEnabled();
+		$config  = null !== $this->nights ? $this->nights : AccommodationConfig::fromArray( $field->config );
+		$enabled = $config->companionEnabled();
+		$note    = $config->companionNote();
 		if ( ! $enabled ) {
 			return '';
 		}
@@ -221,6 +221,12 @@ final class FormRenderer {
 			. '<input class="form-check-input" type="checkbox" id="evreg_companion" name="evreg_companion" value="1"' . checked( $companion_on, true, false ) . ' data-evreg-companion>'
 			. ' <label class="form-check-label" for="evreg_companion">' . esc_html__( 'Osoba towarzysząca', 'event-registration' ) . '</label>'
 			. '</div>';
+
+		// Przypis jest zaproszeniem do zaznaczenia, nie opisem zaznaczonego stanu — renderuje się
+		// zawsze (bez hidden/data-evreg-*). Treść rich-text sanityzowana przy zapisie, tu kses jeszcze raz.
+		if ( '' !== trim( $note ) ) {
+			$out .= '<p class="evreg-companion-note form-text">' . wp_kses_post( $note ) . '</p>';
+		}
 
 		// `required` TYLKO razem z widocznością (serwer tu, form.js przy przełączeniu
 		// checkboxa): przeglądarka nie potrafi sfokusować ukrytej kontrolki, więc
