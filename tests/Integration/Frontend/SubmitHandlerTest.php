@@ -21,6 +21,14 @@ final class SubmitHandlerTest extends WP_UnitTestCase {
 
 	protected function setUp(): void {
 		parent::setUp();
+		// Sukces submisji kończy się wp_safe_redirect()+exit, co ubiłoby proces PHPUnit;
+		// wyjątek zamienia ewentualną regresję bramki w czytelną porażkę testu.
+		add_filter(
+			'wp_redirect',
+			static function (): never {
+				throw new \RuntimeException( 'Unexpected redirect: the submission was not stopped by the gate.' );
+			}
+		);
 		Migrations::install();
 		global $wpdb;
 		foreach ( array( 'registrations', 'accommodation_bookings', 'locks' ) as $t ) {
@@ -81,6 +89,13 @@ final class SubmitHandlerTest extends WP_UnitTestCase {
 		}
 
 		return array_merge( $controls, array( 'evreg_field' => $fields ) );
+	}
+
+	protected function tearDown(): void {
+		$_POST = array();
+		wp_set_current_user( 0 );
+		remove_all_filters( 'wp_redirect' );
+		parent::tearDown();
 	}
 
 	public function test_valid_submission_reserves(): void {
@@ -206,12 +221,6 @@ final class SubmitHandlerTest extends WP_UnitTestCase {
 		wp_set_current_user( self::factory()->user->create( array( 'role' => 'administrator' ) ) );
 	}
 
-	protected function tearDown(): void {
-		$_POST = array();
-		wp_set_current_user( 0 );
-		parent::tearDown();
-	}
-
 	public function test_handle_over_limit_reports_rate_limited(): void {
 		wp_set_current_user( 0 );
 		$this->fillCounter( '203.0.113.21' );
@@ -240,7 +249,7 @@ final class SubmitHandlerTest extends WP_UnitTestCase {
 
 		$this->handler->handle();
 
-		$this->assertEmpty( get_transient( 'evreg_rate_' . md5( '203.0.113.23' ) ) );
+		$this->assertFalse( get_transient( 'evreg_rate_' . md5( '203.0.113.23' ) ) );
 	}
 
 	public function test_bad_nonce_still_blocks_event_manager(): void {

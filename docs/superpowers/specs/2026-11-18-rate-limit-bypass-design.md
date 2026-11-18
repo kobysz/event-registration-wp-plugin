@@ -11,8 +11,9 @@ kilku zgłoszeniach wpada w limit antyspamowy: 10 prób na godzinę na IP
 (`SubmitHandler::RATE_LIMIT`). Dostaje przy tym komunikat „Nie udało się wysłać
 zgłoszenia. Spróbuj ponownie." — ten sam, który obsługuje trzy zupełnie inne powody
 odrzucenia. Komunikat nie mówi ani że to blokada czasowa, ani jak długo trwa, więc
-organizator klika dalej, każda próba przedłuża okno, a całość wygląda na zepsuty
-formularz. Zgłoszone z produkcji; niereprodukowalne u nas, bo limit utrzymuje się
+organizator klika dalej, nie wiedząc, że trzeba czekać (zablokowane próby nie są
+liczone, więc blokada schodzi najpóźniej godzinę po ostatniej przyjętej próbie), a całość
+wygląda na zepsuty formularz. Zgłoszone z produkcji; niereprodukowalne u nas, bo limit utrzymuje się
 godzinę i nie zostawia śladu w logach.
 
 Dwie rzeczy robią z tego realny problem, a nie tylko ciasny próg:

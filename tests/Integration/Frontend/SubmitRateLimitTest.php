@@ -40,13 +40,14 @@ final class SubmitRateLimitTest extends WP_UnitTestCase {
 		$this->assertSame( 5, SubmitHandler::rateLimit() );
 	}
 
-	public function test_filter_cannot_lock_everyone_out(): void {
+	public function test_filter_cannot_lock_everyone_out_or_break_the_default(): void {
 		add_filter( 'evreg_rate_limit', static fn() => 0 );
 		$this->assertSame( 1, SubmitHandler::rateLimit() );
 
 		remove_all_filters( 'evreg_rate_limit' );
 		add_filter( 'evreg_rate_limit', static fn() => 'nonsens' );
-		$this->assertSame( 1, SubmitHandler::rateLimit() );
+		$this->assertSame( SubmitHandler::RATE_LIMIT, SubmitHandler::rateLimit() );
+		$this->assertSame( 30, SubmitHandler::rateLimit() );
 	}
 
 	public function test_anonymous_visitor_is_not_exempt(): void {

@@ -133,13 +133,15 @@ final class SubmitHandler {
 	/**
 	 * Efektywny próg prób submisji na IP w oknie czasowym (filtr `evreg_rate_limit`).
 	 *
-	 * Wynik nigdy nie jest mniejszy niż 1: filtr zwracający 0 (lub nieliczbową wartość)
-	 * zablokowałby wszystkich już przy pierwszej próbie.
+	 * Liczba zbyt mała (0, ujemna) jest podnoszona do 1: autor filtra podał liczbę i miał
+	 * na myśli „ciasno". Wartość nienumeryczna (null, tablica, tekst) oznacza, że filtr
+	 * nie dał żadnej liczby, więc obowiązuje domyślne `RATE_LIMIT` — inaczej zepsuty
+	 * filtr zamieniłby próg w 1 i zablokował wszystkich po pierwszej próbie.
 	 */
 	public static function rateLimit(): int {
 		$limit = apply_filters( 'evreg_rate_limit', self::RATE_LIMIT );
 
-		return max( 1, is_numeric( $limit ) ? (int) $limit : 1 );
+		return is_numeric( $limit ) ? max( 1, (int) $limit ) : self::RATE_LIMIT;
 	}
 
 	/**
