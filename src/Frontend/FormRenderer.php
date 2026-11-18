@@ -45,6 +45,18 @@ final class FormRenderer {
 	}
 
 	/**
+	 * Pusty przypis = pusty po zdekodowaniu encji i wycięciu tagów (`&nbsp;`, `<p></p>`).
+	 * Ta sama reguła żyje w ContentTranslator::isBlankNote — domena nie sięga po funkcje WP,
+	 * więc to świadoma kopia, nie współdzielenie.
+	 *
+	 * @param string $note Surowy przypis.
+	 */
+	private static function isBlankNote( string $note ): bool {
+		$text = html_entity_decode( wp_strip_all_tags( $note ), ENT_QUOTES | ENT_HTML5, 'UTF-8' );
+		return '' === trim( str_replace( "\u{00A0}", ' ', $text ) );
+	}
+
+	/**
 	 * Czy odtwarzana submisja miała zaznaczoną osobę towarzyszącą.
 	 *
 	 * @param SubmitResult|null $result Wynik poprzedniej próby submisji.
@@ -224,8 +236,8 @@ final class FormRenderer {
 
 		// Przypis jest zaproszeniem do zaznaczenia, nie opisem zaznaczonego stanu — renderuje się
 		// zawsze (bez hidden/data-evreg-*). Treść rich-text sanityzowana przy zapisie, tu kses jeszcze raz.
-		if ( '' !== trim( $note ) ) {
-			$out .= '<p class="evreg-companion-note form-text">' . wp_kses_post( $note ) . '</p>';
+		if ( ! self::isBlankNote( $note ) ) {
+			$out .= '<div class="evreg-companion-note form-text">' . wp_kses_post( $note ) . '</div>';
 		}
 
 		// `required` TYLKO razem z widocznością (serwer tu, form.js przy przełączeniu

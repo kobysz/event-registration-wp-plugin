@@ -227,6 +227,9 @@ final class EventConfigController {
 	 * wp_kses_post(): link i pogrubienie zostają, skrypty i atrybuty zdarzeń nie.
 	 * Autorem treści jest admin z capem edycji wydarzeń — ten sam poziom zaufania
 	 * co dla treści wpisu.
+	 * Zakres po NAZWIE klucza jest tu bezpieczny, bo drzewo configu nie ma kluczy tablic
+	 * wybieranych przez autora (opcje schematu, inwentarz i doby to listy map o stałych
+	 * kluczach); overlay i18n je ma, dlatego I18nController zawęża po ŚCIEŻCE.
 	 */
 	private const RICH_TEXT_KEYS = array( 'description', 'companion_note' );
 

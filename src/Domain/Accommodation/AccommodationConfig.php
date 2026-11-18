@@ -115,7 +115,9 @@ final class AccommodationConfig {
 	 * Serializuje konfigurację do tablicy.
 	 *
 	 * Uwaga: zwracane `occupancy` jest wyzerowane, gdy `companion_enabled` jest wyłączone,
-	 * więc wyniku NIE wolno zapisywać z powrotem jako konfiguracji.
+	 * więc wyniku NIE wolno zapisywać z powrotem jako konfiguracji. Nie niesie też
+	 * `companion_note` (świadomie — żaden wołający go nie potrzebuje, a emisja zachęcałaby do
+	 * zakazanego round-tripu).
 	 *
 	 * @return array<string,mixed>
 	 */

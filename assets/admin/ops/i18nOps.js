@@ -64,7 +64,7 @@ export function translatableItems( schema, types, accommodation ) {
 	}
 	// Przypis towarzyszącej istnieje w obu trybach, więc poza rozgałęzieniem. Bez treści albo
 	// przy wyłączonej opcji nic go nie renderuje — wiersz zapraszałby do tłumaczenia w próżnię.
-	if ( acc.companion_enabled && acc.companion_note ) {
+	if ( acc.companion_enabled && ( acc.companion_note || '' ).trim() ) {
 		items.push( { kind: 'accommodation', accKind: 'companion', key: 'note', base: acc.companion_note } );
 	}
 	return items;

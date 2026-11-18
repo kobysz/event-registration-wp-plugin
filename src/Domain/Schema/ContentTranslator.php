@@ -115,11 +115,23 @@ final class ContentTranslator {
 		// językach; pick() wskrzesiłby usunięty przypis w języku obcym.
 		$companion = isset( $over['companion'] ) && is_array( $over['companion'] ) ? $over['companion'] : array();
 		$base_note = (string) ( $accommodation['companion_note'] ?? '' );
-		if ( '' !== trim( $base_note ) ) {
+		if ( ! self::isBlankNote( $base_note ) ) {
 			$accommodation['companion_note'] = self::pick( $companion, 'note', $base_note );
 		}
 
 		return $accommodation;
+	}
+
+	/**
+	 * Pusty przypis = pusty po zdekodowaniu encji i wycięciu tagów (`&nbsp;`, `<p></p>`).
+	 * Ta sama reguła żyje w FormRenderer::isBlankNote — domena nie sięga po funkcje WP,
+	 * więc to świadoma kopia, nie współdzielenie.
+	 *
+	 * @param string $note Surowy przypis.
+	 */
+	private static function isBlankNote( string $note ): bool {
+		$text = html_entity_decode( strip_tags( $note ), ENT_QUOTES | ENT_HTML5, 'UTF-8' );
+		return '' === trim( str_replace( "\u{00A0}", ' ', $text ) );
 	}
 
 	/**
