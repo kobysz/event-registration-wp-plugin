@@ -11,6 +11,8 @@ so keep entries user-facing and concise.
 
 ## [Unreleased]
 
+## [0.2.3] - 2026-11-18
+
 ### Added
 - A note under the "companion" tick box on the registration form. For each event, and for each language of a translated site, you can write one sentence there, for example saying whether a companion needs a registration form of their own. Basic formatting and links are allowed. Left empty, nothing is shown.
 
