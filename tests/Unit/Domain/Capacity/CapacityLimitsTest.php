@@ -86,4 +86,66 @@ final class CapacityLimitsTest extends TestCase {
 		$this->assertTrue( $limits->companionCountsEvent );
 		$this->assertSame( 9, $limits->globalLimit );
 	}
+
+	public function test_classic_takes_room_occupancy_into_slot_seats(): void {
+		$accommodation = AccommodationConfig::fromArray(
+			array(
+				'packages'          => array( array( 'key' => 'pkg', 'label' => 'Pakiet' ) ),
+				'rooms'             => array(
+					array( 'key' => 'two', 'label' => 'Dwójka', 'occupancy' => 2 ),
+					array( 'key' => 'unset', 'label' => 'Nieustawiony' ),
+				),
+				'inventory'         => array(
+					array( 'package' => 'pkg', 'room' => 'two', 'capacity' => 3, 'price' => 100 ),
+					array( 'package' => 'pkg', 'room' => 'unset', 'capacity' => 3, 'price' => 100 ),
+				),
+				'companion_enabled' => true,
+			)
+		);
+
+		$limits = $this->classic( array(), $accommodation );
+
+		$this->assertSame( 2, $limits->seatsForSlot( 'pkg|two', false ) );
+		$this->assertSame( 1, $limits->seatsForSlot( 'pkg|unset', false ) );
+		$this->assertSame( 2, $limits->seatsForSlot( 'pkg|unset', true ) );
+	}
+
+	/**
+	 * @return array<string,array{0:bool}>
+	 */
+	public static function companion_flags(): array {
+		return array(
+			'true'  => array( true ),
+			'false' => array( false ),
+		);
+	}
+
+	/**
+	 * @dataProvider companion_flags
+	 */
+	public function test_classic_companion_counts_event_follows_config( bool $flag ): void {
+		$accommodation = AccommodationConfig::fromArray(
+			array(
+				'companion_enabled'      => true,
+				'companion_counts_event' => $flag,
+			)
+		);
+
+		$this->assertSame( $flag, $this->classic( array(), $accommodation )->companionCountsEvent );
+	}
+
+	/**
+	 * @dataProvider companion_flags
+	 */
+	public function test_nights_companion_counts_event_follows_config( bool $flag ): void {
+		$nights = NightsConfig::fromArray(
+			array(
+				'mode'                   => 'nights',
+				'companion_enabled'      => true,
+				'companion_counts_event' => $flag,
+			)
+		);
+
+		$this->assertSame( $flag, CapacityLimits::forNights( array(), $this->types(), $nights )->companionCountsEvent );
+	}
 }
