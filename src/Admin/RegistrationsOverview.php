@@ -94,7 +94,9 @@ final class RegistrationsOverview {
 		$nights        = NightsConfig::fromArray( $accommodation_raw );
 		$accommodation = AccommodationConfig::fromArray( $nights->isNights() ? array() : $accommodation_raw );
 		$settings      = is_array( $config['settings'] ) ? $config['settings'] : array();
-		$global_cap    = isset( $settings['global_cap'] ) && null !== $settings['global_cap'] ? (int) $settings['global_cap'] : null;
+		$limits        = $nights->isNights()
+			? CapacityLimits::forNights( $settings, $types, $nights )
+			: CapacityLimits::forClassic( $settings, $types, $accommodation );
 
 		$repository = new RegistrationRepository();
 		$counts     = array();
@@ -110,7 +112,7 @@ final class RegistrationsOverview {
 
 		return new OccupancyReport(
 			$repository->occupancy( $event_id ),
-			new CapacityLimits( $global_cap, $types->capacities(), $accommodation->capacities() ),
+			$limits,
 			$types,
 			$accommodation,
 			$counts,
