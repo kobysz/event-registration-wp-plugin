@@ -104,6 +104,11 @@ final class RegistrationsOverviewTest extends WP_UnitTestCase {
 		$this->assertStringContainsString( 'Przegląd: Zjazd 2026', $html );
 		// 2 zajmują miejsce (confirmed+pending) z limitu 20, wolne 18.
 		$this->assertStringContainsString( '2 z 20 (wolne: 18)', $html );
+		$this->assertStringContainsString( '<td>Zajęte miejsca</td>', $html );
+		// Ogniwo między miejscami a statusami. Wiersz liczy TYLKO zajmujące miejsce:
+		// zasiane są cztery zgłoszenia (po jednym na status), a ten wiersz pokazuje 2 —
+		// stąd nazwa, bo lista rezerwowa i anulowane miejsca nie zajmują.
+		$this->assertStringContainsString( '<td>Zgłoszenia zajmujące miejsce</td><td>2</td>', $html );
 		// Suma kwot tylko za zajmujące miejsce (waitlist/cancelled pominięte).
 		$this->assertStringContainsString( '200.00', $html );
 	}

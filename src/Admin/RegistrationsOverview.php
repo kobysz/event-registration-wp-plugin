@@ -129,7 +129,12 @@ final class RegistrationsOverview {
 	 */
 	private static function render_summary( OccupancyReport $report ): void {
 		$rows = array(
-			array( __( 'Zajmują miejsce', 'event-registration' ), self::occupancy_text( $report->overall() ) ),
+			// Ogniwo między miejscami a statusami: bez niego tabela skacze z 154 miejsc wprost
+			// na 100 potwierdzonych i nie widać, że różnicę robią osoby towarzyszące. Nazwa mówi,
+			// czego wiersz NIE liczy — lista rezerwowa i anulowane miejsca nie zajmują, więc przy
+			// niezerowych wierszach statusów suma i tak by się nie zgadzała.
+			array( __( 'Zgłoszenia zajmujące miejsce', 'event-registration' ), number_format_i18n( $report->registrations() ) ),
+			array( __( 'Zajęte miejsca', 'event-registration' ), self::occupancy_text( $report->overall() ) ),
 			array( RegistrationsListTable::status_label( RegistrationStatus::Confirmed->value ), number_format_i18n( $report->statusCount( RegistrationStatus::Confirmed->value ) ) ),
 			array( RegistrationsListTable::status_label( RegistrationStatus::Pending->value ), number_format_i18n( $report->statusCount( RegistrationStatus::Pending->value ) ) ),
 			array( RegistrationsListTable::status_label( RegistrationStatus::Waitlist->value ), number_format_i18n( $report->statusCount( RegistrationStatus::Waitlist->value ) ) ),

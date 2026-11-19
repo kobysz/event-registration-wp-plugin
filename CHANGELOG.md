@@ -9,6 +9,11 @@ The section for each released version is published verbatim as the GitHub
 Release body and shown under "View details" in the WordPress plugins screen,
 so keep entries user-facing and concise.
 
+## [Unreleased]
+
+### Changed
+- The occupancy panel now shows how many registrations are taking a seat, on a row of its own above the seat count. The seat count row is named "Occupied seats", so the two read together: registrations plus companions make up the occupied seats. The registrations row counts confirmed and pending entries only, which is what its label says, because waiting-list and cancelled entries take no seat.
+
 ## [0.2.7] - 2026-11-19
 
 ### Fixed

@@ -152,6 +152,17 @@ final class OccupancyReport {
 	}
 
 	/**
+	 * Liczba ZGŁOSZEŃ zajmujących miejsce (potwierdzone + oczekujące), bez osób
+	 * towarzyszących. Ogniwo między {@see self::overall()} a wierszami statusów:
+	 * zgłoszenia + towarzyszący (gdy wliczani) = zajęte miejsca. Lista rezerwowa
+	 * i anulowane miejsca nie zajmują, więc tu ich nie ma — dlatego prezentacja
+	 * nazywa ten wiersz „zajmujące miejsce", a nie „wszystkie zgłoszenia".
+	 */
+	public function registrations(): int {
+		return $this->taken->global();
+	}
+
+	/**
 	 * Liczba osób towarzyszących wliczonych do obłożenia.
 	 */
 	public function companions(): int {

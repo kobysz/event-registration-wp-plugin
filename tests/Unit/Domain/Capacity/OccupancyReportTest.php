@@ -138,6 +138,25 @@ final class OccupancyReportTest extends TestCase {
 	}
 
 	/**
+	 * Ogniwo między miejscami a statusami: zgłoszenia zajmujące miejsce liczą SAME
+	 * zgłoszenia, bez towarzyszących — inaczej wiersz powtarzałby „zajęte miejsca".
+	 */
+	public function test_registrations_count_excludes_companions(): void {
+		$report = $this->companionReport( new OccupancySnapshot( 104, array(), array(), 50 ), 180, true );
+
+		$this->assertSame( 104, $report->registrations() );
+		$this->assertSame( 50, $report->companions() );
+		$this->assertSame( 154, $report->overall()['taken'] );
+	}
+
+	public function test_registrations_count_is_the_same_when_companions_are_free(): void {
+		$report = $this->companionReport( new OccupancySnapshot( 104, array(), array(), 50 ), 180, false );
+
+		$this->assertSame( 104, $report->registrations() );
+		$this->assertSame( 104, $report->overall()['taken'] );
+	}
+
+	/**
 	 * Zestawienie z jawną regułą „towarzysząca zajmuje miejsce wydarzenia".
 	 */
 	private function companionReport( OccupancySnapshot $taken, ?int $global_limit, bool $counts ): OccupancyReport {
