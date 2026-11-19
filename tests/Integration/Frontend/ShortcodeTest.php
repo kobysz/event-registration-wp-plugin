@@ -6,7 +6,9 @@ namespace EvReg\Tests\Integration\Frontend;
 
 use EvReg\Admin\SettingsScreen;
 use EvReg\Domain\Accommodation\AccommodationSelection;
+use EvReg\Frontend\EventFormLoader;
 use EvReg\Frontend\Shortcode;
+use EvReg\Frontend\SubmitHandler;
 use EvReg\Persistence\EventConfigRepository;
 use EvReg\Persistence\Migrations;
 use EvReg\Persistence\RegistrationRepository;
@@ -169,5 +171,219 @@ final class ShortcodeTest extends WP_UnitTestCase {
 
 		$this->assertMatchesRegularExpression( '/value="n18\|single"[^>]*disabled/', $html );
 		$this->assertStringContainsString( '(brak miejsc)', $html );
+	}
+
+	private const WAITLIST_NOTICE = 'Wszystkie miejsca są zajęte. Możesz się zapisać — trafisz na listę rezerwową i damy znać, gdy zwolni się miejsce.';
+
+	private const CLOSED_NOTICE = 'Rejestracja zamknięta — brak wolnych miejsc.';
+
+	/**
+	 * Zapisuje konfigurację z typami i ustawieniami, zachowując schemat z setUp().
+	 *
+	 * @param array<int,array<string,mixed>> $types         Typy zgłoszeń.
+	 * @param array<string,mixed>            $settings      Ustawienia eventu.
+	 * @param array<string,mixed>|null       $accommodation Konfiguracja noclegów (null = pusta klasyczna).
+	 */
+	private function configure( array $types, array $settings, ?array $accommodation = null ): void {
+		$repo   = new EventConfigRepository();
+		$config = $repo->get( $this->event_id );
+		$repo->save(
+			$this->event_id,
+			array(
+				'schema'        => $config['schema'],
+				'types'         => $types,
+				'accommodation' => $accommodation ?? array( 'packages' => array(), 'rooms' => array(), 'inventory' => array() ),
+				'settings'      => $settings,
+			)
+		);
+	}
+
+	/**
+	 * Zajmuje jedyne miejsce typu przez serwis rezerwacji.
+	 *
+	 * @param string $type  Klucz typu.
+	 * @param string $email Adres zgłaszającego.
+	 */
+	private function take( string $type, string $email = 'zajete@example.com' ): void {
+		( new ReservationService( new RegistrationRepository(), new EventConfigRepository() ) )->reserve(
+			$this->event_id,
+			new ReservationRequest( $email, 'Jan', $type, array( 'email' => $email ) )
+		);
+	}
+
+	/**
+	 * @return array<int,array<string,mixed>>
+	 */
+	private function singleFullType(): array {
+		return array( array( 'key' => 'std', 'label' => 'Standard', 'price' => 0.0, 'capacity' => 1 ) );
+	}
+
+	private function html(): string {
+		return Shortcode::render( array( 'event' => (string) $this->event_id ) );
+	}
+
+	public function test_full_event_without_waitlist_renders_notice_and_no_form(): void {
+		$this->configure( $this->singleFullType(), array( 'global_cap' => null, 'waitlist_enabled' => false ) );
+		$this->take( 'std' );
+
+		$html = $this->html();
+
+		$this->assertStringNotContainsString( '<form', $html );
+		$this->assertStringContainsString( self::CLOSED_NOTICE, $html );
+		$this->assertStringContainsString( 'evreg-full', $html );
+		$this->assertStringContainsString( 'alert-warning', $html );
+	}
+
+	public function test_full_event_with_waitlist_renders_notice_and_form(): void {
+		$this->configure( $this->singleFullType(), array( 'global_cap' => null, 'waitlist_enabled' => true ) );
+		$this->take( 'std' );
+
+		$html = $this->html();
+
+		$this->assertStringContainsString( self::WAITLIST_NOTICE, $html );
+		$this->assertStringContainsString( 'alert-info', $html );
+		$this->assertStringContainsString( '<form', $html );
+	}
+
+	public function test_open_event_renders_no_full_notice(): void {
+		$this->configure( $this->singleFullType(), array( 'global_cap' => null, 'waitlist_enabled' => false ) );
+
+		$html = $this->html();
+
+		$this->assertStringNotContainsString( 'evreg-full', $html );
+		$this->assertStringContainsString( '<form', $html );
+	}
+
+	public function test_one_full_type_with_other_open_renders_no_notice(): void {
+		$this->configure(
+			array(
+				array( 'key' => 'std', 'label' => 'Standard', 'price' => 0.0, 'capacity' => 1 ),
+				array( 'key' => 'vip', 'label' => 'VIP', 'price' => 0.0, 'capacity' => 5 ),
+			),
+			array( 'global_cap' => null, 'waitlist_enabled' => false )
+		);
+		$this->take( 'std' );
+
+		$html = $this->html();
+
+		$this->assertStringNotContainsString( 'evreg-full', $html );
+		$this->assertStringContainsString( '<form', $html );
+	}
+
+	public function test_inactive_open_type_does_not_keep_event_open(): void {
+		$this->configure(
+			array(
+				array( 'key' => 'std', 'label' => 'Standard', 'price' => 0.0, 'capacity' => 1 ),
+				array( 'key' => 'vip', 'label' => 'VIP', 'price' => 0.0, 'capacity' => 5, 'active' => false ),
+			),
+			array( 'global_cap' => null, 'waitlist_enabled' => false )
+		);
+		$this->take( 'std' );
+
+		$html = $this->html();
+
+		$this->assertStringContainsString( self::CLOSED_NOTICE, $html );
+		$this->assertStringNotContainsString( '<form', $html );
+	}
+
+	public function test_custom_notice_from_settings_wins_over_default(): void {
+		$this->configure( $this->singleFullType(), array( 'global_cap' => null, 'waitlist_enabled' => false, 'full_closed_notice' => 'Koniec zapisów' ) );
+		$this->take( 'std' );
+
+		$html = $this->html();
+
+		$this->assertStringContainsString( 'Koniec zapisów', $html );
+		$this->assertStringNotContainsString( self::CLOSED_NOTICE, $html );
+	}
+
+	public function test_blank_custom_notice_falls_back_to_default(): void {
+		$this->configure( $this->singleFullType(), array( 'global_cap' => null, 'waitlist_enabled' => false, 'full_closed_notice' => '   ' ) );
+		$this->take( 'std' );
+
+		$this->assertStringContainsString( self::CLOSED_NOTICE, $this->html() );
+	}
+
+	public function test_closed_after_rejected_post_shows_only_closed_notice(): void {
+		add_filter(
+			'wp_redirect',
+			static function (): never {
+				throw new \RuntimeException( 'Unexpected redirect.' );
+			}
+		);
+		$this->configure( $this->singleFullType(), array( 'global_cap' => null, 'waitlist_enabled' => false ) );
+		$this->take( 'std' );
+
+		// Wyścig: formularz był otwarty, miejsce zajął ktoś inny, POST dostaje `rejected`.
+		$_POST = array(
+			'evreg_submit' => '1',
+			'evreg_event'  => (string) $this->event_id,
+			'evreg-nonce'  => wp_create_nonce( 'evreg_submit_' . $this->event_id ),
+			'evreg_hp'     => '',
+			'evreg_ts'     => (string) ( time() - 10 ),
+			'evreg_field'  => array( '__type' => 'std', 'email' => 'drugi@example.com' ),
+		);
+		( new SubmitHandler(
+			new EventFormLoader( new EventConfigRepository() ),
+			new ReservationService( new RegistrationRepository(), new EventConfigRepository() )
+		) )->handle();
+		$code = SubmitHandler::resultFor( $this->event_id )?->code();
+
+		$html = $this->html();
+
+		remove_all_filters( 'wp_redirect' );
+		$_POST = array();
+
+		$this->assertSame( 'rejected', $code );
+		$this->assertStringNotContainsString( '<form', $html );
+		$this->assertStringNotContainsString( 'Brak wolnych miejsc.', $html );
+		$this->assertStringContainsString( self::CLOSED_NOTICE, $html );
+	}
+
+	public function test_closed_event_does_not_enqueue_public_script(): void {
+		wp_dequeue_script( 'evreg-public' );
+		$this->configure( $this->singleFullType(), array( 'global_cap' => null, 'waitlist_enabled' => false ) );
+		$this->take( 'std' );
+
+		$this->html();
+
+		$this->assertFalse( wp_script_is( 'evreg-public', 'enqueued' ) );
+	}
+
+	public function test_broken_classic_inventory_renders_form_without_notice(): void {
+		$this->configure( $this->singleFullType(), array( 'global_cap' => null, 'waitlist_enabled' => false ) );
+		$this->take( 'std' );
+		// Inwentarz psuje się dopiero po zajęciu miejsca: reserve() sam rzuciłby na takim configu.
+		$this->configure(
+			$this->singleFullType(),
+			array( 'global_cap' => null, 'waitlist_enabled' => false ),
+			array(
+				'packages'  => array(),
+				'rooms'     => array(),
+				'inventory' => array( array( 'package' => 'ghost', 'room' => 'ghost', 'capacity' => 1, 'price' => 1.0 ) ),
+			)
+		);
+
+		$html = $this->html();
+
+		$this->assertStringContainsString( '<form', $html );
+		$this->assertStringNotContainsString( 'evreg-full', $html );
+	}
+
+	public function test_nights_mode_full_event_renders_notice(): void {
+		$this->configure(
+			$this->singleFullType(),
+			array( 'global_cap' => null, 'waitlist_enabled' => false ),
+			array(
+				'mode'      => 'nights',
+				'nights'    => array( array( 'key' => 'n1819', 'label' => '18/19 XI', 'price' => 80.0, 'seats' => 2 ) ),
+				'inventory' => array( array( 'package' => 'ghost', 'room' => 'ghost', 'capacity' => 1, 'price' => 1.0 ) ),
+			)
+		);
+		$this->take( 'std' );
+
+		$html = $this->html();
+
+		$this->assertStringContainsString( self::CLOSED_NOTICE, $html );
+		$this->assertStringNotContainsString( '<form', $html );
 	}
 }

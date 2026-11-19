@@ -10,7 +10,12 @@ declare( strict_types=1 );
 namespace EvReg\Frontend;
 
 use EvReg\Domain\Accommodation\AccommodationConfig;
+use EvReg\Domain\Accommodation\NightsConfig;
 use EvReg\Domain\Accommodation\SlotAvailability;
+use EvReg\Domain\Capacity\CapacityLimits;
+use EvReg\Domain\Capacity\EventAvailability;
+use EvReg\Domain\Capacity\EventAvailabilityState;
+use EvReg\Domain\Registration\RegistrationTypeCollection;
 use EvReg\Domain\Registration\RegistrationStatus;
 use EvReg\Domain\Schema\SchemaException;
 use EvReg\Persistence\EventConfigRepository;
@@ -85,17 +90,81 @@ final class Shortcode {
 			return '<p class="evreg-unavailable">' . esc_html__( 'Rejestracja jest niedostępna.', 'event-registration' ) . '</p>';
 		}
 
+		// Wydarzenie, które nikogo już nie przyjmie, nie dostaje formularza ani skryptu —
+		// sam komunikat. Wynik poprzedniej próby (np. `rejected` z wyścigu o ostatnie
+		// miejsce) pomijamy, bo opowiadałby tę samą historię drugi raz, gorzej.
+		$state = self::eventAvailability( $event_id, $nights );
+		if ( EventAvailabilityState::Closed === $state ) {
+			self::enqueueStyles();
+			return self::fullNotice( $event_id, $state );
+		}
+
 		self::enqueueStyles();
 		wp_enqueue_script( 'evreg-public' );
 
 		$result = SubmitHandler::resultFor( $event_id );
-		$notice = null === $result ? '' : self::resultNotice( $result );
+		$notice = ( EventAvailabilityState::Waitlist === $state ? self::fullNotice( $event_id, $state ) : '' )
+			. ( null === $result ? '' : self::resultNotice( $result ) );
 
 		$renderer = null === $nights
 			? new FormRenderer( self::availability( $event_id ) )
 			: new FormRenderer( null, ( new RegistrationRepository() )->nightOccupancy( $event_id, RegistrationStatus::occupyingValues() ), $nights );
 
 		return $notice . $renderer->render( $schema, $event_id, $result );
+	}
+
+	/**
+	 * Ustala, czy wydarzenie może jeszcze kogokolwiek przyjąć. Limity składa z SUROWYCH
+	 * ustawień (global_cap/waitlist_enabled nie podlegają tłumaczeniu), a obłożenie liczy
+	 * świeżo. Tryb „doby” nigdy nie buduje AccommodationConfig; w klasycznym niepoprawny
+	 * inwentarz oznacza Open — nie zamykamy rejestracji z powodu błędu konfiguracji.
+	 *
+	 * @param int               $event_id ID posta eventu.
+	 * @param NightsConfig|null $nights   Konfiguracja dób (null = tryb klasyczny).
+	 */
+	private static function eventAvailability( int $event_id, ?NightsConfig $nights ): EventAvailabilityState {
+		$config   = ( new EventConfigRepository() )->get( $event_id );
+		$settings = is_array( $config['settings'] ) ? $config['settings'] : array();
+		$types    = RegistrationTypeCollection::fromArray( is_array( $config['types'] ) ? $config['types'] : array() );
+
+		if ( null !== $nights ) {
+			$limits = CapacityLimits::forNights( $settings, $types, $nights );
+		} else {
+			try {
+				$raw    = is_array( $config['accommodation'] ) ? $config['accommodation'] : array();
+				$limits = CapacityLimits::forClassic( $settings, $types, AccommodationConfig::fromArray( $raw ) );
+			} catch ( SchemaException ) {
+				return EventAvailabilityState::Open;
+			}
+		}
+
+		return EventAvailability::decide(
+			$limits,
+			( new RegistrationRepository() )->occupancy( $event_id ),
+			array_map( static fn( $type ) => $type->key, $types->active() )
+		);
+	}
+
+	/**
+	 * Buduje alert „wydarzenie pełne”: tekst własny organizatora (po overlayu językowym),
+	 * a gdy pusty — domyślny.
+	 *
+	 * @param int                    $event_id ID posta eventu.
+	 * @param EventAvailabilityState $state    Stan Waitlist albo Closed.
+	 */
+	private static function fullNotice( int $event_id, EventAvailabilityState $state ): string {
+		$waitlist = EventAvailabilityState::Waitlist === $state;
+		$key      = $waitlist ? 'full_waitlist_notice' : 'full_closed_notice';
+		$custom   = ( new EventFormLoader( new EventConfigRepository() ) )->settings( $event_id )[ $key ] ?? '';
+		$custom   = is_string( $custom ) ? trim( $custom ) : '';
+
+		if ( '' === $custom ) {
+			$custom = $waitlist
+				? __( 'Wszystkie miejsca są zajęte. Możesz się zapisać — trafisz na listę rezerwową i damy znać, gdy zwolni się miejsce.', 'event-registration' )
+				: __( 'Rejestracja zamknięta — brak wolnych miejsc.', 'event-registration' );
+		}
+
+		return self::alert( $custom, $waitlist ? 'info' : 'warning', 'evreg-full' );
 	}
 
 	/**
