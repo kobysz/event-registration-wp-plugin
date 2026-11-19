@@ -384,6 +384,20 @@ final class ShortcodeTest extends WP_UnitTestCase {
 		$this->assertStringNotContainsString( 'evreg-full', $html );
 	}
 
+	public function test_duplicate_type_key_does_not_fatal_or_render_full_notice(): void {
+		$this->configure(
+			array(
+				array( 'key' => 'std', 'label' => 'A', 'price' => 0.0, 'capacity' => 1 ),
+				array( 'key' => 'std', 'label' => 'B', 'price' => 0.0, 'capacity' => 1 ),
+			),
+			array( 'global_cap' => null, 'waitlist_enabled' => false )
+		);
+
+		$html = $this->html();
+
+		$this->assertStringNotContainsString( 'evreg-full', $html );
+	}
+
 	public function test_nights_mode_full_event_renders_notice(): void {
 		$this->configure(
 			$this->singleFullType(),

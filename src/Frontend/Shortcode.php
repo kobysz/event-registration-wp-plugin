@@ -125,17 +125,16 @@ final class Shortcode {
 	private static function eventAvailability( int $event_id, ?NightsConfig $nights ): EventAvailabilityState {
 		$config   = ( new EventConfigRepository() )->get( $event_id );
 		$settings = is_array( $config['settings'] ) ? $config['settings'] : array();
-		$types    = RegistrationTypeCollection::fromArray( is_array( $config['types'] ) ? $config['types'] : array() );
-
-		if ( null !== $nights ) {
-			$limits = CapacityLimits::forNights( $settings, $types, $nights );
-		} else {
-			try {
+		try {
+			$types = RegistrationTypeCollection::fromArray( is_array( $config['types'] ) ? $config['types'] : array() );
+			if ( null !== $nights ) {
+				$limits = CapacityLimits::forNights( $settings, $types, $nights );
+			} else {
 				$raw    = is_array( $config['accommodation'] ) ? $config['accommodation'] : array();
 				$limits = CapacityLimits::forClassic( $settings, $types, AccommodationConfig::fromArray( $raw ) );
-			} catch ( SchemaException ) {
-				return EventAvailabilityState::Open;
 			}
+		} catch ( SchemaException ) {
+			return EventAvailabilityState::Open;
 		}
 
 		return EventAvailability::decide(
