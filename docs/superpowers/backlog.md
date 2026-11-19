@@ -1048,7 +1048,9 @@ submitem zostaje, a wtedy odmowa trafia w kogoś, kto właśnie wypełnił wszys
 
 ---
 
-## B41 — Domyślne teksty komunikatów o pełnym evencie mają dwa domy
+## B41 — Domyślne teksty komunikatów o pełnym evencie mają dwa domy — **ZAMKNIĘTE**
+
+**Naprawione 2026-11-19** na gałęzi `feature/b41-notice-defaults`: oba teksty mieszkają teraz w `Frontend\DefaultNotices` (`keys()`/`settingsKey()`/`get()`/`all()`), `Shortcode::fullNotice` je czyta, a `EventConfigAssets` podaje je panelowi w `wp_localize_script` jako `window.evregAdmin.noticeDefaults`. `noticeDefaults.js` trzyma już tylko listę kluczy i czytnik payloadu — zero treści, więc nie ma czemu się rozjechać. Test integracyjny porównuje tekst z payloadu z `DefaultNotices::get()`. Opis poniżej zostaje dla zapisu.
 
 **Priorytet:** niski.
 

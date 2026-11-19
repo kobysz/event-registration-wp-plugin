@@ -340,9 +340,20 @@ describe( 'i18nOps companion note row', () => {
 } );
 
 describe( 'i18nOps notices bucket', () => {
-	const WAITLIST =
-		'Wszystkie miejsca są zajęte. Możesz się zapisać — trafisz na listę rezerwową i damy znać, gdy zwolni się miejsce.';
-	const CLOSED = 'Rejestracja zamknięta — brak wolnych miejsc.';
+	// Domyślne teksty przychodzą z serwera (window.evregAdmin.noticeDefaults), więc test
+	// je podstawia zamiast powtarzać treść wtyczki — patrz backlog B41.
+	const WAITLIST = 'Domyślny z listą rezerwową';
+	const CLOSED = 'Domyślny zamknięty';
+
+	beforeEach( () => {
+		window.evregAdmin = {
+			noticeDefaults: { full_waitlist: WAITLIST, full_closed: CLOSED },
+		};
+	} );
+
+	afterEach( () => {
+		delete window.evregAdmin;
+	} );
 
 	it( 'langBucket zachowuje notices przy zapisie innego bucketu', () => {
 		const overlay = { en: { notices: { full_closed: 'X' } } };

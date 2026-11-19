@@ -9,6 +9,7 @@ declare( strict_types=1 );
 
 namespace EvReg\Admin;
 
+use EvReg\Frontend\DefaultNotices;
 use EvReg\Plugin;
 use WP_Post;
 
@@ -100,6 +101,10 @@ final class EventConfigAssets {
 				'pages'           => $pages,
 				'languages'       => self::translationLanguages(),
 				'defaultLanguage' => function_exists( 'pll_default_language' ) ? (string) pll_default_language( 'slug' ) : '',
+				// Domyślne teksty komunikatów o pełnym evencie podaje serwer, a nie kopia w JS:
+				// panel pokazuje je jako placeholder i jako bazę wiersza tłumaczenia, więc muszą
+				// być dokładnie tym, co zobaczy odwiedzający (backlog B41).
+				'noticeDefaults'  => DefaultNotices::all(),
 			)
 		);
 	}

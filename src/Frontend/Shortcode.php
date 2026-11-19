@@ -153,14 +153,12 @@ final class Shortcode {
 	 */
 	private static function fullNotice( int $event_id, EventAvailabilityState $state ): string {
 		$waitlist = EventAvailabilityState::Waitlist === $state;
-		$key      = $waitlist ? 'full_waitlist_notice' : 'full_closed_notice';
-		$custom   = ( new EventFormLoader( new EventConfigRepository() ) )->settings( $event_id )[ $key ] ?? '';
+		$key      = $waitlist ? DefaultNotices::KEY_FULL_WAITLIST : DefaultNotices::KEY_FULL_CLOSED;
+		$custom   = ( new EventFormLoader( new EventConfigRepository() ) )->settings( $event_id )[ DefaultNotices::settingsKey( $key ) ] ?? '';
 		$custom   = is_string( $custom ) ? trim( $custom ) : '';
 
 		if ( '' === $custom ) {
-			$custom = $waitlist
-				? __( 'Wszystkie miejsca są zajęte. Możesz się zapisać — trafisz na listę rezerwową i damy znać, gdy zwolni się miejsce.', 'event-registration' )
-				: __( 'Rejestracja zamknięta — brak wolnych miejsc.', 'event-registration' );
+			$custom = DefaultNotices::get( $key );
 		}
 
 		return self::alert( $custom, $waitlist ? 'info' : 'warning', 'evreg-full' );

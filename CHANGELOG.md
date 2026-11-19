@@ -9,6 +9,11 @@ The section for each released version is published verbatim as the GitHub
 Release body and shown under "View details" in the WordPress plugins screen,
 so keep entries user-facing and concise.
 
+## [Unreleased]
+
+### Fixed
+- The two "event is full" messages shown to visitors had their default wording written down twice, once for the page and once for the settings screen. The settings screen now shows exactly the wording a visitor would see, so changing one can no longer leave the other out of step. Nothing changes for a site that has already written its own messages.
+
 ## [0.2.6] - 2026-11-19
 
 ### Added

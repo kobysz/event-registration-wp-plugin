@@ -1,16 +1,10 @@
-import { __ } from '@wordpress/i18n';
-
-// Jedyne miejsce z domyślnymi tekstami komunikatów o pełnym evencie — czytają je
-// SettingsTab (placeholder) i i18nOps (baza wiersza tłumaczenia).
+// Lista kluczy komunikatów o pełnym evencie żyje tu, ale ich TREŚĆ nie: domyślne
+// teksty podaje serwer w window.evregAdmin.noticeDefaults, bo tę samą treść renderuje
+// publiczny formularz (Shortcode::fullNotice → Frontend\DefaultNotices). Kopia tekstów
+// w tym pliku była drugim domem i cichym ryzykiem rozjazdu — backlog B41.
 export const NOTICE_KEYS = [ 'full_waitlist', 'full_closed' ];
 
 export function defaultNotice( key ) {
-	const defaults = {
-		full_waitlist: __(
-			'Wszystkie miejsca są zajęte. Możesz się zapisać — trafisz na listę rezerwową i damy znać, gdy zwolni się miejsce.',
-			'event-registration'
-		),
-		full_closed: __( 'Rejestracja zamknięta — brak wolnych miejsc.', 'event-registration' ),
-	};
-	return Object.prototype.hasOwnProperty.call( defaults, key ) ? defaults[ key ] : '';
+	const defaults = ( typeof window !== 'undefined' && window.evregAdmin && window.evregAdmin.noticeDefaults ) || {};
+	return Object.prototype.hasOwnProperty.call( defaults, key ) ? String( defaults[ key ] ) : '';
 }
