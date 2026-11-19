@@ -210,7 +210,7 @@ final class SubmitHandler {
 			$accommodation_key = $schema->accommodationFieldKey();
 
 			return null === $accommodation_key
-				? SubmitResult::rejected()
+				? SubmitResult::rejected( $assembled->rawAnswers() )
 				: SubmitResult::invalid( array( $accommodation_key => $mismatch ), $assembled->rawAnswers() );
 		}
 
@@ -245,7 +245,7 @@ final class SubmitHandler {
 			$code = '' === $reservation->blockingNight ? 'accommodation_full' : 'night_full:' . $reservation->blockingNight;
 
 			return null === $accommodation_key
-				? SubmitResult::rejected()
+				? SubmitResult::rejected( $assembled->rawAnswers() )
 				: SubmitResult::invalid(
 					array( $accommodation_key => $code ),
 					$assembled->rawAnswers()
@@ -256,7 +256,7 @@ final class SubmitHandler {
 			'reserved'   => SubmitResult::success( 'reserved' ),
 			'waitlisted' => SubmitResult::success( 'waitlisted' ),
 			'duplicate'  => SubmitResult::duplicate(),
-			default      => SubmitResult::rejected(),
+			default      => SubmitResult::rejected( $assembled->rawAnswers() ),
 		};
 	}
 

@@ -73,10 +73,13 @@ final class SubmitResult {
 	}
 
 	/**
-	 * Tworzy wynik odrzucenia zgłoszenia.
+	 * Tworzy wynik odrzucenia zgłoszenia (np. brak wolnych miejsc) — z wpisanymi wartościami,
+	 * żeby uczestnik nie przepisywał formularza od nowa.
+	 *
+	 * @param array<string,mixed> $values Surowe odpowiedzi do odtworzenia.
 	 */
-	public static function rejected(): self {
-		return new self( 'rejected', false );
+	public static function rejected( array $values = array() ): self {
+		return new self( 'rejected', false, array(), $values );
 	}
 
 	/**

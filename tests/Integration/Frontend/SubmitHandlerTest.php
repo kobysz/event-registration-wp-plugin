@@ -98,6 +98,36 @@ final class SubmitHandlerTest extends WP_UnitTestCase {
 		parent::tearDown();
 	}
 
+	/**
+	 * Zapełnia jedyne miejsce typu i wyłącza listę rezerwową, żeby kolejna submisja dostała `rejected`.
+	 */
+	private function fillEventWithoutWaitlist(): void {
+		$repo   = new EventConfigRepository();
+		$config = $repo->get( $this->event_id );
+		$config['settings']['waitlist_enabled'] = false;
+		$repo->save( $this->event_id, $config );
+		$this->handler->process( $this->event_id, $this->post( array( 'email' => 'first@example.com' ) ) );
+	}
+
+	public function test_rejected_keeps_submitted_values(): void {
+		$this->fillEventWithoutWaitlist();
+
+		$result = $this->handler->process( $this->event_id, $this->post( array( 'email' => 'second@example.com' ) ) );
+
+		$this->assertSame( 'rejected', $result->code() );
+		$this->assertSame( 'Jan', $result->submittedValue( 'imie' ) );
+	}
+
+	public function test_rejected_result_rerenders_typed_values(): void {
+		$this->fillEventWithoutWaitlist();
+
+		$result = $this->handler->process( $this->event_id, $this->post( array( 'email' => 'second@example.com' ) ) );
+		$schema = ( new EventFormLoader( new EventConfigRepository() ) )->load( $this->event_id );
+		$html   = ( new \EvReg\Frontend\FormRenderer() )->render( $schema, $this->event_id, $result );
+
+		$this->assertStringContainsString( 'value="Jan"', $html );
+	}
+
 	public function test_valid_submission_reserves(): void {
 		$result = $this->handler->process( $this->event_id, $this->post() );
 
