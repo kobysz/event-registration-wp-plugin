@@ -49,10 +49,19 @@ final class OccupancyReport {
 	/**
 	 * Obłożenie globalne eventu; `limit`/`free` są null, gdy limitu nie ustawiono.
 	 *
+	 * `taken` liczy MIEJSCA, nie zgłoszenia: przy włączonym `companion_counts_event`
+	 * osoby towarzyszące doliczają się tak samo, jak robi to CapacityCalculator::decide
+	 * przy przyjmowaniu zgłoszenia. Inaczej panel obiecywałby miejsca, których
+	 * rejestracja już nie przyjmie — przy 100 zgłoszeniach i 47 towarzyszących
+	 * pokazywał „100 z 180 (wolne: 80)", a zapisy stawały na 133 zgłoszeniach.
+	 * Rozbicie na zgłoszenia i towarzyszących niesie osobny wiersz {@see self::companions()}.
+	 *
 	 * @return array{taken:int,limit:int|null,free:int|null}
 	 */
 	public function overall(): array {
-		return $this->row( $this->taken->global(), $this->limits->globalLimit );
+		$companions = $this->limits->companionCountsEvent ? $this->taken->companions() : 0;
+
+		return $this->row( $this->taken->global() + $companions, $this->limits->globalLimit );
 	}
 
 	/**

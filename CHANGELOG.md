@@ -12,6 +12,8 @@ so keep entries user-facing and concise.
 ## [Unreleased]
 
 ### Fixed
+- The occupancy panel no longer understates how full an event is. When companions count towards the event limit, the "Taking a seat" row counts them, the way the registration form has always counted them when accepting a registration. An event with 100 registrations and 47 companions and a limit of 180 used to report 80 seats free while registrations were in fact going to stop 47 people earlier; it now reports 33. The companions are still listed separately underneath. Nothing changes for an event where companions do not take a seat.
+- The last free seat no longer invites a registration that cannot be accepted. When only one seat is left and companions take a seat of their own, the companion tick box is shown switched off and marked as having no room, instead of letting someone fill in the whole form and be refused after sending it.
 - The two "event is full" messages shown to visitors had their default wording written down twice, once for the page and once for the settings screen. The settings screen now shows exactly the wording a visitor would see, so changing one can no longer leave the other out of step. Nothing changes for a site that has already written its own messages.
 
 ## [0.2.6] - 2026-11-19

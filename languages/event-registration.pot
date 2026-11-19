@@ -9,7 +9,7 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-11-19T10:09:15+00:00\n"
+"POT-Creation-Date: 2026-11-19T10:32:03+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.12.0\n"
 "X-Domain: event-registration\n"
@@ -203,7 +203,7 @@ msgstr ""
 #: src/Admin/RegistrationEditForm.php:527
 #: src/Admin/RegistrationsExporter.php:55
 #: src/Admin/RegistrationView.php:130
-#: src/Frontend/FormRenderer.php:234
+#: src/Frontend/FormRenderer.php:245
 #: src/Privacy/PrivacyProvider.php:141
 msgid "Osoba towarzysząca"
 msgstr ""
@@ -215,42 +215,42 @@ msgid "Doba „%s” nie ma już wolnych miejsc dla tego zgłoszenia. Odznacz j�
 msgstr ""
 
 #: src/Admin/RegistrationEditForm.php:203
-#: src/Frontend/FormRenderer.php:689
+#: src/Frontend/FormRenderer.php:700
 msgid "To pole jest wymagane."
 msgstr ""
 
 #: src/Admin/RegistrationEditForm.php:204
-#: src/Frontend/FormRenderer.php:690
+#: src/Frontend/FormRenderer.php:701
 msgid "Nieprawidłowy adres e-mail."
 msgstr ""
 
 #: src/Admin/RegistrationEditForm.php:205
-#: src/Frontend/FormRenderer.php:691
+#: src/Frontend/FormRenderer.php:702
 msgid "Nieprawidłowy numer telefonu."
 msgstr ""
 
 #: src/Admin/RegistrationEditForm.php:206
-#: src/Frontend/FormRenderer.php:692
+#: src/Frontend/FormRenderer.php:703
 msgid "Nieprawidłowa liczba."
 msgstr ""
 
 #: src/Admin/RegistrationEditForm.php:207
-#: src/Frontend/FormRenderer.php:693
+#: src/Frontend/FormRenderer.php:704
 msgid "Nieprawidłowa data."
 msgstr ""
 
 #: src/Admin/RegistrationEditForm.php:208
-#: src/Frontend/FormRenderer.php:694
+#: src/Frontend/FormRenderer.php:705
 msgid "Wybór spoza dostępnych opcji."
 msgstr ""
 
 #: src/Admin/RegistrationEditForm.php:209
-#: src/Frontend/FormRenderer.php:695
+#: src/Frontend/FormRenderer.php:706
 msgid "Wpis jest za długi."
 msgstr ""
 
 #: src/Admin/RegistrationEditForm.php:210
-#: src/Frontend/FormRenderer.php:696
+#: src/Frontend/FormRenderer.php:707
 msgid "Nieprawidłowy wybór noclegu."
 msgstr ""
 
@@ -259,27 +259,27 @@ msgid "Wybrany nocleg nie ma już wolnych miejsc dla tego zgłoszenia. Wybierz i
 msgstr ""
 
 #: src/Admin/RegistrationEditForm.php:217
-#: src/Frontend/FormRenderer.php:697
+#: src/Frontend/FormRenderer.php:708
 msgid "Współlokator niedozwolony dla tego pokoju."
 msgstr ""
 
 #: src/Admin/RegistrationEditForm.php:218
-#: src/Frontend/FormRenderer.php:698
+#: src/Frontend/FormRenderer.php:709
 msgid "Podaj imię i nazwisko osoby towarzyszącej."
 msgstr ""
 
 #: src/Admin/RegistrationEditForm.php:219
-#: src/Frontend/FormRenderer.php:699
+#: src/Frontend/FormRenderer.php:710
 msgid "Ten pokój jest dwuosobowy. Zaznacz osobę towarzyszącą albo wybierz pokój jednoosobowy."
 msgstr ""
 
 #: src/Admin/RegistrationEditForm.php:220
-#: src/Frontend/FormRenderer.php:700
+#: src/Frontend/FormRenderer.php:711
 msgid "Ten pokój jest jednoosobowy. Odznacz osobę towarzyszącą albo wybierz pokój dwuosobowy."
 msgstr ""
 
 #: src/Admin/RegistrationEditForm.php:223
-#: src/Frontend/FormRenderer.php:704
+#: src/Frontend/FormRenderer.php:715
 msgid "Nieprawidłowa wartość."
 msgstr ""
 
@@ -288,7 +288,7 @@ msgid "— brak —"
 msgstr ""
 
 #: src/Admin/RegistrationEditForm.php:352
-#: src/Frontend/FormRenderer.php:519
+#: src/Frontend/FormRenderer.php:530
 msgid "Bez noclegu"
 msgstr ""
 
@@ -312,7 +312,7 @@ msgid "Nocleg nie jest przyznany — zaznaczone doby to życzenie zapisane w zg�
 msgstr ""
 
 #: src/Admin/RegistrationEditForm.php:523
-#: src/Frontend/FormRenderer.php:250
+#: src/Frontend/FormRenderer.php:261
 msgid "Imię i nazwisko osoby towarzyszącej"
 msgstr ""
 
@@ -838,55 +838,59 @@ msgstr ""
 msgid "Rejestracja zamknięta — brak wolnych miejsc."
 msgstr ""
 
-#: src/Frontend/FormRenderer.php:90
+#: src/Frontend/FormRenderer.php:94
 msgid "Zostaw puste"
 msgstr ""
 
-#: src/Frontend/FormRenderer.php:96
+#: src/Frontend/FormRenderer.php:100
 msgid "Wyślij zgłoszenie"
 msgstr ""
 
-#: src/Frontend/FormRenderer.php:528
-#: src/Frontend/FormRenderer.php:643
+#: src/Frontend/FormRenderer.php:239
+msgid "(brak wolnych miejsc)"
+msgstr ""
+
+#: src/Frontend/FormRenderer.php:539
+#: src/Frontend/FormRenderer.php:654
 msgid "(brak miejsc)"
 msgstr ""
 
-#: src/Frontend/FormRenderer.php:529
+#: src/Frontend/FormRenderer.php:540
 msgid "(za mało miejsc)"
 msgstr ""
 
-#: src/Frontend/FormRenderer.php:555
+#: src/Frontend/FormRenderer.php:566
 msgid "Preferowana osoba w pokoju"
 msgstr ""
 
-#: src/Frontend/FormRenderer.php:563
+#: src/Frontend/FormRenderer.php:574
 msgid "Twój wcześniejszy wybór noclegu jest już niedostępny."
 msgstr ""
 
-#: src/Frontend/FormRenderer.php:567
+#: src/Frontend/FormRenderer.php:578
 msgid "Dla tego wyboru nie ma pasujących pokojów — zmień zaznaczenie osoby towarzyszącej."
 msgstr ""
 
-#: src/Frontend/FormRenderer.php:576
-#: src/Frontend/FormRenderer.php:656
+#: src/Frontend/FormRenderer.php:587
+#: src/Frontend/FormRenderer.php:667
 msgid "Brak wolnych miejsc noclegowych."
 msgstr ""
 
-#: src/Frontend/FormRenderer.php:644
+#: src/Frontend/FormRenderer.php:655
 msgid "(brak miejsc dla dwóch osób)"
 msgstr ""
 
-#: src/Frontend/FormRenderer.php:651
+#: src/Frontend/FormRenderer.php:662
 msgid "Zaznaczona doba jest już niedostępna i została odznaczona."
 msgstr ""
 
 #. translators: %s: etykieta doby noclegowej.
-#: src/Frontend/FormRenderer.php:676
+#: src/Frontend/FormRenderer.php:687
 #, php-format
 msgid "Doba „%s” nie ma już wolnych miejsc dla Twojego zgłoszenia. Odznacz ją albo wybierz inne doby."
 msgstr ""
 
-#: src/Frontend/FormRenderer.php:701
+#: src/Frontend/FormRenderer.php:712
 msgid "Wybrany nocleg nie ma już wolnych miejsc dla Twojego zgłoszenia. Wybierz inny albo „Bez noclegu\"."
 msgstr ""
 
@@ -895,39 +899,39 @@ msgstr ""
 msgid "Rejestracja jest niedostępna."
 msgstr ""
 
-#: src/Frontend/Shortcode.php:201
+#: src/Frontend/Shortcode.php:210
 msgid "Jesteś na liście rezerwowej. Poinformujemy Cię, gdy zwolni się miejsce."
 msgstr ""
 
-#: src/Frontend/Shortcode.php:202
+#: src/Frontend/Shortcode.php:211
 msgid "Dziękujemy! Sprawdź e-mail i potwierdź zgłoszenie."
 msgstr ""
 
-#: src/Frontend/Shortcode.php:253
+#: src/Frontend/Shortcode.php:262
 msgid "Jesteś już zapisany na to wydarzenie."
 msgstr ""
 
-#: src/Frontend/Shortcode.php:254
+#: src/Frontend/Shortcode.php:263
 msgid "Brak wolnych miejsc."
 msgstr ""
 
-#: src/Frontend/Shortcode.php:255
+#: src/Frontend/Shortcode.php:264
 msgid "Nie udało się wysłać zgłoszenia. Spróbuj ponownie."
 msgstr ""
 
-#: src/Frontend/Shortcode.php:256
+#: src/Frontend/Shortcode.php:265
 msgid "Z tego urządzenia wysłano zbyt wiele prób. Odczekaj godzinę i spróbuj ponownie lub skontaktuj się z organizatorem."
 msgstr ""
 
-#: src/Frontend/Shortcode.php:257
+#: src/Frontend/Shortcode.php:266
 msgid "Formularz jest nieprawidłowo skonfigurowany."
 msgstr ""
 
-#: src/Frontend/Shortcode.php:258
+#: src/Frontend/Shortcode.php:267
 msgid "Popraw zaznaczone pola."
 msgstr ""
 
-#: src/Frontend/Shortcode.php:259
+#: src/Frontend/Shortcode.php:268
 msgid "Nie udało się zapisać zgłoszenia z powodu błędu po naszej stronie. Nic nie zostało zapisane — spróbuj ponownie za chwilę lub skontaktuj się z organizatorem."
 msgstr ""
 

@@ -98,6 +98,60 @@ final class OccupancyReportTest extends TestCase {
 		$this->assertSame( 0, $report->overall()['free'] );
 	}
 
+	/**
+	 * Wiersz globalny MUSI liczyć tak samo jak CapacityCalculator::decide, inaczej panel
+	 * obiecuje miejsca, których rejestracja już nie przyjmie.
+	 */
+	public function test_overall_counts_companions_when_they_take_an_event_seat(): void {
+		$report = $this->companionReport( new OccupancySnapshot( 100, array(), array(), 47 ), 180, true );
+
+		$this->assertSame(
+			array(
+				'taken' => 147,
+				'limit' => 180,
+				'free'  => 33,
+			),
+			$report->overall()
+		);
+	}
+
+	public function test_overall_ignores_companions_when_they_do_not_take_an_event_seat(): void {
+		$report = $this->companionReport( new OccupancySnapshot( 100, array(), array(), 47 ), 180, false );
+
+		$this->assertSame(
+			array(
+				'taken' => 100,
+				'limit' => 180,
+				'free'  => 80,
+			),
+			$report->overall()
+		);
+	}
+
+	public function test_overall_free_never_negative_with_companions(): void {
+		$report = $this->companionReport( new OccupancySnapshot( 18, array(), array(), 9 ), 20, true );
+
+		$overall = $report->overall();
+
+		$this->assertSame( 27, $overall['taken'] );
+		$this->assertSame( 0, $overall['free'] );
+	}
+
+	/**
+	 * Zestawienie z jawną regułą „towarzysząca zajmuje miejsce wydarzenia".
+	 */
+	private function companionReport( OccupancySnapshot $taken, ?int $global_limit, bool $counts ): OccupancyReport {
+		$types = $this->types();
+		$acc   = $this->accommodation();
+
+		return new OccupancyReport(
+			$taken,
+			new CapacityLimits( $global_limit, $types->capacities(), $acc->capacities(), true, $counts ),
+			$types,
+			$acc
+		);
+	}
+
 	public function test_types_row_per_type_with_limit_and_free(): void {
 		$report = $this->report( new OccupancySnapshot( 8, array( 'uczestnik' => 6 ), array() ) );
 

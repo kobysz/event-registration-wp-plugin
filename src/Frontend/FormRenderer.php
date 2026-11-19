@@ -36,11 +36,15 @@ final class FormRenderer {
 	 * @param NightsConfig|null     $nights         Konfiguracja trybu „doby” rozstrzygnięta u wejścia
 	 *                                              (NightsResolver); null = tryb klasyczny. Nigdy „niepoprawna” —
 	 *                                              ta zatrzymuje się u wejścia, renderer sam fromArray nie woła.
+	 * @param bool                  $companionBlocked Czy w wydarzeniu nie ma już miejsca na zgłoszenie
+	 *                                              z osobą towarzyszącą (rozstrzyga EventAvailability
+	 *                                              u wejścia); false = bez zmian.
 	 */
 	public function __construct(
 		private readonly ?SlotAvailability $availability = null,
 		private readonly ?NightOccupancy $nightOccupancy = null,
-		private readonly ?NightsConfig $nights = null
+		private readonly ?NightsConfig $nights = null,
+		private readonly bool $companionBlocked = false
 	) {
 	}
 
@@ -224,14 +228,21 @@ final class FormRenderer {
 			return '';
 		}
 
-		$companion_on   = null !== $result && ! empty( $result->submittedValue( 'evreg_companion' ) );
+		// Brak miejsca na drugą osobę: checkbox jest wyłączony i NIGDY zaznaczony — ten
+		// sam wzór co wyczerpany slot noclegowy. `disabled` nie wysyła wartości, więc
+		// zaznaczony-i-wyłączony checkbox po cichu zniknąłby ze zgłoszenia, a pozostawiony
+		// jako aktywny kazałby wypełnić cały formularz po to, by dostać odmowę.
+		$companion_on   = ! $this->companionBlocked && null !== $result && ! empty( $result->submittedValue( 'evreg_companion' ) );
 		$companion_name = null === $result ? '' : $this->scalarValue( $result->submittedValue( 'evreg_companion_name' ) );
 		$error          = null === $result ? null : ( $result->errors()['evreg_companion'] ?? null );
+		$seats_note     = $this->companionBlocked
+			? ' <span class="evreg-seats-note">' . esc_html__( '(brak wolnych miejsc)', 'event-registration' ) . '</span>'
+			: '';
 
 		$out = '<div class="evreg-companion-block mt-2 mb-3">'
-			. '<div class="evreg-companion form-check">'
-			. '<input class="form-check-input" type="checkbox" id="evreg_companion" name="evreg_companion" value="1"' . checked( $companion_on, true, false ) . ' data-evreg-companion>'
-			. ' <label class="form-check-label" for="evreg_companion">' . esc_html__( 'Osoba towarzysząca', 'event-registration' ) . '</label>'
+			. '<div class="evreg-companion form-check' . ( $this->companionBlocked ? ' is-full' : '' ) . '">'
+			. '<input class="form-check-input" type="checkbox" id="evreg_companion" name="evreg_companion" value="1"' . checked( $companion_on, true, false ) . ( $this->companionBlocked ? ' disabled' : '' ) . ' data-evreg-companion>'
+			. ' <label class="form-check-label" for="evreg_companion">' . esc_html__( 'Osoba towarzysząca', 'event-registration' ) . $seats_note . '</label>'
 			. '</div>';
 
 		// Przypis jest zaproszeniem do zaznaczenia, nie opisem zaznaczonego stanu — renderuje się

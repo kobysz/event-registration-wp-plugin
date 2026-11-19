@@ -21,16 +21,23 @@ final class EventAvailability {
 	/**
 	 * Ustala stan dostępności wydarzenia.
 	 *
-	 * @param CapacityLimits    $limits   Limity wydarzenia.
-	 * @param OccupancySnapshot $taken    Aktualne obłożenie.
-	 * @param array<int,string> $typeKeys Klucze typów zgłoszeń wydarzenia.
+	 * `$companion` pyta o zgłoszenie z osobą towarzyszącą, które przy włączonym
+	 * `companion_counts_event` potrzebuje DWÓCH miejsc wydarzenia. Ostatnie wolne
+	 * miejsce jest więc otwarte dla singla i zamknięte dla pary — wołający pyta o oba
+	 * sądy osobno. Przy wyłączonej regule flaga nie zmienia niczego, więc domyślne
+	 * `false` to zero regresji dla wołających, którzy pary nie rozważają.
+	 *
+	 * @param CapacityLimits    $limits    Limity wydarzenia.
+	 * @param OccupancySnapshot $taken     Aktualne obłożenie.
+	 * @param array<int,string> $typeKeys  Klucze typów zgłoszeń wydarzenia.
+	 * @param bool              $companion Czy sądzimy zgłoszenie z osobą towarzyszącą.
 	 */
-	public static function decide( CapacityLimits $limits, OccupancySnapshot $taken, array $typeKeys ): EventAvailabilityState {
+	public static function decide( CapacityLimits $limits, OccupancySnapshot $taken, array $typeKeys, bool $companion = false ): EventAvailabilityState {
 		$calculator = new CapacityCalculator();
 		$keys       = array() === $typeKeys ? array( '' ) : $typeKeys;
 
 		foreach ( $keys as $key ) {
-			if ( Outcome::Accepted === $calculator->decide( $limits, $taken, $key, null, false )->outcome ) {
+			if ( Outcome::Accepted === $calculator->decide( $limits, $taken, $key, null, $companion )->outcome ) {
 				return EventAvailabilityState::Open;
 			}
 		}

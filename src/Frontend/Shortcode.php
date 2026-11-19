@@ -99,6 +99,13 @@ final class Shortcode {
 			return self::fullNotice( $event_id, $state );
 		}
 
+		// Ostatnie miejsce przyjmie jedną osobę, ale nie parę. Pytamy o ten sąd osobno
+		// i wyłączamy checkbox towarzyszącej, zamiast pozwolić wypełnić cały formularz
+		// po to, by po wysłaniu dostać odmowę. Przy wyłączonym `companion_counts_event`
+		// flaga nie zmienia sądu, więc to zawsze false i nic się nie zmienia.
+		$companion_blocked = EventAvailabilityState::Open === $state
+			&& EventAvailabilityState::Open !== self::eventAvailability( $event_id, $nights, true );
+
 		self::enqueueStyles();
 		wp_enqueue_script( 'evreg-public' );
 
@@ -107,8 +114,8 @@ final class Shortcode {
 			. ( null === $result ? '' : self::resultNotice( $result ) );
 
 		$renderer = null === $nights
-			? new FormRenderer( self::availability( $event_id ) )
-			: new FormRenderer( null, ( new RegistrationRepository() )->nightOccupancy( $event_id, RegistrationStatus::occupyingValues() ), $nights );
+			? new FormRenderer( self::availability( $event_id ), null, null, $companion_blocked )
+			: new FormRenderer( null, ( new RegistrationRepository() )->nightOccupancy( $event_id, RegistrationStatus::occupyingValues() ), $nights, $companion_blocked );
 
 		return $notice . $renderer->render( $schema, $event_id, $result );
 	}
@@ -119,10 +126,11 @@ final class Shortcode {
 	 * świeżo. Tryb „doby” nigdy nie buduje AccommodationConfig; w klasycznym niepoprawny
 	 * inwentarz oznacza Open — nie zamykamy rejestracji z powodu błędu konfiguracji.
 	 *
-	 * @param int               $event_id ID posta eventu.
-	 * @param NightsConfig|null $nights   Konfiguracja dób (null = tryb klasyczny).
+	 * @param int               $event_id  ID posta eventu.
+	 * @param NightsConfig|null $nights    Konfiguracja dób (null = tryb klasyczny).
+	 * @param bool              $companion Czy pytamy o zgłoszenie z osobą towarzyszącą.
 	 */
-	private static function eventAvailability( int $event_id, ?NightsConfig $nights ): EventAvailabilityState {
+	private static function eventAvailability( int $event_id, ?NightsConfig $nights, bool $companion = false ): EventAvailabilityState {
 		$config   = ( new EventConfigRepository() )->get( $event_id );
 		$settings = is_array( $config['settings'] ) ? $config['settings'] : array();
 		try {
@@ -140,7 +148,8 @@ final class Shortcode {
 		return EventAvailability::decide(
 			$limits,
 			( new RegistrationRepository() )->occupancy( $event_id ),
-			array_map( static fn( $type ) => $type->key, $types->active() )
+			array_map( static fn( $type ) => $type->key, $types->active() ),
+			$companion
 		);
 	}
 

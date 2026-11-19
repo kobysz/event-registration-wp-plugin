@@ -229,6 +229,84 @@ final class ShortcodeTest extends WP_UnitTestCase {
 		return Shortcode::render( array( 'event' => (string) $this->event_id ) );
 	}
 
+	/**
+	 * Zapisuje schemat z polem noclegu i konfigurację z włączoną osobą towarzyszącą.
+	 *
+	 * @param int  $global_cap Limit wydarzenia.
+	 * @param bool $counts     Czy towarzysząca zajmuje miejsce wydarzenia.
+	 */
+	private function configureCompanion( int $global_cap, bool $counts ): void {
+		( new EventConfigRepository() )->save(
+			$this->event_id,
+			array(
+				'schema'        => array(
+					'version'  => 1,
+					'sections' => array(
+						array(
+							'key'    => 'dane',
+							'title'  => 'Dane',
+							'fields' => array(
+								array( 'key' => '__type', 'type' => 'radio', 'label' => 'Typ' ),
+								array( 'key' => 'email', 'type' => 'email', 'label' => 'E-mail', 'required' => true ),
+								array( 'key' => 'nocleg', 'type' => 'accommodation', 'label' => 'Nocleg' ),
+							),
+						),
+					),
+				),
+				'types'         => array( array( 'key' => 'std', 'label' => 'Standard', 'price' => 0.0 ) ),
+				'accommodation' => array(
+					'packages'              => array(),
+					'rooms'                 => array(),
+					'inventory'             => array(),
+					'companion_enabled'     => true,
+					'companion_counts_event' => $counts,
+				),
+				'settings'      => array( 'global_cap' => $global_cap, 'waitlist_enabled' => false ),
+			)
+		);
+	}
+
+	/**
+	 * Ostatnie wolne miejsce przyjmie jedną osobę, ale nie parę: formularz się renderuje,
+	 * a checkbox towarzyszącej jest wyłączony z dopiskiem, zamiast kazać wypełnić całość
+	 * po to, by po wysłaniu dostać odmowę.
+	 */
+	public function test_last_seat_disables_the_companion_box(): void {
+		$this->configureCompanion( 2, true );
+		$this->take( 'std' );
+
+		$html = $this->html();
+
+		$this->assertStringContainsString( '<form', $html );
+		$this->assertStringNotContainsString( self::CLOSED_NOTICE, $html );
+		$this->assertMatchesRegularExpression( '/<input[^>]*id="evreg_companion"[^>]*disabled/', $html );
+		$this->assertStringContainsString( '(brak wolnych miejsc)', $html );
+	}
+
+	public function test_two_free_seats_keep_the_companion_box_usable(): void {
+		$this->configureCompanion( 3, true );
+		$this->take( 'std' );
+
+		$html = $this->html();
+
+		$this->assertMatchesRegularExpression( '/<input[^>]*id="evreg_companion"(?![^>]*disabled)[^>]*>/', $html );
+		$this->assertStringNotContainsString( '(brak wolnych miejsc)', $html );
+	}
+
+	/**
+	 * Bez reguły „towarzysząca zajmuje miejsce wydarzenia" para waży tyle co singiel,
+	 * więc ostatnie miejsce nie może jej blokować.
+	 */
+	public function test_last_seat_keeps_the_companion_box_when_companions_are_free(): void {
+		$this->configureCompanion( 2, false );
+		$this->take( 'std' );
+
+		$html = $this->html();
+
+		$this->assertMatchesRegularExpression( '/<input[^>]*id="evreg_companion"(?![^>]*disabled)[^>]*>/', $html );
+		$this->assertStringNotContainsString( '(brak wolnych miejsc)', $html );
+	}
+
 	public function test_full_event_without_waitlist_renders_notice_and_no_form(): void {
 		$this->configure( $this->singleFullType(), array( 'global_cap' => null, 'waitlist_enabled' => false ) );
 		$this->take( 'std' );

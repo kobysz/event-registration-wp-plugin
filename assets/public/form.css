@@ -38,7 +38,10 @@
    ten styl nadal działa. */
 :where( .evreg-success, .evreg-notice, .evreg-confirmed ) { padding: .75rem 1rem; margin: 0 0 1rem; border-left: 4px solid var(--evreg-accent, #2271b1); background: #f6f7f7; }
 .evreg-section[hidden] { display: none; }
-.evreg-choice.is-full > label { opacity: .55; }
+/* Wyszarzenie niedostępnego wyboru: slot/doba (.evreg-choice) i checkbox osoby
+   towarzyszącej, gdy w wydarzeniu nie ma już miejsca na drugą osobę. */
+.evreg-choice.is-full > label,
+.evreg-companion.is-full > label { opacity: .55; }
 .evreg-choice[hidden] { display: none; }
 /* Blok osoby towarzyszącej: odstęp nad i pod, żeby checkbox nie kleił się do
    listy noclegów. Baseline bez Bootstrapa (klasy mt-2/mb-3 działają tylko przy
