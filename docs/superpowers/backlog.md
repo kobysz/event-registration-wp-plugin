@@ -1045,3 +1045,27 @@ od nowa.
 Przy B39 ten wyłom w dużej mierze przestanie być widoczny (pełne wydarzenie nie wyświetli
 formularza albo uprzedzi o liście rezerwowej), ale nie zniknie — wyścig między renderem a
 submitem zostaje, a wtedy odmowa trafia w kogoś, kto właśnie wypełnił wszystko.
+
+---
+
+## B41 — Domyślne teksty komunikatów o pełnym evencie mają dwa domy
+
+**Priorytet:** niski.
+
+**Stan:** wniesione przez B39. Oba domyślne teksty („Wszystkie miejsca są zajęte…”,
+„Rejestracja zamknięta — brak wolnych miejsc.”) są dosłownie zduplikowane: raz w
+`Shortcode::fullNotice` (PHP, to je widzi odwiedzający), raz w `assets/admin/ops/noticeDefaults.js`
+(JS, placeholder w `SettingsTab` i baza wiersza w `TranslationsTab`). Dziś są bajt w bajt
+identyczne, więc nic nie jest zepsute — ale zmiana jednej kopii po cichu zamienia drugą w
+kłamstwo: organizator zobaczyłby w panelu placeholder inny niż tekst, który faktycznie wyjdzie na
+stronę.
+
+Odstępstwo od wzorca ustalonego przy szablonach maili: tam domyślne teksty żyją w PHP
+(`DefaultTemplates`), a `MailTemplatesTab` dostaje je z serwera propsem `defaults` i niczego nie
+powtarza. Drugi, cichszy skutek: kopia JS podlega katalogowi tłumaczeń JS, którego wtyczka po B38
+w ogóle nie wysyła — gdyby katalog kiedyś wrócił, PHP tłumaczyłby się, a placeholder w panelu nie.
+
+**Szkic:** skasować `noticeDefaults.js` jako źródło treści i podawać oba teksty z serwera —
+najtaniej dopisać je do `wp_localize_script( 'evregAdmin' )` w `EventConfigAssets` (obok
+`languages`/`defaultLanguage`), bo nie są zależne od eventu. `NOTICE_KEYS` może zostać w JS, bo to
+lista kluczy, nie treść.
