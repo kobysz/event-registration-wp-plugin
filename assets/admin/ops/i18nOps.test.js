@@ -12,6 +12,8 @@ import {
 	setShortLabelTranslation,
 	getDescriptionTranslation,
 	setDescriptionTranslation,
+	getNoticeTranslation,
+	setNoticeTranslation,
 } from './i18nOps';
 
 const schema = {
@@ -334,5 +336,52 @@ describe( 'i18nOps companion note row', () => {
 
 	it( 'omits the row when the companion option is off', () => {
 		expect( items( { companion_enabled: false, companion_note: 'Przypis.' } ) ).not.toContainEqual( expect.objectContaining( { accKind: 'companion' } ) );
+	} );
+} );
+
+describe( 'i18nOps notices bucket', () => {
+	const WAITLIST =
+		'Wszystkie miejsca są zajęte. Możesz się zapisać — trafisz na listę rezerwową i damy znać, gdy zwolni się miejsce.';
+	const CLOSED = 'Rejestracja zamknięta — brak wolnych miejsc.';
+
+	it( 'langBucket zachowuje notices przy zapisie innego bucketu', () => {
+		const overlay = { en: { notices: { full_closed: 'X' } } };
+		const next = setTranslation( overlay, 'en', 'field', 'imie', 'Name' );
+		expect( next.en.notices.full_closed ).toBe( 'X' );
+		expect( next.en.fields.imie ).toBe( 'Name' );
+	} );
+
+	it( 'get/setNoticeTranslation round-trip bez mutacji wejścia', () => {
+		const overlay = { en: { notices: { full_closed: 'X' } } };
+		const snapshot = JSON.stringify( overlay );
+		const next = setNoticeTranslation( overlay, 'en', 'full_waitlist', 'Waitlist' );
+		expect( JSON.stringify( overlay ) ).toBe( snapshot );
+		expect( getNoticeTranslation( next, 'en', 'full_waitlist' ) ).toBe( 'Waitlist' );
+		expect( getNoticeTranslation( next, 'en', 'full_closed' ) ).toBe( 'X' );
+		expect( getNoticeTranslation( {}, 'de', 'full_closed' ) ).toBe( '' );
+	} );
+
+	it( 'translatableItems z settings dopisuje dwa wiersze notice', () => {
+		const items = translatableItems( schema, types, undefined, {
+			full_waitlist_notice: 'Własny A',
+			full_closed_notice: 'Własny B',
+		} );
+		const notices = items.filter( ( i ) => i.kind === 'notice' );
+		expect( notices ).toEqual( [
+			{ kind: 'notice', key: 'full_waitlist', base: 'Własny A' },
+			{ kind: 'notice', key: 'full_closed', base: 'Własny B' },
+		] );
+	} );
+
+	it( 'bez settings nie dopisuje wierszy notice', () => {
+		const items = translatableItems( schema, types );
+		expect( items.filter( ( i ) => i.kind === 'notice' ) ).toHaveLength( 0 );
+	} );
+
+	it( 'notice base spada na domyślny tekst, gdy ustawienie puste', () => {
+		const items = translatableItems( schema, types, undefined, { full_waitlist_notice: '  ' } );
+		const notices = items.filter( ( i ) => i.kind === 'notice' );
+		expect( notices[ 0 ].base ).toBe( WAITLIST );
+		expect( notices[ 1 ].base ).toBe( CLOSED );
 	} );
 } );

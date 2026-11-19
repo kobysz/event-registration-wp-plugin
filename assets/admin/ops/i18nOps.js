@@ -1,3 +1,5 @@
+import { NOTICE_KEYS, defaultNotice } from './noticeDefaults';
+
 function langBucket( overlay, lang ) {
 	const base = overlay[ lang ] || {};
 	return {
@@ -9,12 +11,13 @@ function langBucket( overlay, lang ) {
 		options: base.options || {},
 		mail: base.mail || {},
 		accommodation: base.accommodation || {},
+		notices: base.notices || {},
 	};
 }
 
 const KIND_BUCKET = { section: 'sections', field: 'fields', type: 'types' };
 
-export function translatableItems( schema, types, accommodation ) {
+export function translatableItems( schema, types, accommodation, settings ) {
 	const items = [];
 	( schema.sections || [] ).forEach( ( section ) => {
 		items.push( { kind: 'section', key: section.key, base: section.title || section.key } );
@@ -66,6 +69,14 @@ export function translatableItems( schema, types, accommodation ) {
 	// przy wyłączonej opcji nic go nie renderuje — wiersz zapraszałby do tłumaczenia w próżnię.
 	if ( acc.companion_enabled && ( acc.companion_note || '' ).trim() ) {
 		items.push( { kind: 'accommodation', accKind: 'companion', key: 'note', base: acc.companion_note } );
+	}
+	// Komunikaty o pełnym evencie: tylko gdy podano ustawienia (zgodność w tył). Pusty
+	// tekst własny = serwer pokazuje domyślny, więc to on jest bazą wiersza.
+	if ( settings ) {
+		NOTICE_KEYS.forEach( ( key ) => {
+			const custom = String( settings[ `${ key }_notice` ] || '' ).trim();
+			items.push( { kind: 'notice', key, base: custom || defaultNotice( key ) } );
+		} );
 	}
 	return items;
 }
@@ -174,6 +185,22 @@ export function setMailTranslation( overlay, lang, templateKey, field, value ) {
 				...mail,
 				[ templateKey ]: { ...tpl, [ field ]: value },
 			},
+		},
+	};
+}
+
+export function getNoticeTranslation( overlay, lang, key ) {
+	const bucket = ( overlay[ lang ] || {} ).notices || {};
+	return bucket[ key ] ? String( bucket[ key ] ) : '';
+}
+
+export function setNoticeTranslation( overlay, lang, key, value ) {
+	const current = langBucket( overlay, lang );
+	return {
+		...overlay,
+		[ lang ]: {
+			...current,
+			notices: { ...current.notices, [ key ]: value },
 		},
 	};
 }

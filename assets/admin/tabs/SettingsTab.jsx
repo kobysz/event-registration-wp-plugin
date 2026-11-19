@@ -1,5 +1,6 @@
 import { TextControl, ToggleControl, SelectControl } from '@wordpress/components';
 import { __ } from '@wordpress/i18n';
+import { defaultNotice } from '../ops/noticeDefaults';
 
 export default function SettingsTab( { config, update } ) {
 	const settings = config.settings || {};
@@ -39,6 +40,20 @@ export default function SettingsTab( { config, update } ) {
 				label={ __( 'Lista rezerwowa włączona', 'event-registration' ) }
 				checked={ settings.waitlist_enabled !== false }
 				onChange={ set( 'waitlist_enabled' ) }
+			/>
+			<TextControl
+				label={ __( 'Komunikat o pełnym evencie (z listą rezerwową)', 'event-registration' ) }
+				help={ __( 'Pokazywany nad formularzem, gdy brak miejsc, a lista rezerwowa jest włączona. Puste = tekst domyślny.', 'event-registration' ) }
+				placeholder={ defaultNotice( 'full_waitlist' ) }
+				value={ settings.full_waitlist_notice || '' }
+				onChange={ set( 'full_waitlist_notice' ) }
+			/>
+			<TextControl
+				label={ __( 'Komunikat o pełnym evencie (zapisy zamknięte)', 'event-registration' ) }
+				help={ __( 'Pokazywany zamiast formularza, gdy brak miejsc, a lista rezerwowa jest wyłączona. Puste = tekst domyślny.', 'event-registration' ) }
+				placeholder={ defaultNotice( 'full_closed' ) }
+				value={ settings.full_closed_notice || '' }
+				onChange={ set( 'full_closed_notice' ) }
 			/>
 			<TextControl
 				type="date"
