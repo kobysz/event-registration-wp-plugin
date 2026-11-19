@@ -20,6 +20,13 @@ final class ShortcodeTest extends WP_UnitTestCase {
 
 	private int $event_id;
 
+	protected function tearDown(): void {
+		// Sprzątanie tu, nie na końcu testu: porażka asercji nie może wycieknąć do kolejnych testów.
+		remove_all_filters( 'wp_redirect' );
+		$_POST = array();
+		parent::tearDown();
+	}
+
 	protected function setUp(): void {
 		parent::setUp();
 		// reserve() otwiera własną transakcję, więc zewnętrzny rollback WP_UnitTestCase
@@ -243,6 +250,17 @@ final class ShortcodeTest extends WP_UnitTestCase {
 		$this->assertStringContainsString( self::WAITLIST_NOTICE, $html );
 		$this->assertStringContainsString( 'alert-info', $html );
 		$this->assertStringContainsString( '<form', $html );
+		$this->assertLessThan( strpos( $html, '<form' ), strpos( $html, self::WAITLIST_NOTICE ) );
+	}
+
+	public function test_custom_waitlist_notice_from_settings_wins_over_default(): void {
+		$this->configure( $this->singleFullType(), array( 'global_cap' => null, 'waitlist_enabled' => true, 'full_waitlist_notice' => 'Zapisz się na listę' ) );
+		$this->take( 'std' );
+
+		$html = $this->html();
+
+		$this->assertStringContainsString( 'Zapisz się na listę', $html );
+		$this->assertStringNotContainsString( self::WAITLIST_NOTICE, $html );
 	}
 
 	public function test_open_event_renders_no_full_notice(): void {
@@ -329,9 +347,6 @@ final class ShortcodeTest extends WP_UnitTestCase {
 		$code = SubmitHandler::resultFor( $this->event_id )?->code();
 
 		$html = $this->html();
-
-		remove_all_filters( 'wp_redirect' );
-		$_POST = array();
 
 		$this->assertSame( 'rejected', $code );
 		$this->assertStringNotContainsString( '<form', $html );
