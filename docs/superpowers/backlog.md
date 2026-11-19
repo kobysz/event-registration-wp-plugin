@@ -955,3 +955,89 @@ bo nigdy nie mieści się w zakresie — dlatego dostaje własny numer zamiast k
 `npm run i18n:mo`. Przy okazji rozstrzygnąć, czy katalog angielski ma być utrzymywany dalej —
 jeśli żadna obsługiwana strona nie serwuje angielskiego, uczciwiej go usunąć niż trzymać
 wiecznie nieaktualny. Decyzja należy do właściciela produktu, nie do wykonawcy.
+
+---
+
+## B39 — Brak miejsc na wydarzenie nie jest widoczny przed formularzem
+
+**Priorytet:** średni-wysoki (jedyna odmowa, którą zgłaszający się widzi dopiero po stracie pracy).
+
+**Stan:** pojemność wydarzenia nie istnieje dla renderu. `Shortcode::renderForm` składa schemat
+i oddaje go `FormRenderer`-owi bez ani jednego odczytu zajętości, a `SchemaAssembler::typeOptions`
+buduje opcje pola `__type` wyłącznie z nazw i cen — zajętości nie widzi. Pełny typ zgłoszenia
+renderuje się więc identycznie jak otwarty: bez wyszarzenia, bez licznika, bez komunikatu.
+Rozstrzyga się wyłącznie po submicie:
+
+- `waitlist_enabled` (domyślnie `true`) → zapis jako `waitlist`, PRG, formularz znika, zostaje
+  „Jesteś na liście rezerwowej…”. Wynik czytelny, ale zgłaszający się dowiaduje się o liście
+  rezerwowej PO wypełnieniu, nie przed — a to zmienia decyzję, czy w ogóle się zapisywać.
+- `waitlist_enabled` wyłączone → `SubmitResult::rejected()` i alert „Brak wolnych miejsc.” nad
+  formularzem, który **nadal się renderuje**. Nic nie mówi, że próba jest bezcelowa, więc można
+  wysyłać w kółko z tym samym skutkiem.
+
+Kontrast z noclegiem jest uderzający i celowy — nocleg ma po B-slots pełną świadomość miejsc już
+przy renderze (`disabled` + „(brak miejsc)” + komunikat zbiorczy „Brak wolnych miejsc noclegowych.”).
+Pojemność wydarzenia nie dostała nigdy odpowiednika, bo każdy plan dotykał noclegów.
+
+**Czego chcemy (słowa właściciela produktu, 2026-11-19):** komunikat PRZED formularzem. Gdy miejsc
+nie ma, a lista rezerwowa działa — powiedzieć wprost, że zapisując się lądujesz na liście
+rezerwowej, i formularz nadal pokazać. Gdy listy rezerwowej nie ma — pokazać komunikat i
+**formularza nie renderować wcale**. Treść obu komunikatów edytowalna przez organizatora.
+
+**Szkic:**
+
+1. **Czysty sąd o dostępności.** Nowy obiekt w `src/Domain/Capacity/` wzorem `SlotAvailability`:
+   bierze `CapacityLimits` + `OccupancySnapshot`, zwraca, czy cokolwiek da się jeszcze zapisać i
+   czy odmowa idzie na listę rezerwową. Zero WordPressa. **Nie wolno** napisać czwartej kopii
+   reguł pojemności — wejściem są te same obiekty, którymi liczy `CapacityCalculator`.
+2. **Uwaga architektoniczna, najdroższa w całym wpisie:** `ReservationService::limits()` jest
+   `private` i jego własny komentarz mówi, że to JEDYNE miejsce czytające `global_cap` i
+   `waitlist_enabled` — rozjazd między kopiami tej składanki już raz kosztował błąd (B5).
+   Render-time czytelnik tych kluczy łamie ten inwariant. Zanim powstanie, trzeba **wyciągnąć
+   składanie `CapacityLimits` do jednego wołanego z obu stron miejsca**, nie dopisać drugiego
+   czytelnika obok.
+3. **Kiedy komunikat ma padać.** Tylko gdy NIC nie da się zapisać. Pełny jeden typ przy otwartym
+   drugim to nie „brak miejsc na wydarzenie” — formularz musi się wtedy renderować normalnie.
+   Rozstrzygnąć przy robocie, czy „pełne wszystkie typy” przy pustym `global_cap` liczy się jako
+   wydarzenie pełne (moim zdaniem tak, ale to decyzja właściciela produktu, nie wykonawcy).
+4. **Edytowalne teksty.** Dwa stringi w `_evreg_settings` + pola w `SettingsTab`, z `DefaultTemplates`-owym
+   wzorem fallbacku per pole (puste = tekst domyślny wtyczki, widoczny jako placeholder). Skoro są
+   edytowalne i widoczne publicznie, muszą być tłumaczalne per język: nowy liść w overlayu
+   `_evreg_i18n` — a `i18nOps::langBucket` **MUSI** go whitelistować, inaczej zapis innego bucketu
+   go wykasuje (ta pułapka już raz zadziałała na buckecie `mail`).
+5. **Serwer zostaje arbitrem.** To warstwa uczciwości wobec zgłaszającego się, nie bramka. Wyścig
+   między renderem a submitem dalej jest możliwy, więc komunikaty po submicie (`rejected`,
+   „Jesteś na liście rezerwowej…”) zostają na miejscu bez zmian.
+
+**Świadomie poza zakresem pierwszego podejścia:** wyszarzanie pojedynczych pełnych typów w polu
+`__type` wzorem wyczerpanego slotu noclegowego. To osobna, większa robota — `SchemaAssembler` jest
+czystą domeną i musiałby dostać wstrzykiwaną zajętość tak, jak dostał ją `FormRenderer`. Warte
+zrobienia później; bez tego komunikat zbiorczy i tak załatwia przypadek, który ludzi realnie boli.
+
+**Powiązane:** B35 (komunikat odmowy zawsze nazywa limit typu, także gdy zadziałał limit globalny
+— ta sama okolica, warto tknąć przy okazji), B40 (odmowa gubi wpisane dane).
+
+---
+
+## B40 — Odmowa „brak miejsc” czyści wypełniony formularz
+
+**Priorytet:** średni (tani do naprawienia, boli dokładnie w najgorszym momencie).
+
+**Stan:** `SubmitResult::rejected()` to `new self( 'rejected', false )` — bez `$values`.
+Formularz renderuje się więc po odmowie **pusty**: zgłaszający się wypełnia wszystkie pola, klika,
+dostaje „Brak wolnych miejsc.” i widzi czysty formularz. Każda inna odmowa na tej samej ścieżce
+świadomie odtwarza wpisane wartości (`accommodation_full`, `night_full:*`, niespójna para
+pokój/towarzysząca, awaria zapisu wierszy dób — wszystkie przez `$assembled->rawAnswers()`), więc
+jest to wyłom, nie konwencja. Ekran dodawania w panelu zrobił to samo rozpoznanie i poszedł drugą
+drogą: KAŻDA odmowa wraca inline z `rawAnswers()`, właśnie żeby nie kazać przepisywać wszystkiego
+od nowa.
+
+**Szkic:** `rejected()` przyjmuje `array $values = array()` jak `failure()`, a oba wołania w
+`SubmitHandler` (gałąź `rejected` z `match` na kodzie rezerwacji oraz dwie gałęzie
+„brak klucza pola noclegu”) podają `$assembled->rawAnswers()`. Uwaga: `rawAnswers()`, nie
+`values()` — na gałęzi poprawnej walidacji `values()` niesie nocleg jako obiekt
+`AccommodationSelection` i nie ma kluczy `evreg_companion*`. Ten sam przypis stoi już przy B-slots.
+
+Przy B39 ten wyłom w dużej mierze przestanie być widoczny (pełne wydarzenie nie wyświetli
+formularza albo uprzedzi o liście rezerwowej), ale nie zniknie — wyścig między renderem a
+submitem zostaje, a wtedy odmowa trafia w kogoś, kto właśnie wypełnił wszystko.
