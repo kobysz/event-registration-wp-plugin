@@ -9,7 +9,7 @@ The section for each released version is published verbatim as the GitHub
 Release body and shown under "View details" in the WordPress plugins screen,
 so keep entries user-facing and concise.
 
-## [Unreleased]
+## [0.2.6] - 2026-11-19
 
 ### Added
 - When an event has no seats left, visitors are now told before they fill in the form. If the waiting list is on, a notice explains that signing up puts them on it and the form stays available. If there is no waiting list, only the notice is shown and the form is hidden. Both texts can be edited in the event's settings and translated per language; leaving them empty uses the default wording.
@@ -184,7 +184,8 @@ so keep entries user-facing and concise.
 ### Added
 - Initial internal release covering the full roadmap: event configuration (custom post type, REST API, React admin), public registration form with transactional seat reservation and double opt-in, transactional mail queue with templates and an admin queue screen, submissions panel with lifecycle actions, answer editing and CSV export, data-lifecycle/compliance tooling (gated uninstall, WordPress privacy export/erase), and self-hosted auto-update from GitHub Releases.
 
-[Unreleased]: https://github.com/kobysz/event-registration-wp-plugin/compare/v0.2.5...HEAD
+[Unreleased]: https://github.com/kobysz/event-registration-wp-plugin/compare/v0.2.6...HEAD
+[0.2.6]: https://github.com/kobysz/event-registration-wp-plugin/releases/tag/v0.2.6
 [0.2.5]: https://github.com/kobysz/event-registration-wp-plugin/releases/tag/v0.2.5
 [0.2.4]: https://github.com/kobysz/event-registration-wp-plugin/releases/tag/v0.2.4
 [0.2.3]: https://github.com/kobysz/event-registration-wp-plugin/releases/tag/v0.2.3
