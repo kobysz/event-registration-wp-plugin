@@ -876,7 +876,7 @@ odwiedzających = wspólny kubełek.
 daje zgłoszenie bez typu: darmowe, liczone tylko do limitu globalnego. Pozostałe cztery ścieżki
 transakcyjne (edycja i awans, także w wariantach dobowych) tę straż mają. Ekran
 dodawania zgłoszenia ręcznie stawia ją we własnym handlerze, a nie w `reserve()`, więc dziura na
-ścieżce publicznej została w tej gałęzi świadomie nietknięta.
+ścieżce publicznej została w tej gałęzi świadomie nietknięta. Po B39 ta sama luka ma drugą stronę: pusty typ przy wszystkich typach pełnych `EventAvailability` uznaje za pełne wydarzenie (sprawdza tylko typy aktywne), a `reserve()` takie zgłoszenie mimo to przyjmie.
 
 **Szkic:** przenieść straż do `reserve()`/`reserveNights()` (kod `invalidStatus`/nowy), po
 sprawdzeniu, że żaden zastany event nie opiera się na pustym typie; wtedy handler dodawania może
@@ -958,7 +958,9 @@ wiecznie nieaktualny. Decyzja należy do właściciela produktu, nie do wykonawc
 
 ---
 
-## B39 — Brak miejsc na wydarzenie nie jest widoczny przed formularzem
+## B39 — Brak miejsc na wydarzenie nie jest widoczny przed formularzem — **ZAMKNIĘTE**
+
+**Naprawione 2026-11-19** na gałęzi `feature/b39-capacity-notice`: czysty `EventAvailability::decide` (Open/Waitlist/Closed), `CapacityLimits::forClassic/forNights` jako jedyny czytelnik `global_cap`/`waitlist_enabled`, `Shortcode::renderForm` pokazuje komunikat przed formularzem (przy `Closed` bez formularza), teksty edytowalne w ustawieniach i tłumaczalne przez bucket `notices`. Opis poniżej zostaje dla zapisu.
 
 **Priorytet:** średni-wysoki (jedyna odmowa, którą zgłaszający się widzi dopiero po stracie pracy).
 
@@ -1019,7 +1021,9 @@ zrobienia później; bez tego komunikat zbiorczy i tak załatwia przypadek, któ
 
 ---
 
-## B40 — Odmowa „brak miejsc” czyści wypełniony formularz
+## B40 — Odmowa „brak miejsc” czyści wypełniony formularz — **ZAMKNIĘTE**
+
+**Naprawione 2026-11-19** na gałęzi `feature/b39-capacity-notice`: `SubmitResult::rejected( array $values = array() )`, wszystkie trzy wołania w `SubmitHandler::process` podają `$assembled->rawAnswers()`. Opis poniżej zostaje dla zapisu.
 
 **Priorytet:** średni (tani do naprawienia, boli dokładnie w najgorszym momencie).
 

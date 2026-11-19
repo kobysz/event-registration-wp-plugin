@@ -11,6 +11,12 @@ so keep entries user-facing and concise.
 
 ## [Unreleased]
 
+### Added
+- When an event has no seats left, visitors are now told before they fill in the form. If the waiting list is on, a notice explains that signing up puts them on it and the form stays available. If there is no waiting list, only the notice is shown and the form is hidden. Both texts can be edited in the event's settings and translated per language; leaving them empty uses the default wording.
+
+### Fixed
+- When a registration was refused because no seats were left, the form came back empty. It now keeps everything the visitor had typed.
+
 ### Removed
 - The English translation files have been dropped. They had not been kept up to date for months, so a visitor on an English-language site already saw a mixture of English and Polish. Everything is now shown in Polish, consistently. Nothing changes on a Polish site.
 
