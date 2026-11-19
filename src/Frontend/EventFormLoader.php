@@ -85,6 +85,20 @@ final class EventFormLoader {
 	}
 
 	/**
+	 * Zwraca ustawienia eventu z nałożonym overlayem komunikatów bieżącego języka.
+	 *
+	 * @param int $event_id ID posta eventu.
+	 *
+	 * @return array<string,mixed>
+	 */
+	public function settings( int $event_id ): array {
+		$config   = $this->config->get( $event_id );
+		$settings = is_array( $config['settings'] ) ? $config['settings'] : array();
+
+		return ( new ContentTranslator() )->translateNotices( $settings, $this->config->getI18n( $event_id ), CurrentLanguage::get() );
+	}
+
+	/**
 	 * Zwraca konfigurację eventu z nałożonym overlayem językowym — w kształcie, w jakim
 	 * trafia do SchemaAssembler. Jedno miejsce, w którym powstaje przetłumaczona konfiguracja.
 	 *

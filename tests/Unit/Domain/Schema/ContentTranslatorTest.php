@@ -265,4 +265,41 @@ final class ContentTranslatorTest extends TestCase {
 		$this->assertSame( '   ', $spaces['companion_note'] );
 		$this->assertSame( '', $missing['companion_note'] ?? '' );
 	}
+
+	private function notices(): array {
+		return array( 'global_cap' => 10, 'full_waitlist_notice' => 'Lista PL', 'full_closed_notice' => 'Zamknięte PL' );
+	}
+
+	public function test_translate_notices_overlay_wins(): void {
+		$overlay = array( 'en' => array( 'notices' => array( 'full_waitlist' => 'Waitlist EN', 'full_closed' => 'Closed EN' ) ) );
+		$out     = ( new ContentTranslator() )->translateNotices( $this->notices(), $overlay, 'en' );
+		$this->assertSame( 'Waitlist EN', $out['full_waitlist_notice'] );
+		$this->assertSame( 'Closed EN', $out['full_closed_notice'] );
+	}
+
+	public function test_translate_notices_blank_overlay_falls_back_to_base(): void {
+		$overlay = array( 'en' => array( 'notices' => array( 'full_waitlist' => '  ', 'full_closed' => '' ) ) );
+		$out     = ( new ContentTranslator() )->translateNotices( $this->notices(), $overlay, 'en' );
+		$this->assertSame( 'Lista PL', $out['full_waitlist_notice'] );
+		$this->assertSame( 'Zamknięte PL', $out['full_closed_notice'] );
+	}
+
+	public function test_translate_notices_other_language_does_not_leak(): void {
+		$overlay = array( 'de' => array( 'notices' => array( 'full_closed' => 'Geschlossen' ) ) );
+		$out     = ( new ContentTranslator() )->translateNotices( $this->notices(), $overlay, 'en' );
+		$this->assertSame( $this->notices(), $out );
+	}
+
+	public function test_translate_notices_empty_lang_returns_settings(): void {
+		$overlay = array( 'en' => array( 'notices' => array( 'full_closed' => 'Closed EN' ) ) );
+		$out     = ( new ContentTranslator() )->translateNotices( $this->notices(), $overlay, '' );
+		$this->assertSame( $this->notices(), $out );
+	}
+
+	public function test_translate_notices_leaves_other_settings_untouched(): void {
+		$overlay = array( 'en' => array( 'notices' => array( 'full_closed' => 'Closed EN' ) ) );
+		$out     = ( new ContentTranslator() )->translateNotices( $this->notices(), $overlay, 'en' );
+		$this->assertSame( 10, $out['global_cap'] );
+		$this->assertSame( 'Lista PL', $out['full_waitlist_notice'] );
+	}
 }

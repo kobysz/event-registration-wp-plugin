@@ -123,6 +123,38 @@ final class ContentTranslator {
 	}
 
 	/**
+	 * Zwraca ustawienia eventu z nałożonymi tłumaczeniami komunikatów „event pełny”.
+	 * Brak języka / bucketu / pusty (po trim) override → wartość bazowa. Pozostałe klucze nietknięte.
+	 * Domyślne teksty nie żyją tu (domena bez WP/i18n) — dostarcza je warstwa prezentacji.
+	 *
+	 * @param array<string,mixed> $settings Surowe ustawienia eventu.
+	 * @param array<string,mixed> $overlay  Mapa lang → nadpisania.
+	 * @param string              $lang     Slug języka (pusty = baza).
+	 *
+	 * @return array<string,mixed>
+	 */
+	public function translateNotices( array $settings, array $overlay, string $lang ): array {
+		if ( '' === $lang || ! isset( $overlay[ $lang ]['notices'] ) || ! is_array( $overlay[ $lang ]['notices'] ) ) {
+			return $settings;
+		}
+
+		$notices = $overlay[ $lang ]['notices'];
+		$map     = array(
+			'full_waitlist' => 'full_waitlist_notice',
+			'full_closed'   => 'full_closed_notice',
+		);
+
+		foreach ( $map as $overlay_key => $settings_key ) {
+			$value = isset( $notices[ $overlay_key ] ) && is_string( $notices[ $overlay_key ] ) ? $notices[ $overlay_key ] : '';
+			if ( '' !== trim( $value ) ) {
+				$settings[ $settings_key ] = $value;
+			}
+		}
+
+		return $settings;
+	}
+
+	/**
 	 * Pusty przypis = pusty po zdekodowaniu encji i wycięciu tagów (`&nbsp;`, `<p></p>`).
 	 * Ta sama reguła żyje w FormRenderer::isBlankNote — domena nie sięga po funkcje WP,
 	 * więc to świadoma kopia, nie współdzielenie.

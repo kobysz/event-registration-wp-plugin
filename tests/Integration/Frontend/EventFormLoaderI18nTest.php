@@ -182,4 +182,16 @@ final class EventFormLoaderI18nTest extends WP_UnitTestCase {
 		}
 		return '';
 	}
+
+	public function test_settings_applies_notice_overlay_for_current_language(): void {
+		$repo = new EventConfigRepository();
+		$repo->save( $this->event_id, array( 'settings' => array( 'full_closed_notice' => 'Zamknięte' ) ) );
+		$repo->saveI18n( $this->event_id, array( 'en' => array( 'notices' => array( 'full_closed' => 'Closed' ) ) ) );
+		$loader = new EventFormLoader( new EventConfigRepository() );
+
+		$this->assertSame( 'Zamknięte', $loader->settings( $this->event_id )['full_closed_notice'] );
+
+		add_filter( 'evreg_current_language', static fn (): string => 'en' );
+		$this->assertSame( 'Closed', $loader->settings( $this->event_id )['full_closed_notice'] );
+	}
 }
