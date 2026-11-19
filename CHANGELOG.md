@@ -9,7 +9,7 @@ The section for each released version is published verbatim as the GitHub
 Release body and shown under "View details" in the WordPress plugins screen,
 so keep entries user-facing and concise.
 
-## [Unreleased]
+## [0.2.7] - 2026-11-19
 
 ### Fixed
 - The occupancy panel no longer understates how full an event is. When companions count towards the event limit, the "Taking a seat" row counts them, the way the registration form has always counted them when accepting a registration. An event with 100 registrations and 47 companions and a limit of 180 used to report 80 seats free while registrations were in fact going to stop 47 people earlier; it now reports 33. The companions are still listed separately underneath. Nothing changes for an event where companions do not take a seat.
@@ -191,7 +191,8 @@ so keep entries user-facing and concise.
 ### Added
 - Initial internal release covering the full roadmap: event configuration (custom post type, REST API, React admin), public registration form with transactional seat reservation and double opt-in, transactional mail queue with templates and an admin queue screen, submissions panel with lifecycle actions, answer editing and CSV export, data-lifecycle/compliance tooling (gated uninstall, WordPress privacy export/erase), and self-hosted auto-update from GitHub Releases.
 
-[Unreleased]: https://github.com/kobysz/event-registration-wp-plugin/compare/v0.2.6...HEAD
+[Unreleased]: https://github.com/kobysz/event-registration-wp-plugin/compare/v0.2.7...HEAD
+[0.2.7]: https://github.com/kobysz/event-registration-wp-plugin/releases/tag/v0.2.7
 [0.2.6]: https://github.com/kobysz/event-registration-wp-plugin/releases/tag/v0.2.6
 [0.2.5]: https://github.com/kobysz/event-registration-wp-plugin/releases/tag/v0.2.5
 [0.2.4]: https://github.com/kobysz/event-registration-wp-plugin/releases/tag/v0.2.4
