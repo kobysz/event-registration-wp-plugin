@@ -38,6 +38,45 @@ final class RegistrationsListTableTest extends WP_UnitTestCase {
 		);
 	}
 
+	/**
+	 * Kolumna „Imię i nazwisko” składa nazwę z odpowiedzi, bo snapshot w kolumnie
+	 * `name` trzyma tylko jedno pole formularza.
+	 */
+	public function test_name_column_joins_given_name_and_surname(): void {
+		$id = $this->repository->insertRegistration(
+			array(
+				'event_id'    => 1,
+				'type_key'    => 'uczestnik',
+				'status'      => 'pending',
+				'email'       => 'jan@example.com',
+				'name'        => 'Jan',
+				'token'       => str_repeat( 'n', 32 ),
+				'data'        => (string) wp_json_encode(
+					array(
+						'imie'     => 'Jan',
+						'nazwisko' => 'Kowalski',
+					)
+				),
+				'price_total' => 0.0,
+				'expires_at'  => null,
+			)
+		);
+
+		$row   = $this->repository->findById( $id );
+		$table = new RegistrationsListTable();
+
+		$this->assertSame( 'Jan Kowalski', $table->column_default( $row, 'name' ) );
+	}
+
+	public function test_name_column_falls_back_to_stored_snapshot(): void {
+		$this->seed( 'pending', str_repeat( 'f', 32 ) );
+
+		$table = new RegistrationsListTable();
+		$table->prepare_items();
+
+		$this->assertSame( 'Jan', $table->column_default( $table->items[0], 'name' ) );
+	}
+
 	public function test_columns_present(): void {
 		$table = new RegistrationsListTable();
 

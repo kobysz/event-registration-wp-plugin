@@ -9,6 +9,11 @@ The section for each released version is published verbatim as the GitHub
 Release body and shown under "View details" in the WordPress plugins screen,
 so keep entries user-facing and concise.
 
+## [Unreleased]
+
+### Fixed
+- The admin now shows the full name of a registrant whose form asks for the first name and the surname in two separate fields. The registration list, the registration detail screen and the CSV export used to show only whichever of the two came first, because the stored name is a snapshot of a single form field. The name is now composed from the answers whenever it is displayed, so it is right on registrations that were already saved, and no data is rewritten. Fields are recognised by the first word of their key (`imie`, `nazwisko`, `first_name`, `last_name`, `surname`, and suffixed variants such as `imie_uczestnika`), given names always precede surnames, and a form with a single name field is unaffected. The `{imie}` placeholder in e-mails is unchanged and still carries the first name alone.
+
 ## [0.2.8] - 2026-11-19
 
 ### Changed

@@ -9,6 +9,7 @@ declare( strict_types=1 );
 
 namespace EvReg\Admin;
 
+use EvReg\Domain\Registration\DisplayName;
 use EvReg\Domain\Registration\RegistrationStatus;
 use EvReg\Domain\Registration\RegistrationTypeCollection;
 use EvReg\Persistence\EventConfigRepository;
@@ -134,6 +135,10 @@ final class RegistrationsListTable extends \WP_List_Table {
 			return '' === $title ? '#' . (int) ( $item['event_id'] ?? 0 ) : esc_html( $title );
 		}
 
+		if ( 'name' === $column ) {
+			return esc_html( self::display_name( $item ) );
+		}
+
 		return esc_html( (string) ( $item[ $column ] ?? '' ) );
 	}
 
@@ -252,6 +257,21 @@ final class RegistrationsListTable extends \WP_List_Table {
 		submit_button( __( 'Filtruj', 'event-registration' ), '', 'filter_action', false );
 
 		echo '</div>';
+	}
+
+	/**
+	 * Składa nazwę zgłaszającego się z odpowiedzi; fallback: snapshot z kolumny `name`.
+	 *
+	 * Kolumna trzyma tylko jedno pole, więc formularz z osobnym imieniem i
+	 * nazwiskiem wymaga złożenia nazwy przy wyświetlaniu (patrz DisplayName).
+	 *
+	 * @param array<string,mixed> $item Wiersz zgłoszenia.
+	 */
+	public static function display_name( array $item ): string {
+		$stored  = (string) ( $item['name'] ?? '' );
+		$decoded = json_decode( (string) ( $item['data'] ?? '' ), true );
+
+		return is_array( $decoded ) ? DisplayName::compose( $decoded, $stored ) : $stored;
 	}
 
 	/**

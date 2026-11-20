@@ -119,7 +119,7 @@ final class RegistrationView {
 
 		echo '<table class="widefat striped"><tbody>';
 		$this->detail_row( __( 'Status', 'event-registration' ), RegistrationsListTable::status_label( (string) $row['status'] ) );
-		$this->detail_row( __( 'Imię i nazwisko', 'event-registration' ), (string) $row['name'] );
+		$this->detail_row( __( 'Imię i nazwisko', 'event-registration' ), RegistrationsListTable::display_name( $row ) );
 		$this->detail_row( __( 'E-mail', 'event-registration' ), (string) $row['email'] );
 		$this->detail_row( __( 'Typ', 'event-registration' ), $this->type_label( $event_id, (string) $row['type_key'] ) );
 		$this->detail_row( __( 'Kwota', 'event-registration' ), (string) $row['price_total'] );

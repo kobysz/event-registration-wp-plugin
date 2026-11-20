@@ -95,7 +95,7 @@ final class RegistrationsExporter {
 				RegistrationsListTable::status_label( (string) $row['status'] ),
 				null === $type ? (string) $row['type_key'] : $type->label,
 				(string) $row['email'],
-				(string) $row['name'],
+				RegistrationsListTable::display_name( $row ),
 				number_format( (float) $row['price_total'], 2, '.', '' ),
 				(string) $row['created_at'],
 				(string) ( $row['confirmed_at'] ?? '' ),

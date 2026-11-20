@@ -127,6 +127,36 @@ final class RegistrationsDetailBookingTest extends WP_UnitTestCase {
 		return (string) ob_get_clean();
 	}
 
+	/**
+	 * Wiersz „Imię i nazwisko” na detalu składa nazwę z odpowiedzi — snapshot w
+	 * kolumnie `name` trzyma tylko jedno pole formularza.
+	 */
+	public function test_detail_joins_given_name_and_surname(): void {
+		$id = $this->repository->insertRegistration(
+			array(
+				'event_id'    => $this->event_id,
+				'type_key'    => 'uczestnik',
+				'status'      => 'confirmed',
+				'email'       => 'jan@example.com',
+				'name'        => 'Jan',
+				'token'       => str_repeat( 'd', 32 ),
+				'data'        => (string) wp_json_encode(
+					array(
+						'__type'   => 'uczestnik',
+						'imie'     => 'Jan',
+						'nazwisko' => 'Kowalski',
+					)
+				),
+				'price_total' => 0.0,
+				'expires_at'  => null,
+			)
+		);
+
+		$html = $this->renderDetail( $id );
+
+		$this->assertStringContainsString( '<td>Jan Kowalski</td>', $html );
+	}
+
 	public function test_detail_shows_accommodation_labels_not_raw_keys(): void {
 		$id = $this->seed(
 			array(

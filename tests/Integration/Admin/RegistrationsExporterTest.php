@@ -87,6 +87,39 @@ final class RegistrationsExporterTest extends WP_UnitTestCase {
 		);
 	}
 
+	/**
+	 * Kolumna tożsamości „Imię i nazwisko” składa nazwę z odpowiedzi, żeby eksport
+	 * nie mówił czegoś innego niż lista zgłoszeń.
+	 */
+	public function test_buildCsv_identity_name_joins_given_name_and_surname(): void {
+		$row = $this->row(
+			array(
+				'name' => 'Jan',
+				'data' => wp_json_encode(
+					array(
+						'mail'     => 'a@b.pl',
+						'imie'     => 'Jan',
+						'nazwisko' => 'Kowalski',
+						'dni'      => array(),
+					)
+				),
+			)
+		);
+
+		$csv = ( new RegistrationsExporter() )->buildCsv(
+			$this->schema(),
+			$this->accommodation(),
+			$this->types(),
+			array( $row ),
+			array()
+		);
+
+		$lines = explode( "
+", trim( substr( $csv, 3 ) ) );
+
+		$this->assertStringContainsString( 'Jan Kowalski', $lines[1] );
+	}
+
 	public function test_buildCsv_full_row_header_and_values(): void {
 		$row     = $this->row( array( 'companion_name' => 'Jan T.' ) );
 		$booking = array(
