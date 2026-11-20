@@ -9,7 +9,7 @@ The section for each released version is published verbatim as the GitHub
 Release body and shown under "View details" in the WordPress plugins screen,
 so keep entries user-facing and concise.
 
-## [Unreleased]
+## [0.2.9] - 2026-11-20
 
 ### Fixed
 - The admin now shows the full name of a registrant whose form asks for the first name and the surname in two separate fields. The registration list, the registration detail screen and the CSV export used to show only whichever of the two came first, because the stored name is a snapshot of a single form field. The name is now composed from the answers whenever it is displayed, so it is right on registrations that were already saved, and no data is rewritten. Fields are recognised by the first word of their key (`imie`, `nazwisko`, `first_name`, `last_name`, `surname`, and suffixed variants such as `imie_uczestnika`), given names always precede surnames, and a form with a single name field is unaffected. The `{imie}` placeholder in e-mails is unchanged and still carries the first name alone.
@@ -201,7 +201,8 @@ so keep entries user-facing and concise.
 ### Added
 - Initial internal release covering the full roadmap: event configuration (custom post type, REST API, React admin), public registration form with transactional seat reservation and double opt-in, transactional mail queue with templates and an admin queue screen, submissions panel with lifecycle actions, answer editing and CSV export, data-lifecycle/compliance tooling (gated uninstall, WordPress privacy export/erase), and self-hosted auto-update from GitHub Releases.
 
-[Unreleased]: https://github.com/kobysz/event-registration-wp-plugin/compare/v0.2.8...HEAD
+[Unreleased]: https://github.com/kobysz/event-registration-wp-plugin/compare/v0.2.9...HEAD
+[0.2.9]: https://github.com/kobysz/event-registration-wp-plugin/releases/tag/v0.2.9
 [0.2.8]: https://github.com/kobysz/event-registration-wp-plugin/releases/tag/v0.2.8
 [0.2.7]: https://github.com/kobysz/event-registration-wp-plugin/releases/tag/v0.2.7
 [0.2.6]: https://github.com/kobysz/event-registration-wp-plugin/releases/tag/v0.2.6
